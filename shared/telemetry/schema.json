@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SCARATelemetrySchema",
+  "description": "Single Source of Truth for SCARA Robot HMI and Firmware Communication Protocols",
+  "packets": {
+    "D": {
+      "name": "DSample",
+      "description": "Real-time dynamic telemetry loop packet (500 Hz inside firmware, downsampled to 50 Hz on HMI)",
+      "fields": [
+        { "name": "t", "type": "uint32_t", "tsType": "number", "precision": 0, "description": "Timestamp in milliseconds" },
+        { "name": "th1", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 1 actual position (rad)" },
+        { "name": "th2", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 actual position (rad)" },
+        { "name": "th1d", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 1 desired position (rad)" },
+        { "name": "th2d", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 desired position (rad)" },
+        { "name": "v1", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 1 actual velocity (rad/s)" },
+        { "name": "v2", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 actual velocity (rad/s)" },
+        { "name": "v1d", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 1 desired velocity (rad/s)" },
+        { "name": "v2d", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 desired velocity (rad/s)" },
+        { "name": "pwm1", "type": "int", "tsType": "number", "precision": 0, "description": "Joint 1 applied control effort/PWM (-255..255)" },
+        { "name": "th1_raw", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 1 raw ADC position before filter (rad)" },
+        { "name": "th2_raw", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 raw ADC position before filter (rad)" }
+      ]
+    },
+    "G": {
+      "name": "Gains",
+      "description": "PID controller gains and feedforward configuration parameters",
+      "fields": [
+        { "name": "kp1", "type": "float", "tsType": "number", "precision": 4, "description": "Proportional gain J1" },
+        { "name": "ki1", "type": "float", "tsType": "number", "precision": 4, "description": "Integral gain J1" },
+        { "name": "kd1", "type": "float", "tsType": "number", "precision": 4, "description": "Derivative gain J1" },
+        { "name": "kp2", "type": "float", "tsType": "number", "precision": 4, "description": "Proportional gain J2" },
+        { "name": "ki2", "type": "float", "tsType": "number", "precision": 4, "description": "Integral gain J2" },
+        { "name": "kd2", "type": "float", "tsType": "number", "precision": 4, "description": "Derivative gain J2" },
+        { "name": "mstep", "type": "int", "tsType": "1 | 2 | 4 | 8 | 16", "precision": 0, "description": "Stepper driver microstepping configuration" },
+        { "name": "ff1", "type": "float", "tsType": "number", "precision": 3, "description": "Inertia Feedforward component blend factor" },
+        { "name": "ff2", "type": "float", "tsType": "number", "precision": 3, "description": "Coriolis/Centrifugal Feedforward component blend factor" },
+        { "name": "ff3", "type": "float", "tsType": "number", "precision": 3, "description": "Gravity Feedforward component blend factor" }
+      ]
+    },
+    "K": {
+      "name": "AdvParams",
+      "description": "Advanced physical limits, filter settings, and deadband thresholds",
+      "fields": [
+        { "name": "vmax", "type": "float", "tsType": "number", "precision": 3, "description": "Maximum velocity (rad/s)" },
+        { "name": "amax", "type": "float", "tsType": "number", "precision": 3, "description": "Maximum acceleration (rad/s^2)" },
+        { "name": "cfreq", "type": "int", "tsType": "number", "precision": 0, "description": "Control loop run frequency (Hz)" },
+        { "name": "u1max", "type": "float", "tsType": "number", "precision": 2, "description": "Maximum torque limit" },
+        { "name": "fzt", "type": "float", "tsType": "number", "precision": 3, "description": "Fractional zero threshold" },
+        { "name": "pwm_db", "type": "int", "tsType": "number", "precision": 0, "description": "PWM deadband offset" },
+        { "name": "td1r", "type": "float", "tsType": "number", "precision": 2, "description": "Tracking Differentiator J1 Bandwidth r" },
+        { "name": "td2r", "type": "float", "tsType": "number", "precision": 2, "description": "Tracking Differentiator J2 Bandwidth r" },
+        { "name": "td1h", "type": "float", "tsType": "number", "precision": 4, "description": "Tracking Differentiator Step Size h" },
+        { "name": "ddth", "type": "float", "tsType": "number", "precision": 1, "description": "Maximum joint speed derivative threshold" },
+        { "name": "dben", "type": "float", "tsType": "number", "precision": 3, "description": "Deadband engage limit" },
+        { "name": "dbrel", "type": "float", "tsType": "number", "precision": 3, "description": "Deadband release limit" },
+        { "name": "dbvel", "type": "float", "tsType": "number", "precision": 3, "description": "Deadband velocity threshold" },
+        { "name": "hskp", "type": "float", "tsType": "number", "precision": 2, "description": "Hold scale Kp multiplier" },
+        { "name": "hskd", "type": "float", "tsType": "number", "precision": 2, "description": "Hold scale Kd multiplier" },
+        { "name": "idecay", "type": "float", "tsType": "number", "precision": 4, "description": "Integral decay rate" },
+        { "name": "taunom", "type": "float", "tsType": "number", "precision": 5, "description": "Nominal torque joint 1" },
+        { "name": "m22ref", "type": "float", "tsType": "number", "precision": 8, "description": "M22 reference component parameter" },
+        { "name": "alpha_tilt", "type": "float", "tsType": "number", "precision": 3, "description": "Tilt angle in degrees" },
+        { "name": "td_enabled", "type": "int", "tsType": "number", "precision": 0, "description": "Is tracking differentiator filter enabled" },
+        { "name": "trap_enabled", "type": "int", "tsType": "number", "precision": 0, "description": "Is trapezoidal trajectory profiling enabled" },
+        { "name": "ki2_gate", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 Ki activation gate (rad)" },
+        { "name": "db2en", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 deadband engage limit (rad)" },
+        { "name": "db2rel", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 deadband release limit (rad)" }
+      ]
+    }
+  }
+}

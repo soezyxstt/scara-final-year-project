@@ -1,0 +1,11 @@
+{
+  "name": "scara-firmware",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PlatformIO firmware for SCARA 2-DOF robot",
+  "scripts": {
+    "build": ".venv\\Scripts\\pio.exe run",
+    "upload": ".venv\\Scripts\\pio.exe run --target upload",
+    "monitor": ".venv\\Scripts\\pio.exe device monitor"
+  }
+}

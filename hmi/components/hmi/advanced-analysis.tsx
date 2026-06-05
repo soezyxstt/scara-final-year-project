@@ -1,0 +1,964 @@
+'use client'
+
+import { useMemo, useState, useEffect } from 'react'
+import { useHMISlow } from '@/lib/hmi-context'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { Maximize2, Minimize2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend,
+} from 'recharts'
+import type { DSample, TPoint, ESample } from '@/lib/hmi-types'
+
+const GRID = 'rgba(255, 255, 255, 0.05)'
+const AT = {
+  fill: '#9CA3AF',
+  fontSize: 9,
+  fontFamily: 'var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif',
+  fontWeight: 500,
+}
+const AL = { stroke: '#1F2937' } // Matches --color-hmi-grid
+const TS = {
+  backgroundColor: 'rgba(17, 24, 39, 0.9)',
+  backdropFilter: 'blur(8px)',
+  border: '1px solid #1F2937',
+  borderRadius: '6px',
+  color: '#F3F4F6',
+  fontFamily: 'var(--font-geist-sans), sans-serif',
+  fontSize: '11px',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+}
+
+// Simple DFT — limit input to 512 points
+function dft(signal: number[]): { k: number; mag: number }[] {
+  const N = Math.min(signal.length, 512)
+  const s = signal.slice(0, N)
+  const out: { k: number; mag: number }[] = []
+  for (let k = 0; k < N / 2; k++) {
+    let re = 0, im = 0
+    for (let n = 0; n < N; n++) {
+      const angle = (2 * Math.PI * k * n) / N
+      re += s[n] * Math.cos(angle)
+      im -= s[n] * Math.sin(angle)
+    }
+    out.push({ k, mag: Math.sqrt(re * re + im * im) / N })
+  }
+  return out
+}
+
+type FFTSignal = 'eef' | 'th1' | 'th2'
+
+function extractSignal(key: FFTSignal, d: DSample[], t: TPoint[]): number[] {
+  if (key === 'eef') return t.map(p => Math.sqrt((p.xi - p.xa) ** 2 + (p.yi - p.ya) ** 2))
+  if (key === 'th1') return d.map(s => s.th1)
+  return d.map(s => s.th2)
+}
+
+export function FFTSection({
+  width,
+  height,
+  defaultSignal,
+}: {
+  width?: number
+  height?: number
+  defaultSignal?: FFTSignal
+}) {
+  const { state } = useHMISlow()
+  const [isFocused, setIsFocused] = useState(false)
+  const [sig, setSig] = useState<FFTSignal>(defaultSignal ?? 'eef')
+
+  // Listen for Escape key to close focus
+  useEffect(() => {
+    if (!isFocused) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFocused(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isFocused])
+
+  const fftData = useMemo(() => {
+    const signal = extractSignal(sig, state.frozenD, state.frozenT)
+    return dft(signal)
+  }, [sig, state.frozenD, state.frozenT])
+
+  const chart = (
+    <LineChart data={fftData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
+      <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+      <XAxis 
+        dataKey="k" 
+        tick={AT} 
+        axisLine={AL} 
+        tickLine={false}
+        label={{ 
+          value: 'freq bin', 
+          position: 'insideBottom', 
+          offset: -2, 
+          fill: '#9CA3AF', 
+          fontSize: 9,
+          fontFamily: 'var(--font-geist-sans), sans-serif',
+          fontWeight: 600
+        }} 
+      />
+      <YAxis 
+        tick={AT} 
+        axisLine={AL} 
+        tickLine={false}
+        label={{ 
+          value: 'magnitude', 
+          angle: -90, 
+          position: 'insideLeft', 
+          offset: 8,
+          fill: '#9CA3AF', 
+          fontSize: 9,
+          fontFamily: 'var(--font-geist-sans), sans-serif',
+          fontWeight: 600
+        }} 
+      />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
+      <Line type="linear" dataKey="mag" stroke={sig === 'th1' ? '#2196F3' : sig === 'th2' ? '#FF9800' : '#06B6D4'} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+    </LineChart>
+  )
+
+  if (width !== undefined && height !== undefined) return chart
+
+  return (
+    <Card 
+      className={cn(
+        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        isFocused 
+          ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
+          : "relative cursor-zoom-in hover:border-hmi-ideal/30"
+      )}
+      onClick={(e) => {
+        if (isFocused) return
+        const target = e.target as HTMLElement
+        if (
+          target.closest('button') ||
+          target.closest('select') ||
+          target.closest('[role="tab"]') ||
+          target.closest('[role="combobox"]') ||
+          target.closest('a') ||
+          target.closest('input')
+        ) {
+          return
+        }
+        setIsFocused(true)
+      }}
+    >
+      <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+              Frequency Content (FFT)
+            </CardTitle>
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={sig} onValueChange={v => setSig(v as FFTSignal)}>
+              <SelectTrigger className="w-28 h-6 text-xs bg-slate-900 border-slate-800 text-slate-300">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="eef">EEF error</SelectItem>
+                <SelectItem value="th1">θ1</SelectItem>
+                <SelectItem value="th2">θ2</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {isFocused && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsFocused(false)
+                }}
+              >
+                <Minimize2 className="h-4 w-4" />
+                Exit Focus
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+
+      {/* Maximize button overlay (visible on hover) */}
+      {!isFocused && (
+        <button
+          className="absolute top-2 right-32 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsFocused(true)
+          }}
+          title="Focus Graph"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
+
+      <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
+        {state.frozenD.length === 0 ? (
+          <p className="text-xs text-hmi-muted">No data.</p>
+        ) : (
+          <>
+            <p className="text-[11px] text-hmi-muted mb-2 font-medium shrink-0">
+              Peaks above ~10 Hz are typically potentiometer noise, not structural dynamics.
+              (X axis is frequency bin — scale by tick rate when known.)
+            </p>
+            <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+              <ResponsiveContainer width="100%" height="100%">
+                {chart}
+              </ResponsiveContainer>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+export function ControlEffortSection({
+  width,
+  height,
+}: {
+  width?: number
+  height?: number
+}) {
+  const { state } = useHMISlow()
+  const [isFocused, setIsFocused] = useState(false)
+
+  // Listen for Escape key to close focus
+  useEffect(() => {
+    if (!isFocused) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFocused(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isFocused])
+
+  const data = useMemo(() => {
+    let cum = 0
+    const result = []
+    for (let i = 0; i < state.frozenD.length; i++) {
+      cum += Math.abs(state.frozenD[i].pwm1)
+      result.push({ idx: state.frozenD[i].idx, effort: cum })
+    }
+    return result
+  }, [state.frozenD])
+
+  const chart = (
+    <AreaChart data={data} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
+      <defs>
+        <linearGradient id="effortGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
+          <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
+        </linearGradient>
+      </defs>
+      <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+      <XAxis dataKey="idx" tick={AT} axisLine={AL} tickLine={false} />
+      <YAxis 
+        tick={AT} 
+        axisLine={AL} 
+        tickLine={false}
+        label={{ 
+          value: 'cumulative', 
+          angle: -90, 
+          position: 'insideLeft', 
+          offset: 8,
+          fill: '#9CA3AF', 
+          fontSize: 9,
+          fontFamily: 'var(--font-geist-sans), sans-serif',
+          fontWeight: 600
+        }} 
+      />
+      <Tooltip contentStyle={TS} />
+      <Area type="linear" dataKey="effort" stroke="#10B981" fill="url(#effortGradient)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+    </AreaChart>
+  )
+
+  if (width !== undefined && height !== undefined) return chart
+
+  return (
+    <Card 
+      className={cn(
+        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        isFocused 
+          ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
+          : "relative cursor-zoom-in hover:border-hmi-ideal/30"
+      )}
+      onClick={(e) => {
+        if (isFocused) return
+        const target = e.target as HTMLElement
+        if (
+          target.closest('button') ||
+          target.closest('select') ||
+          target.closest('[role="tab"]') ||
+          target.closest('[role="combobox"]') ||
+          target.closest('a') ||
+          target.closest('input')
+        ) {
+          return
+        }
+        setIsFocused(true)
+      }}
+    >
+      <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+              Control Effort Proxy (∫|PWM| dt)
+            </CardTitle>
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+          </div>
+          {isFocused && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsFocused(false)
+              }}
+            >
+              <Minimize2 className="h-4 w-4" />
+              Exit Focus
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      {/* Maximize button overlay (visible on hover) */}
+      {!isFocused && (
+        <button
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsFocused(true)
+          }}
+          title="Focus Graph"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
+
+      <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
+        {data.length === 0 ? (
+          <p className="text-xs text-hmi-muted">No data.</p>
+        ) : (
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+            <ResponsiveContainer width="100%" height="100%">
+              {chart}
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function localDownsample<T>(arr: T[], max = 500): T[] {
+  if (arr.length <= max) return arr
+  const step = Math.ceil(arr.length / max)
+  return arr.filter((_, i) => i % step === 0)
+}
+
+// ─── 3. CTC Feedforward Torques ──────────────────────────────────────────────
+export function CTCTorqueSection({
+  width,
+  height,
+}: {
+  width?: number
+  height?: number
+}) {
+  const { state } = useHMISlow()
+  const [isFocused, setIsFocused] = useState(false)
+
+  useEffect(() => {
+    if (!isFocused) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFocused(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isFocused])
+
+  const chartData = useMemo(() => {
+    if (!state.frozenF || state.frozenF.length === 0) return []
+    const firstT = state.frozenF[0].t
+    return localDownsample(
+      state.frozenF.map((f) => ({
+        t: (f.t - firstT) / 1000,
+        inertia1: f.inertia1,
+        coriolis1: f.coriolis1,
+        gravity1: f.gravity1,
+        inertia2: f.inertia2,
+        coriolis2: f.coriolis2,
+        gravity2: f.gravity2,
+      }))
+    )
+  }, [state.frozenF])
+
+  const chart = (
+    <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
+      <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Torque (N·m)', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
+      <Legend verticalAlign="top" height={32} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px' }} />
+      {/* Joint 1 Group */}
+      <Line type="linear" dataKey="inertia1" stroke="#2196F3" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J1 Inertia" />
+      <Line type="linear" dataKey="coriolis1" stroke="#00BCD4" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="J1 Coriolis" />
+      <Line type="linear" dataKey="gravity1" stroke="#3F51B5" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J1 Gravity" />
+      {/* Joint 2 Group */}
+      <Line type="linear" dataKey="inertia2" stroke="#FF9800" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 Inertia" />
+      <Line type="linear" dataKey="coriolis2" stroke="#FF5722" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="J2 Coriolis" />
+      <Line type="linear" dataKey="gravity2" stroke="#E91E63" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 Gravity" />
+    </LineChart>
+  )
+
+  if (width !== undefined && height !== undefined) return chart
+
+  return (
+    <Card 
+      className={cn(
+        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        isFocused 
+          ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
+          : "relative cursor-zoom-in hover:border-hmi-ideal/30"
+      )}
+      onClick={(e) => {
+        if (isFocused) return
+        const target = e.target as HTMLElement
+        if (target.closest('button') || target.closest('a') || target.closest('select')) return
+        setIsFocused(true)
+      }}
+    >
+      <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+              CTC Feedforward Torques
+            </CardTitle>
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+          </div>
+          {isFocused && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsFocused(false)
+              }}
+            >
+              <Minimize2 className="h-4 w-4" />
+              Exit Focus
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      {!isFocused && (
+        <button
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsFocused(true)
+          }}
+          title="Focus Graph"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
+
+      <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
+        {chartData.length === 0 ? (
+          <p className="text-xs text-hmi-muted italic">No CTC torque logging. Run a move to capture telemetry.</p>
+        ) : (
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+            <ResponsiveContainer width="100%" height="100%">
+              {chart}
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── 4. Joint 1 Control Internal Breakdown ──────────────────────────────────
+export function ControlInternalSection({
+  width,
+  height,
+}: {
+  width?: number
+  height?: number
+}) {
+  const { state } = useHMISlow()
+  const [isFocused, setIsFocused] = useState(false)
+
+  useEffect(() => {
+    if (!isFocused) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFocused(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isFocused])
+
+  const chartData = useMemo(() => {
+    if (!state.frozenF || state.frozenF.length === 0) return []
+    const firstT = state.frozenF[0].t
+    return localDownsample(
+      state.frozenF.map((f) => ({
+        t: (f.t - firstT) / 1000,
+        u1_total: f.u1Total,
+        ff1_contrib: f.ff1Contrib,
+        integral1: f.integral1,
+        integral2: f.integral2,
+      }))
+    )
+  }, [state.frozenF])
+
+  const chart = (
+    <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
+      <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Control effort', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
+      <Legend verticalAlign="top" height={20} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '2px' }} />
+      <Line type="linear" dataKey="u1_total" stroke="#4CAF50" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total PID Effort" />
+      <Line type="linear" dataKey="ff1_contrib" stroke="#9C27B0" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="FF Contribution" />
+      <Line type="linear" dataKey="integral1" stroke="#FFEB3B" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J1 Integrator Term" />
+      <Line type="linear" dataKey="integral2" stroke="#E91E63" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 Integrator Term" />
+    </LineChart>
+  )
+
+  if (width !== undefined && height !== undefined) return chart
+
+  return (
+    <Card 
+      className={cn(
+        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        isFocused 
+          ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
+          : "relative cursor-zoom-in hover:border-hmi-ideal/30"
+      )}
+      onClick={(e) => {
+        if (isFocused) return
+        const target = e.target as HTMLElement
+        if (target.closest('button') || target.closest('a') || target.closest('select')) return
+        setIsFocused(true)
+      }}
+    >
+      <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+              J1 Internal Control Signals
+            </CardTitle>
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+          </div>
+          {isFocused && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsFocused(false)
+              }}
+            >
+              <Minimize2 className="h-4 w-4" />
+              Exit Focus
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      {!isFocused && (
+        <button
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsFocused(true)
+          }}
+          title="Focus Graph"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
+
+      <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
+        {chartData.length === 0 ? (
+          <p className="text-xs text-hmi-muted italic">No internal control logging. Run a move to capture telemetry.</p>
+        ) : (
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+            <ResponsiveContainer width="100%" height="100%">
+              {chart}
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── 5. Stepper Commands J2 ──────────────────────────────────────────────────
+export function StepperVelocitySection({
+  width,
+  height,
+}: {
+  width?: number
+  height?: number
+}) {
+  const { state } = useHMISlow()
+  const [isFocused, setIsFocused] = useState(false)
+
+  useEffect(() => {
+    if (!isFocused) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFocused(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isFocused])
+
+  const chartData = useMemo(() => {
+    if (!state.frozenF || state.frozenF.length === 0) return []
+    const firstT = state.frozenF[0].t
+    return localDownsample(
+      state.frozenF.map((f) => ({
+        t: (f.t - firstT) / 1000,
+        omega2_raw: f.omega2Raw,
+        delta_omega_ff: f.deltaOmegaFf,
+      }))
+    )
+  }, [state.frozenF])
+
+  const chart = (
+    <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
+      <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Velocity (rad/s)', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
+      <Legend verticalAlign="top" height={20} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '2px' }} />
+      <Line type="linear" dataKey="omega2_raw" stroke="#FF9800" strokeWidth={1.5} dot={false} isAnimationActive={false} name="omega2 Command" />
+      <Line type="linear" dataKey="delta_omega_ff" stroke="#2196F3" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="Sync Deviation Correction" />
+    </LineChart>
+  )
+
+  if (width !== undefined && height !== undefined) return chart
+
+  return (
+    <Card 
+      className={cn(
+        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        isFocused 
+          ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
+          : "relative cursor-zoom-in hover:border-hmi-ideal/30"
+      )}
+      onClick={(e) => {
+        if (isFocused) return
+        const target = e.target as HTMLElement
+        if (target.closest('button') || target.closest('a') || target.closest('select')) return
+        setIsFocused(true)
+      }}
+    >
+      <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+              J2 Stepper Velocity Commands
+            </CardTitle>
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+          </div>
+          {isFocused && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsFocused(false)
+              }}
+            >
+              <Minimize2 className="h-4 w-4" />
+              Exit Focus
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      {!isFocused && (
+        <button
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsFocused(true)
+          }}
+          title="Focus Graph"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
+
+      <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
+        {chartData.length === 0 ? (
+          <p className="text-xs text-hmi-muted italic">No stepper command logging. Run a move to capture telemetry.</p>
+        ) : (
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+            <ResponsiveContainer width="100%" height="100%">
+              {chart}
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── 6. Joint 1 PID Effort Breakdown ──────────────────────────────────────────
+export function PIDBreakdownSection({
+  width,
+  height,
+}: {
+  width?: number
+  height?: number
+}) {
+  const { state } = useHMISlow()
+  const [isFocused, setIsFocused] = useState(false)
+
+  useEffect(() => {
+    if (!isFocused) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFocused(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isFocused])
+
+  const chartData = useMemo(() => {
+    if (!state.frozenE || state.frozenE.length === 0) return []
+    const firstT = state.frozenE[0].t
+    return localDownsample(
+      state.frozenE.map((e) => ({
+        t: (e.t - firstT) / 1000,
+        p1_out: e.p1_out,
+        i1_out: e.i1_out,
+        d1_out: e.d1_out,
+      }))
+    )
+  }, [state.frozenE])
+
+  const chart = (
+    <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
+      <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Output Effort', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
+      <Legend verticalAlign="top" height={20} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '2px' }} />
+      <Line type="linear" dataKey="p1_out" stroke="#3B82F6" strokeWidth={1.5} dot={false} name="P Out" isAnimationActive={false} />
+      <Line type="linear" dataKey="i1_out" stroke="#10B981" strokeWidth={1.5} dot={false} name="I Out" isAnimationActive={false} />
+      <Line type="linear" dataKey="d1_out" stroke="#EF4444" strokeWidth={1.5} dot={false} name="D Out" isAnimationActive={false} />
+    </LineChart>
+  )
+
+  if (width !== undefined && height !== undefined) return chart
+
+  return (
+    <Card 
+      className={cn(
+        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        isFocused 
+          ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
+          : "relative cursor-zoom-in hover:border-hmi-ideal/30"
+      )}
+      onClick={(e) => {
+        if (isFocused) return
+        const target = e.target as HTMLElement
+        if (target.closest('button') || target.closest('a') || target.closest('select')) return
+        setIsFocused(true)
+      }}
+    >
+      <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+              J1 PID Control Effort Breakdown
+            </CardTitle>
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+          </div>
+          {isFocused && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsFocused(false)
+              }}
+            >
+              <Minimize2 className="h-4 w-4" />
+              Exit Focus
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      {!isFocused && (
+        <button
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsFocused(true)
+          }}
+          title="Focus Graph"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
+
+      <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
+        {chartData.length === 0 ? (
+          <p className="text-xs text-hmi-muted italic">No PID telemetry. Run a move to capture telemetry.</p>
+        ) : (
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+            <ResponsiveContainer width="100%" height="100%">
+              {chart}
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── 7. Microcontroller Loop Execution Time ──────────────────────────────────
+export function LoopDurationSection({
+  width,
+  height,
+}: {
+  width?: number
+  height?: number
+}) {
+  const { state } = useHMISlow()
+  const [isFocused, setIsFocused] = useState(false)
+
+  useEffect(() => {
+    if (!isFocused) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFocused(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isFocused])
+
+  const chartData = useMemo(() => {
+    if (!state.frozenE || state.frozenE.length === 0) return []
+    const firstT = state.frozenE[0].t
+    return localDownsample(
+      state.frozenE.map((e) => ({
+        t: (e.t - firstT) / 1000,
+        loop_duration_us: e.loop_duration_us,
+      }))
+    )
+  }, [state.frozenE])
+
+  const chart = (
+    <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
+      <defs>
+        <linearGradient id="colorLoop" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.2}/>
+          <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
+        </linearGradient>
+      </defs>
+      <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Duration (µs)', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(1) : v} />
+      <Area type="monotone" dataKey="loop_duration_us" stroke="#8B5CF6" strokeWidth={1.5} fillOpacity={1} fill="url(#colorLoop)" name="Loop Duration (µs)" isAnimationActive={false} />
+    </AreaChart>
+  )
+
+  if (width !== undefined && height !== undefined) return chart
+
+  return (
+    <Card 
+      className={cn(
+        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        isFocused 
+          ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
+          : "relative cursor-zoom-in hover:border-hmi-ideal/30"
+      )}
+      onClick={(e) => {
+        if (isFocused) return
+        const target = e.target as HTMLElement
+        if (target.closest('button') || target.closest('a') || target.closest('select')) return
+        setIsFocused(true)
+      }}
+    >
+      <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+              Microcontroller Loop Execution Time
+            </CardTitle>
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+          </div>
+          {isFocused && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsFocused(false)
+              }}
+            >
+              <Minimize2 className="h-4 w-4" />
+              Exit Focus
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      {!isFocused && (
+        <button
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsFocused(true)
+          }}
+          title="Focus Graph"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
+
+      <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
+        {chartData.length === 0 ? (
+          <p className="text-xs text-hmi-muted italic">No loop duration telemetry. Run a move to capture telemetry.</p>
+        ) : (
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+            <ResponsiveContainer width="100%" height="100%">
+              {chart}
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+
+
