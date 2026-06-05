@@ -105,6 +105,7 @@ export interface Stats {
   mean_err: number
   final_err: number
   pwm_max: number
+  accuracy_idx: number
 }
 
 export type ESPMode = 'IDLE' | 'SCARA' | 'ZN' | 'TEST'

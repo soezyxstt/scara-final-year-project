@@ -2,25 +2,26 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useHMI } from '@/lib/hmi-context';
+import type { ESPMode } from '@/lib/hmi-types';
 
-const MODE_MAP: Record<string, string> = {
-  '/':     'mode,scara',
-  '/zn':   'mode,zn',
-  '/test': 'mode,test',
+const EXPECTED_MODE_MAP: Record<string, ESPMode> = {
+  '/':     'SCARA',
+  '/zn':   'ZN',
+  '/test': 'TEST',
 };
 
 export function ModeRouter() {
   const pathname = usePathname();
   const { state, serial } = useHMI();
-  const { serialStatus } = state;
+  const { serialStatus, currentMode } = state;
 
   useEffect(() => {
     if (serialStatus !== 'connected') return;
-    const cmd = MODE_MAP[pathname];
-    if (cmd) {
-      serial.sendCommand(cmd).catch(() => {});
+    const expectedMode = EXPECTED_MODE_MAP[pathname];
+    if (expectedMode && currentMode !== expectedMode) {
+      serial.sendCommand(`mode,${expectedMode.toLowerCase()}`).catch(() => {});
     }
-  }, [pathname, serialStatus, serial]);
+  }, [pathname, serialStatus, currentMode, serial]);
 
   return null;
 }

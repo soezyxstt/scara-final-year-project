@@ -27,6 +27,7 @@ import type {
   ZNSample,
 } from './hmi-types'
 import { parseDSample, parseGains, parseAdvParams } from './telemetry-types'
+import { computeCTEList, computeMCTE } from './cte-utils'
 
 const MAX_BUFFER = 2000
 const MAX_LOG_LINES = 100
@@ -124,19 +125,43 @@ function clearPersistedState() {
   } catch { /* ignore */ }
 }
 
-function eefErr(p: TPoint) {
-  return Math.sqrt((p.xi - p.xa) ** 2 + (p.yi - p.ya) ** 2)
-}
-
 function computeStats(tBuf: TPoint[], dBuf: DSample[]) {
-  const errs = tBuf.map(eefErr).filter((e) => e <= 170)
-  if (errs.length === 0) return null
+  if (tBuf.length === 0) return null
+  const ctes = computeCTEList(tBuf)
+  const validIndices = []
+  for (let i = 0; i < tBuf.length; i++) {
+    const p = tBuf[i]
+    const e = Math.sqrt((p.xi - p.xa) ** 2 + (p.yi - p.ya) ** 2)
+    if (e <= 170) {
+      validIndices.push(i)
+    }
+  }
+  if (validIndices.length === 0) return null
+
+  const filteredT = validIndices.map((i) => tBuf[i])
+  const filteredCtes = validIndices.map((i) => ctes[i])
+
+  const max_err = Math.max(...filteredCtes)
+  const mean_err = computeMCTE(filteredT, filteredCtes)
+  const final_err = filteredCtes[filteredCtes.length - 1]
+
+  // Compute total actual path length D
+  let totalDist = 0
+  for (let j = 0; j < filteredT.length - 1; j++) {
+    const dx = filteredT[j + 1].xa - filteredT[j].xa
+    const dy = filteredT[j + 1].ya - filteredT[j].ya
+    totalDist += Math.sqrt(dx * dx + dy * dy)
+  }
+
+  const accuracy_idx = totalDist > 0 ? 1 - mean_err / totalDist : 1.0
+
   return {
-    n: errs.length,
-    max_err: Math.max(...errs),
-    mean_err: errs.reduce((a, b) => a + b, 0) / errs.length,
-    final_err: errs[errs.length - 1],
+    n: validIndices.length,
+    max_err,
+    mean_err,
+    final_err,
     pwm_max: Math.max(...dBuf.map((d) => Math.abs(d.pwm1)), 0),
+    accuracy_idx,
   }
 }
 

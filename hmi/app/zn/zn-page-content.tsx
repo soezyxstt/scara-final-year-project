@@ -8,10 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Tooltip } from '@/components/ui/tooltip'
-import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useHeartbeat } from '@/hooks/use-heartbeat'
-import { useModeActivation } from '@/hooks/use-mode-activation'
 import { ModeBadge } from '@/components/mode-badge'
 
 function ZNTunerShell() {
@@ -19,8 +17,6 @@ function ZNTunerShell() {
   const { serialStatus, portName, online } = state
 
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const pathname = usePathname()
 
   // Clear ZN buffer from localStorage when the shell first renders (on page enter)
   // to prevent duplicate/overlapping signals from previous runs.

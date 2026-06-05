@@ -30,8 +30,8 @@
 // ------------------------------------------------------------
 
 #define LEDC_CHANNEL  0
-#define LEDC_FREQ     2000   // Hz
-#define LEDC_RES      10      // bits → duty 0–255
+#define LEDC_FREQ     1000   // Hz
+#define LEDC_RES      8      // bits → duty 0–255
 
 // ------------------------------------------------------------
 //  ROBOT GEOMETRY [m]
@@ -85,7 +85,7 @@ constexpr float STEPPER_MIN_HZ = 6.0f;
 //  PWM LIMITS
 // ------------------------------------------------------------
 
-constexpr int PWM_MAX = 1023;
+constexpr int PWM_MAX = 255;
 
 // ------------------------------------------------------------
 //  ADC CALIBRATION — potentiometer raw counts

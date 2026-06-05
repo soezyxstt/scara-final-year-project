@@ -146,7 +146,7 @@ namespace Params {
 
   float U1_MAX           = 1.0f;
   float FRAC_ZERO_THRESH = 0.01f;
-  int   PWM_DEADBAND     = 330;
+  int   PWM_DEADBAND     = 70;
 
   float DB_ENGAGE       = 0.008f;
   float DB_RELEASE      = 0.004f;
