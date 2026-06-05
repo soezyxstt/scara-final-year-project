@@ -38,6 +38,7 @@ void processSerialCommand(const char *cmd_raw) {
   }
   if (input == "resume") {
     estop_active = false;
+    Serial.println("ESTOP,0");
     Serial.println("SUCCESS: ESTOP cleared.");
     return;
   }
@@ -45,6 +46,11 @@ void processSerialCommand(const char *cmd_raw) {
   if (input == "getparams") { emitParams();    return; }
   if (input == "clrgraph") {
     Serial.println("SUCCESS: clrgraph acknowledged.");
+    return;
+  }
+  if (input.startsWith("plot,")) {
+    plot_enabled = (input.substring(5).toInt() != 0);
+    Serial.print("INFO: plot_enabled="); Serial.println(plot_enabled ? 1 : 0);
     return;
   }
 

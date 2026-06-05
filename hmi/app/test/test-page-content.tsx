@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useHMI } from '@/lib/hmi-context'
 import { MonitorTab } from '@/components/hmi/monitor-tab'
 import { AnalysisTab } from '@/components/hmi/analysis-tab'
@@ -21,21 +21,41 @@ type TestTab = 'monitor' | 'analysis' | 'rest' | 'params'
 
 function TestTunerShell() {
   const { state, serial } = useHMI()
-  const { serialStatus, portName, online } = state
+  const { serialStatus, portName, online, estopped } = state
 
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
 
-  const activeTab = (searchParams.get('tab') as TestTab) || 'monitor'
+  const [activeTab, setActiveTabState] = useState<TestTab>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      return (params.get('tab') as TestTab) || 'monitor'
+    }
+    return 'monitor'
+  })
 
-  const setActiveTab = (newTab: TestTab) => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('tab', newTab)
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-  }
+  const setActiveTab = useCallback((newTab: TestTab) => {
+    setActiveTabState(newTab)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      params.set('tab', newTab)
+      const newUrl = `${window.location.pathname}?${params.toString()}`
+      window.history.replaceState(null, '', newUrl)
+    }
+  }, [])
 
   useHeartbeat(serialStatus === 'connected')
+
+  // Reactively stream plot format on connect and handle cleanup
+  useEffect(() => {
+    if (serialStatus === 'connected') {
+      serial.sendCommand('plot,1').catch(() => {})
+      return () => {
+        serial.sendCommand('plot,0').catch(() => {})
+      }
+    }
+  }, [serialStatus, serial])
 
   useEffect(() => {
     const handleSwitchTab = (e: Event) => {
@@ -49,7 +69,7 @@ function TestTunerShell() {
     }
     window.addEventListener('hmi_switch_tab', handleSwitchTab)
     return () => window.removeEventListener('hmi_switch_tab', handleSwitchTab)
-  }, [searchParams, pathname, router])
+  }, [router, setActiveTab])
 
   const [lastPort, setLastPort] = useState('')
   useEffect(() => {
@@ -158,11 +178,19 @@ function TestTunerShell() {
               </Button>
             </Tooltip>
           )}
-          <Tooltip content="EMERGENCY STOP: Instantly halts all trajectory movements and cuts power to the joint motors." align="right">
-            <Button variant="estop" size="sm" onClick={() => serial.sendCommand('estop')}>
-              🛑 E-STOP
-            </Button>
-          </Tooltip>
+          {estopped ? (
+            <Tooltip content="RESUME: Clears the E-STOP state and re-enables motor outputs." align="right">
+              <Button variant="resume" size="sm" className="animate-pulse" onClick={() => serial.sendCommand('resume')}>
+                🔄 RESUME
+              </Button>
+            </Tooltip>
+          ) : (
+            <Tooltip content="EMERGENCY STOP: Instantly halts all trajectory movements and cuts power to the joint motors." align="right">
+              <Button variant="estop" size="sm" onClick={() => serial.sendCommand('estop')}>
+                🛑 E-STOP
+              </Button>
+            </Tooltip>
+          )}
           <CaptureMenu />
         </div>
       </header>

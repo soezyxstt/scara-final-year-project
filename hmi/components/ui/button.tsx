@@ -18,6 +18,8 @@ const buttonVariants = cva(
           'bg-transparent text-hmi-text hover:bg-hmi-btn',
         estop:
           'bg-hmi-estop text-white hover:bg-hmi-estop-hover font-bold',
+        resume:
+          'bg-hmi-ok text-white hover:bg-hmi-ok-hover font-bold',
       },
       size: {
         default: 'h-8 px-3 py-1',

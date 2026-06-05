@@ -155,6 +155,7 @@ void doEstop() {
   if (is_moving) emitStopPacket();
   estop_active = true;
   allOutputsOff();
+  Serial.println("ESTOP,1");
   Serial.println("WARN: ESTOP — all outputs zeroed.");
 }
 
@@ -172,6 +173,7 @@ void transitionToMode(OperatingMode new_mode) {
 
   allOutputsOff();
   estop_active = false;
+  Serial.println("ESTOP,0");
 
   // Seed desired to current measured position to avoid a step
   theta1_d = theta1;
@@ -274,5 +276,5 @@ void runControlLoop() {
   loop_duration_us = micros() - t_start;
 
   // 7. D-line to ring buffer (TX is handled by drainDLineBuffer in loop())
-  if (op_mode != MODE_IDLE) writeDLineToBuffer();
+  if (op_mode != MODE_IDLE && (plot_enabled || is_moving)) writeDLineToBuffer();
 }

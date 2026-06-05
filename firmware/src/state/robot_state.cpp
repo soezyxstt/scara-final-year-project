@@ -62,6 +62,8 @@ namespace RobotState {
   unsigned long last_serial_rx_ms = 0;
   unsigned long last_telemetry_ms = 0;
 
+  bool  plot_enabled = false;
+
   char    serial_buf[64] = {};
   uint8_t serial_idx     = 0;
 

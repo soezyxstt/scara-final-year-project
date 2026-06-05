@@ -145,15 +145,49 @@ function computeStats(tBuf: TPoint[], dBuf: DSample[]) {
   const mean_err = computeMCTE(filteredT, filteredCtes)
   const final_err = filteredCtes[filteredCtes.length - 1]
 
-  // Compute total actual path length D
+  // Compute longitudinal and lateral error components for filtered points
+  const eLats = filteredCtes // CTE is the lateral error
+  const eLongs = filteredT.map((p, idx) => {
+    const eTotal = Math.sqrt((p.xa - p.xi) ** 2 + (p.ya - p.yi) ** 2)
+    return Math.sqrt(Math.max(0, eTotal ** 2 - eLats[idx] ** 2))
+  })
+
+  // Integrate over distance to get average longitudinal and lateral errors
+  let areaLong = 0
+  let areaLat = 0
   let totalDist = 0
   for (let j = 0; j < filteredT.length - 1; j++) {
     const dx = filteredT[j + 1].xa - filteredT[j].xa
     const dy = filteredT[j + 1].ya - filteredT[j].ya
-    totalDist += Math.sqrt(dx * dx + dy * dy)
+    const ds = Math.sqrt(dx * dx + dy * dy)
+    
+    const longAvg = (eLongs[j] + eLongs[j + 1]) / 2
+    const latAvg = (eLats[j] + eLats[j + 1]) / 2
+    
+    areaLong += longAvg * ds
+    areaLat += latAvg * ds
+    totalDist += ds
   }
 
+  let MATE = 0
+  let MCTE = 0
+  if (totalDist > 0) {
+    MATE = areaLong / totalDist
+    MCTE = areaLat / totalDist
+  } else {
+    // Fallback: simple arithmetic averages
+    MATE = eLongs.reduce((a, b) => a + b, 0) / eLongs.length
+    MCTE = eLats.reduce((a, b) => a + b, 0) / eLats.length
+  }
+
+  const error_ratio = (MATE + MCTE) > 0 
+    ? MATE / (MATE + MCTE) 
+    : 0.5
+
   const accuracy_idx = totalDist > 0 ? 1 - mean_err / totalDist : 1.0
+  const elapsed_time = dBuf.length >= 2 
+    ? (dBuf[dBuf.length - 1].t - dBuf[0].t) / 1000 
+    : 0
 
   return {
     n: validIndices.length,
@@ -162,6 +196,10 @@ function computeStats(tBuf: TPoint[], dBuf: DSample[]) {
     final_err,
     pwm_max: Math.max(...dBuf.map((d) => Math.abs(d.pwm1)), 0),
     accuracy_idx,
+    MATE,
+    MCTE,
+    error_ratio,
+    elapsed_time,
   }
 }
 
@@ -193,7 +231,7 @@ function buildInitialState(): HMIState {
     serialStatus: 'disconnected',
     portName: null,
     online: typeof navigator !== 'undefined' ? navigator.onLine : true,
-    currentMode: 'IDLE',
+    currentMode: null,
     recordingState: persisted.recordingState ?? 'WAITING',
     moveCount: persisted.moveCount ?? 0,
     currentMove: persisted.currentMove ?? null,
@@ -216,6 +254,7 @@ function buildInitialState(): HMIState {
     previewTarget: null,
     bootPose: null,
     pickedTarget: null,
+    estopped: false,
   }
 }
 
@@ -228,12 +267,13 @@ function reducer(state: HMIState, action: HMIAction): HMIState {
         ...state,
         serialStatus: action.status,
         portName: action.portName ?? state.portName,
-        currentMode: action.status === 'disconnected' ? null : state.currentMode,
+        currentMode: action.status !== 'connected' ? null : state.currentMode,
         recordingState:
           action.status === 'disconnected' ? 'WAITING' : state.recordingState,
         bootPose: action.status === 'disconnected' ? null : state.bootPose,
         currentMove: action.status === 'disconnected' ? null : state.currentMove,
         hasSyncedParams: action.status === 'disconnected' ? false : state.hasSyncedParams,
+        estopped: action.status === 'disconnected' ? false : state.estopped,
       }
     case 'ONLINE_STATUS':
       return { ...state, online: action.online }
@@ -428,6 +468,11 @@ function reducer(state: HMIState, action: HMIAction): HMIState {
         ...state,
         pickedTarget: null,
       }
+    case 'SET_ESTOP':
+      return {
+        ...state,
+        estopped: action.payload,
+      }
     default:
       return state
   }
@@ -527,7 +572,7 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
       const parts = line.split(',')
       const tag = parts[0]
 
-      if (tag !== 'T' && tag !== 'D' && tag !== 'F' && tag !== 'E') {
+      if (tag !== 'T' && tag !== 'D' && tag !== 'F' && tag !== 'E' && tag !== 'ESTOP') {
         dispatch({ type: 'LOG_LINE', line })
 
         // Check for toast signals from serial (Rev 14 prefixes first)
@@ -601,14 +646,27 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
           break
         }
         case 'D': {
-          const [, t, th1, th2, th1d, th2d, dth1, dth2, dth1d, dth2d, pwm1, th1raw, th2raw] = parts.map(Number)
+          const partsNum = parts.map(Number)
+          const t = partsNum[1] || 0
+          const th1 = Number.isFinite(partsNum[2]) ? partsNum[2] : 0
+          const th2 = Number.isFinite(partsNum[3]) ? partsNum[3] : 0
+          const th1d = Number.isFinite(partsNum[4]) ? partsNum[4] : th1
+          const th2d = Number.isFinite(partsNum[5]) ? partsNum[5] : th2
+          const dth1 = Number.isFinite(partsNum[6]) ? partsNum[6] : 0
+          const dth2 = Number.isFinite(partsNum[7]) ? partsNum[7] : 0
+          const dth1d = Number.isFinite(partsNum[8]) ? partsNum[8] : 0
+          const dth2d = Number.isFinite(partsNum[9]) ? partsNum[9] : 0
+          const pwm1 = Number.isFinite(partsNum[10]) ? partsNum[10] : 0
+          const th1raw = Number.isFinite(partsNum[11]) ? partsNum[11] : th1
+          const th2raw = Number.isFinite(partsNum[12]) ? partsNum[12] : th2
+
           const RAD2DEG = 180 / Math.PI
 
           const e1 = th1d - th1
           const e2 = th2d - th2
 
           // ── ZN tuner event (all modes — ignored when ZN tab is not mounted) ──
-          if (typeof window !== 'undefined' && window.location.pathname.startsWith('/zn')) {
+          if (typeof window !== 'undefined' && (window.location.pathname.includes('/zn') || window.location.pathname.includes('/test'))) {
             window.dispatchEvent(new CustomEvent('zn_sample', {
               detail: {
                 ts_ms:     t,
@@ -751,6 +809,11 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
           dispatch({ type: 'BOOT_POSE', pose: { x, y, th1, th2 } })
           break
         }
+        case 'ESTOP': {
+          const isEstopped = parts[1] === '1'
+          dispatch({ type: 'SET_ESTOP', payload: isEstopped })
+          break
+        }
         case 'X': {
           // Mode change packet: X,IDLE | X,SCARA | X,ZN | X,TEST
           const modeStr = parts[1]?.trim().toUpperCase() as ESPMode | undefined
@@ -804,8 +867,8 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
       await writer.write(enc.encode('getgains\n'))
       await writer.write(enc.encode('getparams\n'))
       if (typeof window !== 'undefined') {
-        const isZN = window.location.pathname.startsWith('/zn')
-        await writer.write(enc.encode(isZN ? 'plot,1\n' : 'plot,0\n'))
+        const isPlotEnabledPage = window.location.pathname.includes('/zn') || window.location.pathname.includes('/test')
+        await writer.write(enc.encode(isPlotEnabledPage ? 'plot,1\n' : 'plot,0\n'))
       }
 
       activeRef.current = true
@@ -1019,7 +1082,7 @@ export function HMIProvider({ children }: { children: ReactNode }) {
     state.prevTBuffer, state.showGhost, state.stats,
     state.gains, state.params, state.hasSyncedParams,
     state.queueStatus, state.logLines, state.previewTarget,
-    state.bootPose, state.pickedTarget,
+    state.bootPose, state.pickedTarget, state.estopped,
   ])
 
   const slowContextValue = useMemo((): HMISlowContextValue => ({

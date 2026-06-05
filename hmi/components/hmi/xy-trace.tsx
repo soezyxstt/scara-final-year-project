@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { useHMI } from '@/lib/hmi-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Maximize2, Minimize2, Crosshair } from 'lucide-react'
+import { Maximize2, Minimize2, Crosshair, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tooltip } from '@/components/ui/tooltip'
 import type { TPoint, HMIState } from '@/lib/hmi-types'
@@ -27,7 +27,10 @@ const TICK = 50                // mm per grid division
 function getRobotCoords(
   canvas: HTMLCanvasElement, 
   clientX: number, 
-  clientY: number
+  clientY: number,
+  zoom = 1,
+  centerX = 0,
+  centerY = 75
 ): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect()
   const px = clientX - rect.left
@@ -42,13 +45,11 @@ function getRobotCoords(
   
   const scaleY = plotH / (YMAX - YMIN)
   const scaleX = plotW / (2 * (L_OUTER + 25))
-  const scale = Math.min(scaleY, scaleX)
+  const baseScale = Math.min(scaleY, scaleX)
+  const scale = baseScale * zoom
   
-  const originPy = H - BM + YMIN * scale
-  const originPx = LM + plotW / 2
-  
-  const rx = (px - originPx) / scale
-  const ry = (originPy - py) / scale
+  const rx = centerX + (px - (LM + plotW / 2)) / scale
+  const ry = centerY - (py - (TM + plotH / 2)) / scale
   
   return { x: rx, y: ry }
 }
@@ -57,7 +58,10 @@ export function drawTrace(
   canvas: HTMLCanvasElement,
   state: HMIState,
   showArm: boolean,
-  hoverPoint?: { x: number; y: number } | null
+  hoverPoint?: { x: number; y: number } | null,
+  zoom = 1,
+  centerX = 0,
+  centerY = 75
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -80,14 +84,16 @@ export function drawTrace(
   // Scale: limited by Y height OR by needing L_OUTER+25mm to fit horizontally
   const scaleY = plotH / (YMAX - YMIN)
   const scaleX = plotW / (2 * (L_OUTER + 25))
-  const scale = Math.min(scaleY, scaleX)
+  const baseScale = Math.min(scaleY, scaleX)
+  const scale = baseScale * zoom
 
   // Pixel coordinate of robot origin (x=0, y=0)
-  const originPy = H - BM + YMIN * scale
-  const originPx = LM + plotW / 2
+  const originPx = LM + plotW / 2 - centerX * scale
+  const originPy = TM + plotH / 2 + centerY * scale
 
-  // Derived visible X range
+  // Derived visible X and Y ranges
   const XHALF = plotW / 2 / scale
+  const YHALF = plotH / 2 / scale
 
   function toPx(rx: number, ry: number): [number, number] {
     return [originPx + rx * scale, originPy - ry * scale]
@@ -99,22 +105,32 @@ export function drawTrace(
   ctx.fillStyle = '#1C1C1C' // Dark gray matching --color-hmi-panel
   ctx.fillRect(LM, TM, plotW, plotH)
 
+  // ── Dynamic Grid Spacing & Ticks ────────────────────────────────────────
+  let activeTick = TICK
+  if (zoom >= 4.0) {
+    activeTick = 10
+  } else if (zoom >= 2.0) {
+    activeTick = 25
+  } else if (zoom <= 0.5) {
+    activeTick = 100
+  }
+
   // ── Fine Dotted Grid ────────────────────────────────────────────────────
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'
   ctx.lineWidth = 1
   ctx.setLineDash([2, 2])
 
-  const xStart = Math.ceil(-XHALF / TICK) * TICK
-  const xEnd   = Math.floor(XHALF  / TICK) * TICK
-  const yStart = Math.ceil(YMIN    / TICK) * TICK
-  const yEnd   = Math.floor(YMAX   / TICK) * TICK
+  const xStart = Math.ceil((centerX - XHALF) / activeTick) * activeTick
+  const xEnd   = Math.floor((centerX + XHALF) / activeTick) * activeTick
+  const yStart = Math.ceil((centerY - YHALF) / activeTick) * activeTick
+  const yEnd   = Math.floor((centerY + YHALF) / activeTick) * activeTick
 
-  for (let x = xStart; x <= xEnd; x += TICK) {
+  for (let x = xStart; x <= xEnd; x += activeTick) {
     const px = toPx(x, 0)[0]
     if (px < LM - 1 || px > W - RM + 1) continue
     ctx.beginPath(); ctx.moveTo(px, TM); ctx.lineTo(px, H - BM); ctx.stroke()
   }
-  for (let y = yStart; y <= yEnd; y += TICK) {
+  for (let y = yStart; y <= yEnd; y += activeTick) {
     const py = toPx(0, y)[1]
     if (py < TM - 1 || py > H - BM + 1) continue
     ctx.beginPath(); ctx.moveTo(LM, py); ctx.lineTo(W - RM, py); ctx.stroke()
@@ -124,7 +140,9 @@ export function drawTrace(
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)'
   ctx.lineWidth = 1.5
   ctx.setLineDash([])
-  ctx.beginPath(); ctx.moveTo(originPx, TM); ctx.lineTo(originPx, H - BM); ctx.stroke()
+  if (originPx >= LM && originPx <= W - RM) {
+    ctx.beginPath(); ctx.moveTo(originPx, TM); ctx.lineTo(originPx, H - BM); ctx.stroke()
+  }
   const yZeroPy = toPx(0, 0)[1]
   if (yZeroPy >= TM && yZeroPy <= H - BM) {
     ctx.beginPath(); ctx.moveTo(LM, yZeroPy); ctx.lineTo(W - RM, yZeroPy); ctx.stroke()
@@ -142,7 +160,7 @@ export function drawTrace(
   // Y-axis: right-aligned labels
   ctx.textAlign = 'right'
   ctx.textBaseline = 'middle'
-  for (let y = yStart; y <= yEnd; y += TICK) {
+  for (let y = yStart; y <= yEnd; y += activeTick) {
     const py = toPx(0, y)[1]
     if (py < TM - 4 || py > H - BM + 4) continue
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
@@ -152,11 +170,10 @@ export function drawTrace(
   }
 
   // X-axis: center-aligned labels — within bounds to avoid edge clutter
-  const X_LABEL_MAX = 200
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'
-  for (let x = xStart; x <= xEnd; x += TICK) {
-    if (x === 0 || Math.abs(x) > X_LABEL_MAX) continue
+  for (let x = xStart; x <= xEnd; x += activeTick) {
+    if (x === 0) continue
     const px = toPx(x, 0)[0]
     if (px < LM - 4 || px > W - RM + 4) continue
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
@@ -646,6 +663,26 @@ export function XYTrace() {
   const [showArm, setShowArm] = useState(true)
   const [ghostOpacity, setGhostOpacity] = useState(0.2)
 
+  // Zoom & Pan States
+  const [zoom, setZoom] = useState(1.0)
+  const [centerX, setCenterX] = useState(0)
+  const [centerY, setCenterY] = useState(75)
+
+  // Zoom & Pan Refs to avoid stale closures in canvas RAF/event ticks
+  const zoomRef = useRef(1.0)
+  const centerXRef = useRef(0)
+  const centerYRef = useRef(75)
+
+  useEffect(() => {
+    zoomRef.current = zoom
+    centerXRef.current = centerX
+    centerYRef.current = centerY
+  }, [zoom, centerX, centerY])
+
+  // Drag Panning States
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartRef = useRef<{ x: number; y: number; centerX: number; centerY: number } | null>(null)
+
   useEffect(() => {
     const handleConfigChange = () => {
       const val = localStorage.getItem('hmi_ghost_opacity')
@@ -657,6 +694,7 @@ export function XYTrace() {
     window.addEventListener('hmi_config_updated', handleConfigChange)
     return () => window.removeEventListener('hmi_config_updated', handleConfigChange)
   }, [])
+
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const stateRef = useRef(state)
   const showArmRef = useRef(showArm)
@@ -735,29 +773,114 @@ export function XYTrace() {
   const draw = useCallback(() => {
     const canvas = canvasRef.current
     if (canvas) {
-      drawTrace(canvas, stateRef.current, showArm, hoverPoint)
+      drawTrace(canvas, stateRef.current, showArm, hoverPoint, zoom, centerX, centerY)
     }
-  }, [showArm, hoverPoint])
+  }, [showArm, hoverPoint, zoom, centerX, centerY])
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isPicking) return
+  // Event Handlers for Panning & Zooming
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (isPicking) return
+    if (e.button !== 0) return // only left click panning
+    
+    setIsDragging(true)
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      centerX: centerXRef.current,
+      centerY: centerYRef.current
+    }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const coords = getRobotCoords(canvas, e.clientX, e.clientY)
-    setHoverPoint(coords)
+
+    if (isPicking) {
+      const coords = getRobotCoords(canvas, e.clientX, e.clientY, zoomRef.current, centerXRef.current, centerYRef.current)
+      setHoverPoint(coords)
+      return
+    }
+
+    if (!isDragging || !dragStartRef.current) return
+    
+    const dpr = window.devicePixelRatio || 1
+    const W = canvas.width / dpr
+    const H = canvas.height / dpr
+    const plotW = W - LM - RM
+    const plotH = H - TM - BM
+    
+    const scaleY = plotH / (YMAX - YMIN)
+    const scaleX = plotW / (2 * (L_OUTER + 25))
+    const baseScale = Math.min(scaleY, scaleX)
+    const scale = baseScale * zoomRef.current
+    
+    const dx = e.clientX - dragStartRef.current.x
+    const dy = e.clientY - dragStartRef.current.y
+    
+    const newCenterX = dragStartRef.current.centerX - dx / scale
+    const newCenterY = dragStartRef.current.centerY + dy / scale
+    
+    setCenterX(newCenterX)
+    setCenterY(newCenterY)
+    
+    drawTrace(canvas, stateRef.current, showArmRef.current, null, zoomRef.current, newCenterX, newCenterY)
+  }
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (isDragging) {
+      setIsDragging(false)
+      dragStartRef.current = null
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
+  }
+
+  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    const canvas = canvasRef.current
+    if (!canvas) return
+    
+    const zoomFactor = e.deltaY < 0 ? 1.15 : 1 / 1.15
+    const nextZoom = Math.max(0.5, Math.min(15.0, zoomRef.current * zoomFactor))
+    
+    if (nextZoom === zoomRef.current) return
+    
+    const coords = getRobotCoords(canvas, e.clientX, e.clientY, zoomRef.current, centerXRef.current, centerYRef.current)
+    const scaleRatio = zoomRef.current / nextZoom
+    const newCenterX = coords.x - (coords.x - centerXRef.current) * scaleRatio
+    const newCenterY = coords.y - (coords.y - centerYRef.current) * scaleRatio
+    
+    setZoom(nextZoom)
+    setCenterX(newCenterX)
+    setCenterY(newCenterY)
+    
+    drawTrace(canvas, stateRef.current, showArmRef.current, isPicking ? coords : null, nextZoom, newCenterX, newCenterY)
+  }
+
+  const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.stopPropagation()
+    setZoom(1.0)
+    setCenterX(0)
+    setCenterY(75)
+    
+    const canvas = canvasRef.current
+    if (canvas) {
+      drawTrace(canvas, stateRef.current, showArmRef.current, null, 1.0, 0, 75)
+    }
   }
 
   const handleMouseLeave = () => {
-    setHoverPoint(null)
+    if (isPicking) {
+      setHoverPoint(null)
+    }
   }
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isPicking) return
     const canvas = canvasRef.current
     if (!canvas) return
-    const coords = getRobotCoords(canvas, e.clientX, e.clientY)
+    const coords = getRobotCoords(canvas, e.clientX, e.clientY, zoomRef.current, centerXRef.current, centerYRef.current)
     
-    // Check reachability and trajectory safety
     const r2 = coords.x * coords.x + coords.y * coords.y
     const isReachable = r2 >= 45 * 45 && r2 <= 170 * 170 && coords.y >= 0
     
@@ -792,7 +915,7 @@ export function XYTrace() {
       const dpr = window.devicePixelRatio || 1
       canvas.width  = Math.floor(canvas.clientWidth * dpr)
       canvas.height = Math.floor(canvas.clientHeight * dpr)
-      drawTrace(canvas, stateRef.current, showArmRef.current)
+      drawTrace(canvas, stateRef.current, showArmRef.current, null, zoomRef.current, centerXRef.current, centerYRef.current)
     }
 
     const ro = new ResizeObserver(handleResize)
@@ -805,10 +928,6 @@ export function XYTrace() {
   }, []) // Empty dependencies ensure this runs once on mount
 
   // ── Throttled canvas redraw (10 Hz) ──────────────────────────────────
-  // Instead of re-drawing on every context update (16.7 Hz BATCH_SAMPLES),
-  // we pull the latest state from stateRef and schedule exactly one rAF
-  // per interval tick. The canvas still shows the most-recent data because
-  // stateRef is always kept in sync (no data is lost).
   const rafIdRef = useRef<number | null>(null)
   useEffect(() => {
     const tick = () => {
@@ -817,7 +936,7 @@ export function XYTrace() {
         rafIdRef.current = null
         const canvas = canvasRef.current
         if (canvas) {
-          drawTrace(canvas, stateRef.current, showArmRef.current, hoverPoint)
+          drawTrace(canvas, stateRef.current, showArmRef.current, hoverPoint, zoomRef.current, centerXRef.current, centerYRef.current)
         }
       })
     }
@@ -828,8 +947,7 @@ export function XYTrace() {
     }
   }, [hoverPoint]) // hoverPoint changes need immediate redraw
 
-  // For non-live interactions (pick point, mode changes) we still want an
-  // immediate redraw so the UI feels snappy.
+  // For non-live interactions (pick point, mode changes, zoom changes)
   useEffect(() => {
     draw()
   }, [
@@ -865,9 +983,7 @@ export function XYTrace() {
     <div 
       className={cn(
         "bg-hmi-panel border rounded-lg overflow-hidden flex-1 min-h-0 flex flex-col transition-all duration-300 group/graph",
-        // Base border — noticeably stronger than surrounding panels
         "border-slate-600/70",
-        // Live glow aura when robot is actively recording (pulsing amber)
         isLive
           ? "shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_0_18px_4px_rgba(245,158,11,0.12),0_4px_20px_rgba(0,0,0,0.5)]"
           : "shadow-[0_2px_12px_rgba(0,0,0,0.4)] hover:shadow-[0_0_0_1px_rgba(33,150,243,0.2),0_4px_20px_rgba(0,0,0,0.5)]",
@@ -879,7 +995,6 @@ export function XYTrace() {
       {/* Panel Header */}
       <div className={cn(
         "flex items-center justify-between border-b shrink-0 bg-hmi-panel",
-        // Stronger header separator that matches the upgraded panel border
         isLive ? "border-amber-500/30" : "border-slate-600/50",
         isFocused ? "mb-4 pb-3 px-2 pt-1" : "px-4 py-2.5"
       )}>
@@ -891,7 +1006,6 @@ export function XYTrace() {
             </>
           ) : (
             <div className="flex items-center gap-1.5">
-              {/* Subtle accent bar — turns amber/animated when live */}
               <span
                 className={cn(
                   "w-1 h-4 rounded-full transition-colors duration-500",
@@ -914,7 +1028,6 @@ export function XYTrace() {
             <Badge
               className={cn(
                 `${recColor} font-semibold px-1.5 py-0 shadow-sm text-[9px] cursor-help`,
-                // Pulse ring when actively recording
                 isLive && "ring-1 ring-amber-500/40"
               )}
             >{recLabel}</Badge>
@@ -962,6 +1075,70 @@ export function XYTrace() {
               Arm Links {showArm ? 'on' : 'off'}
             </Button>
           </Tooltip>
+
+          {/* Zoom & Reset Controls */}
+          <div className="flex items-center gap-1 border-l border-slate-700/60 pl-1.5 mr-0.5">
+            <Tooltip content="Zoom In" align="center">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={(e) => { 
+                  e.stopPropagation()
+                  const nextZoom = Math.min(15.0, zoomRef.current * 1.25)
+                  setZoom(nextZoom)
+                  const canvas = canvasRef.current
+                  if (canvas) {
+                    drawTrace(canvas, stateRef.current, showArmRef.current, null, nextZoom, centerXRef.current, centerYRef.current)
+                  }
+                }} 
+                className="h-5 w-5 p-0 border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80"
+              >
+                <ZoomIn className="h-3 w-3" />
+              </Button>
+            </Tooltip>
+            <Tooltip content="Zoom Out" align="center">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={(e) => { 
+                  e.stopPropagation()
+                  const nextZoom = Math.max(0.5, zoomRef.current / 1.25)
+                  setZoom(nextZoom)
+                  const canvas = canvasRef.current
+                  if (canvas) {
+                    drawTrace(canvas, stateRef.current, showArmRef.current, null, nextZoom, centerXRef.current, centerYRef.current)
+                  }
+                }} 
+                className="h-5 w-5 p-0 border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80"
+              >
+                <ZoomOut className="h-3 w-3" />
+              </Button>
+            </Tooltip>
+            <Tooltip content="Reset Zoom & Pan" align="center">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={(e) => { 
+                  e.stopPropagation()
+                  setZoom(1.0)
+                  setCenterX(0)
+                  setCenterY(75)
+                  const canvas = canvasRef.current
+                  if (canvas) {
+                    drawTrace(canvas, stateRef.current, showArmRef.current, null, 1.0, 0, 75)
+                  }
+                }} 
+                className={cn(
+                  "h-5 px-1 text-[10px] border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80",
+                  (zoom !== 1.0 || centerX !== 0 || centerY !== 75) && "text-amber-400 border-amber-500/30 bg-slate-800/50"
+                )}
+              >
+                <RefreshCw className="h-2.5 w-2.5 mr-1" />
+                Reset
+              </Button>
+            </Tooltip>
+          </div>
+
           <Tooltip content={isFocused ? "Collapse: Restores the panel to normal size." : "Expand: Maximizes the workspace trace."} align="center">
             <Button 
               variant="outline" 
@@ -978,14 +1155,29 @@ export function XYTrace() {
 
       {/* Graph Area Wrapper */}
       <div className="relative flex-1 min-h-0 w-full">
+        {/* Zoom Indicator badge — top-left */}
+        {zoom !== 1.0 && (
+          <div className="absolute top-2 left-2 bg-slate-900/80 backdrop-blur-md border border-slate-800/80 px-2 py-1 rounded text-[10px] font-mono text-amber-400 shadow-md pointer-events-none select-none z-10">
+            Zoom: {Math.round(zoom * 100)}%
+          </div>
+        )}
+
         <canvas 
           ref={canvasRef} 
           className={cn(
-            "absolute inset-0 w-full h-full",
-            isPicking ? "cursor-crosshair" : ""
+            "absolute inset-0 w-full h-full select-none touch-none",
+            isPicking 
+              ? "cursor-crosshair" 
+              : isDragging 
+                ? "cursor-grabbing" 
+                : "cursor-grab"
           )}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onWheel={handleWheel}
+          onDoubleClick={handleDoubleClick}
           onClick={handleCanvasClick}
         />
 
@@ -1010,13 +1202,10 @@ export function XYTrace() {
           {showArm && (
             <div className="flex items-center gap-2 text-xs">
               <div className="flex items-center gap-0.5">
-                {/* J1 Link representation */}
                 <span className="w-2.5 h-1.5 rounded-sm bg-blue-500/20 border border-blue-500/40 relative flex items-center">
                   <span className="absolute inset-x-0 h-0.5 bg-blue-500" />
                 </span>
-                {/* Connection dot */}
                 <span className="w-1 h-1 rounded-full bg-orange-500 shrink-0" />
-                {/* J2 Link representation */}
                 <span className="w-2 h-1.2 rounded-sm bg-orange-500/20 border border-orange-500/40 relative flex items-center">
                   <span className="absolute inset-x-0 h-0.5 bg-orange-500" />
                 </span>
@@ -1029,11 +1218,8 @@ export function XYTrace() {
             <span className="text-slate-300 font-medium">Start Point</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            {/* Flag icon: vertical pole + triangular pennant, matching canvas target marker */}
             <svg className="w-3 h-4 text-hmi-target" viewBox="0 0 9 14" fill="none">
-              {/* Pole */}
               <line x1="1" y1="0" x2="1" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              {/* Triangular pennant */}
               <path d="M1 0 L9 3.5 L1 7 Z" fill="currentColor" />
             </svg>
             <span className="text-slate-300 font-medium">Target</span>
@@ -1043,14 +1229,12 @@ export function XYTrace() {
         {/* Glassmorphic Stats telemetry overlay — bottom-left */}
         <div className={cn(
           "absolute bottom-3 left-16 font-sans text-xs text-slate-300 backdrop-blur-md px-3 py-2 rounded-lg shadow-lg flex flex-col gap-1.5 min-w-[190px] z-10 transition-all duration-500",
-          // Border brightens and gets a subtle glow when recording live telemetry
           isLive
             ? "bg-slate-900/85 border border-amber-500/30 shadow-[0_0_12px_2px_rgba(245,158,11,0.08)]"
             : "bg-slate-900/80 border border-slate-800/80"
         )}>
           <div className="flex justify-between items-center border-b border-slate-700/60 pb-1 mb-0.5">
             <div className="flex items-center gap-1.5">
-              {/* Live dot — pulses when recording */}
               <span className={cn(
                 "w-1.5 h-1.5 rounded-full shrink-0",
                 isLive ? "bg-amber-500 animate-pulse" : "bg-slate-600"

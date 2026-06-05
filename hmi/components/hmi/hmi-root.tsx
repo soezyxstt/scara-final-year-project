@@ -68,7 +68,7 @@ function HMIShell() {
   const tab = (tabParam === 'readme' ? 'readme' : 'monitor') as TopTab
 
   const { state, serial } = useHMISlow()
-  const { serialStatus, portName, online } = state
+  const { serialStatus, portName, online, estopped } = state
 
   // ── Mode state machine hooks ─────────────────────────────────────────────
   useHeartbeat(serialStatus === 'connected')
@@ -151,11 +151,19 @@ function HMIShell() {
               </Button>
             </Tooltip>
           )}
-          <Tooltip content="EMERGENCY STOP: Instantly halts all trajectory movements and cuts power to the joint motors." align="right">
-            <Button variant="estop" size="sm" onClick={() => serial.sendCommand('estop')}>
-              🛑 E-STOP
-            </Button>
-          </Tooltip>
+          {estopped ? (
+            <Tooltip content="RESUME: Clears the E-STOP state and re-enables motor outputs." align="right">
+              <Button variant="resume" size="sm" className="animate-pulse" onClick={() => serial.sendCommand('resume')}>
+                🔄 RESUME
+              </Button>
+            </Tooltip>
+          ) : (
+            <Tooltip content="EMERGENCY STOP: Instantly halts all trajectory movements and cuts power to the joint motors." align="right">
+              <Button variant="estop" size="sm" onClick={() => serial.sendCommand('estop')}>
+                🛑 E-STOP
+              </Button>
+            </Tooltip>
+          )}
           <CaptureMenu />
         </div>
       </header>

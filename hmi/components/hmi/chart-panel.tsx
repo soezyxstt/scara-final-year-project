@@ -94,13 +94,7 @@ interface Props {
 function StatsBanner({ stats }: { stats: Props['stats'] }) {
   if (!stats) return null
   return (
-    <div className="grid grid-cols-6 gap-2 px-4 py-2.5 border-b border-hmi-grid bg-slate-900/40 font-sans text-xs">
-      <UiTooltip content="Number of telemetry samples collected during the trajectory run." align="center">
-        <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Samples</span>
-          <span className="text-slate-200 font-mono font-medium text-sm mt-0.5">{stats.n}</span>
-        </div>
-      </UiTooltip>
+    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 px-4 py-2.5 border-b border-hmi-grid bg-slate-900/40 font-sans text-xs">
       <UiTooltip content="Accuracy Index (AI): 1 - MCTE/D. Normalized spatial path tracking accuracy index where 100% is perfect tracking." align="center">
         <div className="flex flex-col cursor-help">
           <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">AI</span>
@@ -109,34 +103,62 @@ function StatsBanner({ stats }: { stats: Props['stats'] }) {
           </span>
         </div>
       </UiTooltip>
-      <UiTooltip content="Maximum Cross Tracking Error (CTE) observed during the run." align="center">
+      <UiTooltip content="Maximum Cross Tracking Error (CTE) observed during the run (ε_max)." align="center">
         <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Max Error</span>
+          <span className="text-[11px] text-slate-500 tracking-wider font-semibold normal-case">ε<sub>max</sub></span>
           <span className="text-hmi-error font-mono font-medium text-sm mt-0.5">
             {stats.max_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
           </span>
         </div>
       </UiTooltip>
-      <UiTooltip content="Mean Cross Tracking Error (MCTE) computed as the path-integrated area of deviation divided by path length (A_path / D)." align="center">
+      <UiTooltip content="Mean Cross Tracking Error (MCTE) computed as the path-integrated area of lateral deviation divided by path length (A_path / D)." align="center">
         <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Mean Error</span>
+          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">MCTE</span>
           <span className="text-hmi-ideal font-mono font-medium text-sm mt-0.5">
-            {stats.mean_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
+            {stats.MCTE !== undefined ? stats.MCTE.toFixed(2) : stats.mean_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
           </span>
         </div>
       </UiTooltip>
-      <UiTooltip content="Cross Tracking Error at the final settling coordinate of the trajectory." align="center">
+      <UiTooltip content="Mean Along Track Error (MATE) computed as the path-integrated area of tracking lag divided by path length." align="center">
         <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Final Error</span>
+          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">MATE</span>
+          <span className="text-amber-400 font-mono font-medium text-sm mt-0.5">
+            {stats.MATE !== undefined ? stats.MATE.toFixed(2) : '--'}{' '}
+            {stats.MATE !== undefined && <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>}
+          </span>
+        </div>
+      </UiTooltip>
+      <UiTooltip content="Error Bias (R_ε): Percentage of total tracking error due to time delay/lag vs. path shape/contour deviation. >50% Delay suggests increasing Kp/Ki/Kff; >50% Shape suggests tuning Kd or checking mechanics." align="center">
+        <div className="flex flex-col cursor-help">
+          <span className="text-[11px] text-slate-500 tracking-wider font-semibold normal-case">R<sub>ε</sub></span>
+          <span className={cn(
+            "font-mono font-semibold text-sm mt-0.5",
+            stats.error_ratio !== undefined
+              ? stats.error_ratio >= 0.5 ? "text-amber-400" : "text-cyan-400"
+              : "text-slate-200"
+          )}>
+            {stats.error_ratio !== undefined
+              ? stats.error_ratio >= 0.5
+                ? `${(stats.error_ratio * 100).toFixed(0)}% Delay`
+                : `${((1 - stats.error_ratio) * 100).toFixed(0)}% Shape`
+              : '--'}
+          </span>
+        </div>
+      </UiTooltip>
+      <UiTooltip content="Cross Tracking Error at the final settling coordinate of the trajectory (ε_f)." align="center">
+        <div className="flex flex-col cursor-help">
+          <span className="text-[11px] text-slate-500 tracking-wider font-semibold normal-case">ε<sub>f</sub></span>
           <span className="text-slate-200 font-mono font-medium text-sm mt-0.5">
             {stats.final_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
           </span>
         </div>
       </UiTooltip>
-      <UiTooltip content="Maximum absolute PWM control command output to the motor driver." align="center">
+      <UiTooltip content="Time taken for the robot to complete the trajectory run (T_el, in seconds)." align="center">
         <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Max PWM</span>
-          <span className="text-hmi-pwm-pos font-mono font-medium text-sm mt-0.5">{Math.round(stats.pwm_max)}</span>
+          <span className="text-[11px] text-slate-500 tracking-wider font-semibold normal-case">T<sub>el</sub></span>
+          <span className="text-slate-200 font-mono font-medium text-sm mt-0.5">
+            {stats.elapsed_time !== undefined ? `${stats.elapsed_time.toFixed(3)} s` : '--'}
+          </span>
         </div>
       </UiTooltip>
     </div>
@@ -214,7 +236,7 @@ export function EEFErrChart({
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
       <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} />
       <YAxis domain={[0, maxY]} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('‖e‖ (mm)')} width={56} />
-      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.err && (
         <Area type="linear" dataKey="err" stroke="#C084FC" fill="url(#errGradient)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="EEF Error" />
@@ -273,7 +295,7 @@ export function CTEChart({
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
       <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} />
       <YAxis domain={[0, maxY]} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('CTE (mm)')} width={56} />
-      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.cte && (
         <Area type="linear" dataKey="cte" stroke="#F43F5E" fill="url(#cteGradient)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="Cross Tracking Error" />
@@ -312,7 +334,7 @@ export function EEFVelocityChart({
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
       <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} />
       <YAxis tick={AT} axisLine={AL} tickLine={false} label={YLABEL('v (mm/s)')} width={48} />
-      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.v_actual && (
         <Line dataKey="v_actual" stroke="#C084FC" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Actual" />
@@ -365,7 +387,7 @@ export function PWMChart({
       <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} />
       <YAxis domain={[-255, 255]} tick={AT} axisLine={AL} tickLine={false} label={YLABEL('PWM')} width={48} />
       <ReferenceLine y={0} stroke="#4B5563" strokeDasharray="4 2" />
-      <Tooltip contentStyle={TS} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} />
+      <Tooltip contentStyle={TS} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.pwm && (
         <Area type="linear" dataKey="pwm" stroke="#10B981" fill="url(#pwmGradient)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="PWM Output" />
@@ -421,7 +443,7 @@ export function PositionChart({
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
       <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} />
       <YAxis tick={AT} axisLine={AL} tickLine={false} label={YLABEL(useDegrees ? 'θ (°)' : 'θ (rad)')} width={48} />
-      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.th1 && (
         <Line dataKey="th1"  stroke="#2196F3" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ1 Actual (°)" : "θ1 Actual (rad)"} />
@@ -486,7 +508,7 @@ export function VelocityChart({
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
       <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} />
       <YAxis tick={AT} axisLine={AL} tickLine={false} label={YLABEL(useDegrees ? 'θ̇ (°/s)' : 'θ̇ (rad/s)')} width={48} />
-      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.v1 && (
         <Line dataKey="v1"  stroke="#2196F3" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ̇1 Actual (°/s)" : "θ̇1 Actual (rad/s)"} />
@@ -1033,7 +1055,7 @@ function AdvancedAnalyzer({
       <div className="flex-1 min-h-0 w-full flex gap-4 overflow-hidden">
         
         {/* Left: Recharts interactive screen */}
-        <div className="flex-1 min-h-0 bg-slate-950/30 border border-hmi-grid/50 rounded-lg p-4 relative flex flex-col justify-center select-none">
+        <div className="flex-1 min-h-0 bg-slate-950/30 border border-hmi-grid/50 rounded-lg p-4 relative flex flex-col justify-center select-none overflow-hidden">
           {displayData.length === 0 ? (
             <div className="text-center text-hmi-muted text-xs font-semibold py-8 uppercase tracking-wider">
               No telemetry samples in active buffer.
@@ -1081,7 +1103,7 @@ function AdvancedAnalyzer({
                       label={YLABEL(yLabel)}
                       width={56}
                     />
-                    <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} />
+                    <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
                     
                     {series.map(s => !hiddenSeries[s.key] && (
                       <Area
@@ -1158,7 +1180,7 @@ function AdvancedAnalyzer({
                       label={YLABEL(yLabel)}
                       width={56}
                     />
-                    <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} />
+                    <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
                     
                     {series.map(s => !hiddenSeries[s.key] && (
                       <Line
@@ -1376,16 +1398,22 @@ export function ChartPanel() {
   const [isFocused, setIsFocused] = useState(false)
   const [angularUnit, setAngularUnit] = useState('radians')
 
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const pathname = usePathname()
-
-  const activeTab = (searchParams.get('chart') as 'cte' | 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel') || 'cte'
+  const [activeTab, setActiveTabState] = useState<'cte' | 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      return (params.get('chart') as 'cte' | 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel') || 'cte'
+    }
+    return 'cte'
+  })
 
   const setActiveTab = (tab: 'cte' | 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel') => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('chart', tab)
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    setActiveTabState(tab)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      params.set('chart', tab)
+      const newUrl = `${window.location.pathname}?${params.toString()}`
+      window.history.replaceState(null, '', newUrl)
+    }
   }
 
   useEffect(() => {
@@ -1595,7 +1623,7 @@ export function ChartPanel() {
           </TabsList>
         )}
 
-        <CardContent className="flex-1 min-h-0 p-2">
+        <CardContent className="flex-1 min-h-0 p-2 overflow-hidden">
           {isFocused ? (
             <AdvancedAnalyzer
               activeTab={activeTab}
@@ -1605,22 +1633,22 @@ export function ChartPanel() {
             />
           ) : (
             <>
-              <TabsContent value="eef" className="h-full w-full relative">
+              <TabsContent value="eef" className="h-full w-full relative overflow-hidden">
                 {activeTab === 'eef' && <EEFErrChart tBuf={chartT} dBuf={chartD} />}
               </TabsContent>
-              <TabsContent value="cte" className="h-full w-full relative">
+              <TabsContent value="cte" className="h-full w-full relative overflow-hidden">
                 {activeTab === 'cte' && <CTEChart tBuf={chartT} dBuf={chartD} />}
               </TabsContent>
-              <TabsContent value="eef_vel" className="h-full w-full relative">
+              <TabsContent value="eef_vel" className="h-full w-full relative overflow-hidden">
                 {activeTab === 'eef_vel' && <EEFVelocityChart dBuf={chartD} />}
               </TabsContent>
-              <TabsContent value="pwm" className="h-full w-full relative">
+              <TabsContent value="pwm" className="h-full w-full relative overflow-hidden">
                 {activeTab === 'pwm' && <PWMChart dBuf={dBuf} />}
               </TabsContent>
-              <TabsContent value="pos" className="h-full w-full relative">
+              <TabsContent value="pos" className="h-full w-full relative overflow-hidden">
                 {activeTab === 'pos' && <PositionChart dBuf={dBuf} />}
               </TabsContent>
-              <TabsContent value="vel" className="h-full w-full relative">
+              <TabsContent value="vel" className="h-full w-full relative overflow-hidden">
                 {activeTab === 'vel' && <VelocityChart dBuf={dBuf} />}
               </TabsContent>
             </>

@@ -106,6 +106,10 @@ export interface Stats {
   final_err: number
   pwm_max: number
   accuracy_idx: number
+  MATE?: number
+  MCTE?: number
+  error_ratio?: number
+  elapsed_time?: number
 }
 
 export type ESPMode = 'IDLE' | 'SCARA' | 'ZN' | 'TEST'
@@ -138,6 +142,7 @@ export interface HMIState {
   previewTarget: { x: number; y: number } | null
   bootPose: { x: number; y: number; th1: number; th2: number } | null
   pickedTarget: { x: number; y: number } | null
+  estopped: boolean
 }
 
 export type HMIAction =
@@ -162,6 +167,7 @@ export type HMIAction =
   | { type: 'BOOT_POSE'; pose: { x: number; y: number; th1: number; th2: number } }
   | { type: 'PICK_TARGET'; target: { x: number; y: number } }
   | { type: 'CLEAR_PICKED_TARGET' }
+  | { type: 'SET_ESTOP'; payload: boolean }
 
 export interface SerialController {
   connect: () => Promise<void>

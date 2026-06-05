@@ -1,6 +1,6 @@
-﻿'use client'
+'use client'
 
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
 import type { ZNSample } from '@/lib/hmi-types'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+// Remove next/navigation imports to prevent warnings
 import {
   LineChart,
   Line,
@@ -116,25 +116,43 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
   const { state, serial } = useHMISlow()
   const { serialStatus } = state
 
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const pathname = usePathname()
-
   // Query parameter persisted active joint
-  const activeJoint = searchParams.get('joint') === '2' ? 2 : 1
-  const setActiveJoint = (joint: 1 | 2) => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('joint', joint.toString())
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-  }
+  const [activeJoint, setActiveJointState] = useState<1 | 2>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      return params.get('joint') === '2' ? 2 : 1
+    }
+    return 1
+  })
+  
+  const setActiveJoint = useCallback((joint: 1 | 2) => {
+    setActiveJointState(joint)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      params.set('joint', joint.toString())
+      const newUrl = `${window.location.pathname}?${params.toString()}`
+      window.history.replaceState(null, '', newUrl)
+    }
+  }, [])
 
   // Persisted view mode state ('pos' | 'raw' | 'compare' | 'vel' | 'fft')
-  const viewMode = (searchParams.get('view') as 'pos' | 'raw' | 'compare' | 'vel' | 'fft') || 'pos'
-  const setViewMode = (newMode: 'pos' | 'raw' | 'compare' | 'vel' | 'fft') => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('view', newMode)
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-  }
+  const [viewMode, setViewModeState] = useState<'pos' | 'raw' | 'compare' | 'vel' | 'fft'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      return (params.get('view') as 'pos' | 'raw' | 'compare' | 'vel' | 'fft') || 'pos'
+    }
+    return 'pos'
+  })
+
+  const setViewMode = useCallback((newMode: 'pos' | 'raw' | 'compare' | 'vel' | 'fft') => {
+    setViewModeState(newMode)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      params.set('view', newMode)
+      const newUrl = `${window.location.pathname}?${params.toString()}`
+      window.history.replaceState(null, '', newUrl)
+    }
+  }, [])
 
   const [isFrozen, setIsFrozen] = useState(false)
   const [frozenEndTime, setFrozenEndTime] = useState<number | null>(null)
@@ -184,8 +202,24 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
       if (persisted) {
         const parsed = JSON.parse(persisted)
         if (Array.isArray(parsed)) {
-          bufferRef.current = parsed
-          setChartData(parsed)
+          const sanitized = parsed.map((s: any) => {
+            if (!s) return null
+            return {
+              idx: s.idx ?? 0,
+              t: s.t ?? 0,
+              t1_target: s.t1_target ?? 0,
+              t1_actual: s.t1_actual ?? 0,
+              t2_target: s.t2_target ?? 0,
+              t2_actual: s.t2_actual ?? 0,
+              pwm1: s.pwm1 ?? 0,
+              t1_raw: s.t1_raw ?? s.t1_actual ?? 0,
+              t2_raw: s.t2_raw ?? s.t2_actual ?? 0,
+              v1: s.v1 ?? 0,
+              v2: s.v2 ?? 0,
+            }
+          }).filter(Boolean) as ZNSample[]
+          bufferRef.current = sanitized
+          setChartData(sanitized)
         }
       }
       const persistedStartTs = localStorage.getItem('hmi_zn_start_ts')
@@ -236,13 +270,13 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
       const sample: ZNSample = {
         idx:       newIdx,
         t:         newT,
-        t1_target: rawSample.t1_target,
-        t1_actual: rawSample.t1_actual,
-        t2_target: rawSample.t2_target,
-        t2_actual: rawSample.t2_actual,
-        pwm1:      rawSample.pwm1,
-        t1_raw:    rawSample.t1_raw,
-        t2_raw:    rawSample.t2_raw,
+        t1_target: rawSample.t1_target ?? 0,
+        t1_actual: rawSample.t1_actual ?? 0,
+        t2_target: rawSample.t2_target ?? 0,
+        t2_actual: rawSample.t2_actual ?? 0,
+        pwm1:      rawSample.pwm1 ?? 0,
+        t1_raw:    rawSample.t1_raw ?? rawSample.t1_actual ?? 0,
+        t2_raw:    rawSample.t2_raw ?? rawSample.t2_actual ?? 0,
         v1:        rawSample.v1 ?? 0,
         v2:        rawSample.v2 ?? 0,
       }

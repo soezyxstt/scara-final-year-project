@@ -99,7 +99,7 @@ function downsample<T>(arr: T[], max = 500): T[] {
 
 export function ZNTunerTab({ isActive }: { isActive: boolean }) {
   const { state, serial } = useHMISlow()
-  const { serialStatus, portName, gains } = state
+  const { serialStatus, portName, gains, estopped } = state
 
   // 1. Joint Selection State
   const [activeJoint, setActiveJoint] = useState<1 | 2>(1)
@@ -217,8 +217,24 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       if (persisted) {
         const parsed = JSON.parse(persisted)
         if (Array.isArray(parsed)) {
-          bufferRef.current = parsed
-          setChartData(parsed)
+          const sanitized = parsed.map((s: any) => {
+            if (!s) return null
+            return {
+              idx: s.idx ?? 0,
+              t: s.t ?? 0,
+              t1_target: s.t1_target ?? 0,
+              t1_actual: s.t1_actual ?? 0,
+              t2_target: s.t2_target ?? 0,
+              t2_actual: s.t2_actual ?? 0,
+              pwm1: s.pwm1 ?? 0,
+              t1_raw: s.t1_raw ?? s.t1_actual ?? 0,
+              t2_raw: s.t2_raw ?? s.t2_actual ?? 0,
+              v1: s.v1 ?? 0,
+              v2: s.v2 ?? 0,
+            }
+          }).filter(Boolean) as ZNSample[]
+          bufferRef.current = sanitized
+          setChartData(sanitized)
         }
       }
       const persistedStartTs = localStorage.getItem('hmi_zn_start_ts')
@@ -272,14 +288,14 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       const sample: ZNSample = {
         idx:       newIdx,
         t:         newT,
-        t1_target: rawSample.t1_target,
-        t1_actual: rawSample.t1_actual,
-        t2_target: rawSample.t2_target,
-        t2_actual: rawSample.t2_actual,
-        pwm1:      rawSample.pwm1,
+        t1_target: rawSample.t1_target ?? 0,
+        t1_actual: rawSample.t1_actual ?? 0,
+        t2_target: rawSample.t2_target ?? 0,
+        t2_actual: rawSample.t2_actual ?? 0,
+        pwm1:      rawSample.pwm1 ?? 0,
         // Rev 15-TD: raw ADC values before TD filter (fallback = filtered when old firmware)
-        t1_raw:    rawSample.t1_raw,
-        t2_raw:    rawSample.t2_raw,
+        t1_raw:    rawSample.t1_raw ?? rawSample.t1_actual ?? 0,
+        t2_raw:    rawSample.t2_raw ?? rawSample.t2_actual ?? 0,
         v1:        rawSample.v1 ?? 0,
         v2:        rawSample.v2 ?? 0,
       }
@@ -1313,13 +1329,23 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
               </form>
 
               {/* Emergency Stop Button */}
-              <Button
-                variant="estop"
-                className="w-full h-9 uppercase font-bold text-sm bg-hmi-estop hover:bg-hmi-estop-hover tracking-wide mt-auto"
-                onClick={() => serial.sendCommand('estop')}
-              >
-                🛑 EMERGENCY STOP
-              </Button>
+              {estopped ? (
+                <Button
+                  variant="resume"
+                  className="w-full h-9 uppercase font-bold text-sm bg-hmi-ok hover:bg-hmi-ok-hover tracking-wide mt-auto animate-pulse"
+                  onClick={() => serial.sendCommand('resume')}
+                >
+                  🔄 RESUME
+                </Button>
+              ) : (
+                <Button
+                  variant="estop"
+                  className="w-full h-9 uppercase font-bold text-sm bg-hmi-estop hover:bg-hmi-estop-hover tracking-wide mt-auto"
+                  onClick={() => serial.sendCommand('estop')}
+                >
+                  🛑 EMERGENCY STOP
+                </Button>
+              )}
 
             </div>
           </div>

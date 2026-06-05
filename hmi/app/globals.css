@@ -25,6 +25,7 @@
   --color-hmi-rec-on:       #EF5350; /* REC light red */
   --color-hmi-rec-off:      #37474F;
   --color-hmi-ok:           #4CAF50;
+  --color-hmi-ok-hover:     #43A047;
   --color-hmi-warn:         #FF9800;
   --color-hmi-off:          #37474F;
   --color-hmi-estop:        #C62828; /* Deep alert red */

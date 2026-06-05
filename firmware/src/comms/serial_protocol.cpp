@@ -130,6 +130,7 @@ void emitFullState() {
   emitParams();
   emitPosition();
   emitQueueStatus();
+  Serial.print("ESTOP,"); Serial.println(estop_active ? "1" : "0");
   Serial.print("X,"); Serial.println(MODE_NAMES[op_mode]);
 }
 

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 export function Header() {
   const { state, serial } = useHMISlow()
-  const { serialStatus, portName, online } = state
+  const { serialStatus, portName, online, estopped } = state
 
   // Available ports from Web Serial API (re-queried on status change)
   const [availablePorts, setAvailablePorts] = useState<{ id: string; label: string }[]>([])
@@ -106,14 +106,25 @@ export function Header() {
 
       {/* ── FAR RIGHT: E-STOP — isolated, dominant ────────────────────── */}
       <div className="flex items-center pl-4 border-l border-hmi-grid/60 shrink-0">
-        <Button
-          variant="estop"
-          size="sm"
-          className="h-8 px-4 text-sm font-bold tracking-wide"
-          onClick={() => serial.sendCommand('estop')}
-        >
-          🛑 E-STOP
-        </Button>
+        {estopped ? (
+          <Button
+            variant="resume"
+            size="sm"
+            className="h-8 px-4 text-sm font-bold tracking-wide animate-pulse"
+            onClick={() => serial.sendCommand('resume')}
+          >
+            🔄 RESUME
+          </Button>
+        ) : (
+          <Button
+            variant="estop"
+            size="sm"
+            className="h-8 px-4 text-sm font-bold tracking-wide"
+            onClick={() => serial.sendCommand('estop')}
+          >
+            🛑 E-STOP
+          </Button>
+        )}
       </div>
 
     </header>

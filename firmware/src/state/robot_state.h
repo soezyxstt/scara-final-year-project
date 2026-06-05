@@ -89,6 +89,9 @@ namespace RobotState {
   extern unsigned long last_serial_rx_ms;
   extern unsigned long last_telemetry_ms;
 
+  // Plotting control
+  extern bool  plot_enabled;
+
   // Serial RX buffer
   extern char    serial_buf[64];
   extern uint8_t serial_idx;
