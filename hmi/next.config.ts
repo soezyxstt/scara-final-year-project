@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   devIndicators: false,
   turbopack: {
-    root: path.join(__dirname),
+    root: path.resolve(__dirname, ".."),
   },
 };
 
