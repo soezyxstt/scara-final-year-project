@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
+import { computeCTEList } from '@/lib/cte-utils'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
@@ -14,6 +15,10 @@ export function ComparisonTable() {
 
   const { frozenD: d, frozenT: t } = state
 
+  const ctes = useMemo(() => {
+    return computeCTEList(t)
+  }, [t])
+
   if (d.length === 0) {
     return (
       <Card>
@@ -23,37 +28,41 @@ export function ComparisonTable() {
     )
   }
 
-  const rows = d.map((s, i) => {
-    const tp = t[i]
-    const eef = tp ? Math.sqrt((tp.xi - tp.xa) ** 2 + (tp.yi - tp.ya) ** 2) : 0
+  const rows = useMemo(() => {
     const r2d = 180 / Math.PI
-    return {
-      idx: s.idx,
-      t: (s.t / 1000).toFixed(3),
-      th1d: (s.th1d * r2d).toFixed(3),
-      th1: (s.th1 * r2d).toFixed(3),
-      e1: (s.e1 * r2d).toFixed(3),
-      th2d: (s.th2d * r2d).toFixed(3),
-      th2: (s.th2 * r2d).toFixed(3),
-      e2: (s.e2 * r2d).toFixed(3),
-      v1: (s.dth1 * r2d).toFixed(3),
-      v2: (s.dth2 * r2d).toFixed(3),
-      v1d: (s.dth1d * r2d).toFixed(3),
-      v2d: (s.dth2d * r2d).toFixed(3),
-      pwm1: s.pwm1,
-      th1_raw: (s.th1raw * r2d).toFixed(3),
-      th2_raw: (s.th2raw * r2d).toFixed(3),
-      eef: eef.toFixed(3),
-    }
-  })
+    return d.map((s, i) => {
+      const tp = t[i]
+      const eef = tp ? Math.sqrt((tp.xi - tp.xa) ** 2 + (tp.yi - tp.ya) ** 2) : 0
+      const cte = ctes[i] ?? 0
+      return {
+        idx: s.idx,
+        t: (s.t / 1000).toFixed(3),
+        th1d: (s.th1d * r2d).toFixed(3),
+        th1: (s.th1 * r2d).toFixed(3),
+        e1: (s.e1 * r2d).toFixed(3),
+        th2d: (s.th2d * r2d).toFixed(3),
+        th2: (s.th2 * r2d).toFixed(3),
+        e2: (s.e2 * r2d).toFixed(3),
+        v1: (s.dth1 * r2d).toFixed(3),
+        v2: (s.dth2 * r2d).toFixed(3),
+        v1d: (s.dth1d * r2d).toFixed(3),
+        v2d: (s.dth2d * r2d).toFixed(3),
+        pwm1: s.pwm1,
+        th1_raw: (s.th1raw * r2d).toFixed(3),
+        th2_raw: (s.th2raw * r2d).toFixed(3),
+        eef: eef.toFixed(3),
+        cte: cte.toFixed(3),
+      }
+    })
+  }, [d, t, ctes])
 
   const totalPages = Math.ceil(rows.length / PAGE_SIZE)
   const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   function downloadCSV() {
-    const header = 'Sample,t(s),θ1_d(°),θ1(°),e1(°),θ2_d(°),θ2(°),e2(°),v1(°/s),v2(°/s),v1d(°/s),v2d(°/s),pwm1,θ1_raw(°),θ2_raw(°),EEF_err(mm)\n'
+    const header = 'Sample,t(s),θ1_d(°),θ1(°),e1(°),θ2_d(°),θ2(°),e2(°),v1(°/s),v2(°/s),v1d(°/s),v2d(°/s),pwm1,θ1_raw(°),θ2_raw(°),EEF_err(mm),CTE(mm)\n'
     const body = rows.map(r =>
-      `${r.idx},${r.t},${r.th1d},${r.th1},${r.e1},${r.th2d},${r.th2},${r.e2},${r.v1},${r.v2},${r.v1d},${r.v2d},${r.pwm1},${r.th1_raw},${r.th2_raw},${r.eef}`
+      `${r.idx},${r.t},${r.th1d},${r.th1},${r.e1},${r.th2d},${r.th2},${r.e2},${r.v1},${r.v2},${r.v1d},${r.v2d},${r.pwm1},${r.th1_raw},${r.th2_raw},${r.eef},${r.cte}`
     ).join('\n')
     const blob = new Blob([header + body], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -90,6 +99,7 @@ export function ComparisonTable() {
               <TableHead>θ1_raw (°)</TableHead>
               <TableHead>θ2_raw (°)</TableHead>
               <TableHead>EEF err (mm)</TableHead>
+              <TableHead>CTE (mm)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -111,6 +121,7 @@ export function ComparisonTable() {
                 <TableCell>{r.th1_raw}</TableCell>
                 <TableCell>{r.th2_raw}</TableCell>
                 <TableCell>{r.eef}</TableCell>
+                <TableCell>{r.cte}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -132,4 +143,3 @@ export function ComparisonTable() {
     </Card>
   )
 }
-

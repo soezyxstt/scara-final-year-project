@@ -12,7 +12,6 @@ import { cn } from '@/lib/utils'
 import { Tooltip } from '@/components/ui/tooltip'
 import { CaptureMenu } from './capture-menu'
 import { useHeartbeat } from '@/hooks/use-heartbeat'
-import { useModeActivation } from '@/hooks/use-mode-activation'
 import { ModeBadge } from '@/components/mode-badge'
 
 import {
@@ -73,7 +72,6 @@ function HMIShell() {
 
   // ── Mode state machine hooks ─────────────────────────────────────────────
   useHeartbeat(serialStatus === 'connected')
-  useModeActivation('SCARA')
 
   useEffect(() => {
     const handleSwitchTab = (e: Event) => {

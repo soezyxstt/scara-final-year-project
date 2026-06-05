@@ -12,12 +12,7 @@ import { Maximize2, Minimize2, ZoomIn, ZoomOut, Hand, RefreshCw } from 'lucide-r
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { downloadSingleGraph } from '@/lib/capture-utils'
-import {
-  extractFeatures,
-  generateTuningAdvice,
-  type TelemetryRun,
-  type TuningAdvice,
-} from '@/lib/tuning-advisor'
+import { computeCTEList } from '@/lib/cte-utils'
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ReferenceLine, ResponsiveContainer, AreaChart, Area, LineChart, Line, ReferenceArea,
@@ -99,158 +94,56 @@ interface Props {
 function StatsBanner({ stats }: { stats: Props['stats'] }) {
   if (!stats) return null
   return (
-    <div className="grid grid-cols-5 gap-2 px-4 py-2.5 border-b border-hmi-grid bg-slate-900/40 font-sans text-xs">
-      <div className="flex flex-col">
-        <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Samples</span>
-        <span className="text-slate-200 font-mono font-medium text-sm mt-0.5">{stats.n}</span>
-      </div>
-      <div className="flex flex-col">
-        <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Max Error</span>
-        <span className="text-hmi-error font-mono font-medium text-sm mt-0.5">
-          {stats.max_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
-        </span>
-      </div>
-      <div className="flex flex-col">
-        <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Mean Error</span>
-        <span className="text-hmi-ideal font-mono font-medium text-sm mt-0.5">
-          {stats.mean_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
-        </span>
-      </div>
-      <div className="flex flex-col">
-        <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Final Error</span>
-        <span className="text-slate-200 font-mono font-medium text-sm mt-0.5">
-          {stats.final_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
-        </span>
-      </div>
-      <div className="flex flex-col">
-        <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Max PWM</span>
-        <span className="text-hmi-pwm-pos font-mono font-medium text-sm mt-0.5">{Math.round(stats.pwm_max)}</span>
-      </div>
-    </div>
-  )
-}
-
-const ADVICE_STYLES: Record<TuningAdvice['severity'], string> = {
-  critical: 'border-red-500/50 bg-red-950/40 text-red-100',
-  suggestion: 'border-yellow-500/50 bg-yellow-950/40 text-yellow-100',
-  info: 'border-blue-500/50 bg-blue-950/40 text-blue-100',
-  success: 'border-green-500/50 bg-green-950/40 text-green-100',
-}
-
-const BADGE_STYLES: Record<TuningAdvice['severity'], string> = {
-  critical: 'bg-red-500/20 text-red-100 border border-red-400/50',
-  suggestion: 'bg-yellow-500/20 text-yellow-100 border border-yellow-400/50',
-  info: 'bg-blue-500/20 text-blue-100 border border-blue-400/50',
-  success: 'bg-green-500/20 text-green-100 border border-green-400/50',
-}
-
-/**
- * Builds a TelemetryRun from the frozen DSample buffer for one joint.
- *
- * Unit contracts (must match tuning-advisor.ts):
- *   time[]          — milliseconds  (advisor converts to seconds internally)
- *   error[]         — radians       (e1 / e2 from firmware)
- *   errorVelocity[] — rad/s         (v_desired − v_actual, per joint)
- */
-function runFromSamples(
-  samples: DSample[],
-  errorKey: 'e1' | 'e2',
-  velocityKey: 'dth1' | 'dth2',
-  desiredVelocityKey: 'dth1d' | 'dth2d'
-): TelemetryRun {
-  return {
-    time:          samples.map((s) => s.t),
-    error:         samples.map((s) => s[errorKey]),
-    errorVelocity: samples.map((s) => s[desiredVelocityKey] - s[velocityKey]),
-  }
-}
-
-function TuningAdvicePopover({
-  advice,
-  moveCount,
-  hasCompletedRun,
-}: {
-  advice: TuningAdvice[]
-  moveCount: number
-  hasCompletedRun: boolean
-}) {
-  const [openForMoveCount, setOpenForMoveCount] = useState<number | null>(null)
-  const suggestions = advice.filter((item) => item.severity !== 'success')
-  const isOpen = openForMoveCount === moveCount
-
-  return (
-    <div className="relative z-30 ml-auto">
-      <UiTooltip
-        content="PID Advisor: Reviews post-run telemetry and shows rule-based gain tuning suggestions after a completed move."
-        align="right"
-      >
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 gap-1.5 rounded-full border-hmi-ideal/40 bg-slate-900/80 px-2.5 text-xs font-semibold text-slate-100 hover:bg-slate-800"
-          onClick={(event) => {
-            event.stopPropagation()
-            setOpenForMoveCount((current) =>
-              current === moveCount ? null : moveCount
-            )
-          }}
-        >
-          PID Advisor
-          <Badge className="rounded-full border border-hmi-ideal/40 bg-hmi-ideal/20 px-1.5 py-0 text-[10px] text-blue-100">
-            {suggestions.length}
-          </Badge>
-        </Button>
+    <div className="grid grid-cols-6 gap-2 px-4 py-2.5 border-b border-hmi-grid bg-slate-900/40 font-sans text-xs">
+      <UiTooltip content="Number of telemetry samples collected during the trajectory run." align="center">
+        <div className="flex flex-col cursor-help">
+          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Samples</span>
+          <span className="text-slate-200 font-mono font-medium text-sm mt-0.5">{stats.n}</span>
+        </div>
       </UiTooltip>
-
-      {isOpen && (
-        <Card
-          className="absolute right-0 top-8 w-[min(32rem,calc(100vw-2rem))] cursor-default p-2 shadow-2xl"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="mb-2 flex items-center justify-between border-b border-hmi-grid px-1 pb-2">
-            <span className="text-sm font-semibold text-hmi-text">
-              PID Tuning Suggestions
-            </span>
-            <Badge className="border border-hmi-grid bg-slate-900 text-slate-200">
-              {suggestions.length}
-            </Badge>
-          </div>
-          {suggestions.length > 0 ? (
-            <div className="grid gap-2">
-              {suggestions.map((item) => (
-                <div
-                  key={item.jointId}
-                  className={cn(
-                    'rounded-md border px-3 py-2 text-xs',
-                    ADVICE_STYLES[item.severity]
-                  )}
-                >
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-50">
-                      PID Advisor {item.jointId}
-                    </span>
-                    <Badge className={BADGE_STYLES[item.severity]}>
-                      {item.severity}
-                    </Badge>
-                  </div>
-                  <p className="font-medium leading-snug">{item.action}</p>
-                  <p className="mt-1 leading-snug opacity-80">{item.reason}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="px-1 py-2 text-xs leading-relaxed text-hmi-muted">
-              {hasCompletedRun
-                ? 'No tuning suggestions for the latest run.'
-                : 'Complete a move to generate PID tuning suggestions.'}
-            </p>
-          )}
-        </Card>
-      )}
+      <UiTooltip content="Accuracy Index (AI): 1 - MCTE/D. Normalized spatial path tracking accuracy index where 100% is perfect tracking." align="center">
+        <div className="flex flex-col cursor-help">
+          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">AI</span>
+          <span className="text-hmi-ideal font-mono font-medium text-sm mt-0.5">
+            {stats.accuracy_idx !== undefined ? `${(stats.accuracy_idx * 100).toFixed(2)}%` : '--'}
+          </span>
+        </div>
+      </UiTooltip>
+      <UiTooltip content="Maximum Cross Tracking Error (CTE) observed during the run." align="center">
+        <div className="flex flex-col cursor-help">
+          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Max Error</span>
+          <span className="text-hmi-error font-mono font-medium text-sm mt-0.5">
+            {stats.max_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
+          </span>
+        </div>
+      </UiTooltip>
+      <UiTooltip content="Mean Cross Tracking Error (MCTE) computed as the path-integrated area of deviation divided by path length (A_path / D)." align="center">
+        <div className="flex flex-col cursor-help">
+          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Mean Error</span>
+          <span className="text-hmi-ideal font-mono font-medium text-sm mt-0.5">
+            {stats.mean_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
+          </span>
+        </div>
+      </UiTooltip>
+      <UiTooltip content="Cross Tracking Error at the final settling coordinate of the trajectory." align="center">
+        <div className="flex flex-col cursor-help">
+          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Final Error</span>
+          <span className="text-slate-200 font-mono font-medium text-sm mt-0.5">
+            {stats.final_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
+          </span>
+        </div>
+      </UiTooltip>
+      <UiTooltip content="Maximum absolute PWM control command output to the motor driver." align="center">
+        <div className="flex flex-col cursor-help">
+          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Max PWM</span>
+          <span className="text-hmi-pwm-pos font-mono font-medium text-sm mt-0.5">{Math.round(stats.pwm_max)}</span>
+        </div>
+      </UiTooltip>
     </div>
   )
 }
+
+
 
 const XLABEL = (label: string) => ({
   value: label,
@@ -325,6 +218,65 @@ export function EEFErrChart({
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.err && (
         <Area type="linear" dataKey="err" stroke="#C084FC" fill="url(#errGradient)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="EEF Error" />
+      )}
+    </AreaChart>
+  )
+
+  if (width !== undefined && height !== undefined) return chart
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      {chart}
+    </ResponsiveContainer>
+  )
+}
+
+export function CTEChart({
+  tBuf,
+  dBuf,
+  width,
+  height,
+}: {
+  tBuf: TPoint[]
+  dBuf?: DSample[]
+  width?: number
+  height?: number
+}) {
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
+
+  const data = useMemo(() => {
+    const ctes = computeCTEList(tBuf)
+    const sampled = downsample(tBuf, 500)
+    const sampledCtes = downsample(ctes, 500)
+    const firstMs = dBuf?.[0]?.t ?? 0
+    const useDTime = dBuf && dBuf.length === tBuf.length
+    return sampled.map((_, i) => ({
+      t: useDTime ? (dBuf![i].t - firstMs) / 1000 : i * 0.02,
+      cte: sampledCtes[i] ?? 0,
+    }))
+  }, [tBuf, dBuf])
+
+  const maxY = useMemo(() => Math.max(...data.map(d => d.cte), 0.1) * 1.4, [data])
+
+  const chart = (
+    <AreaChart data={data} margin={MARGIN} width={width} height={height}>
+      <defs>
+        <linearGradient id="cteGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="5%" stopColor="#F43F5E" stopOpacity={0.25} />
+          <stop offset="95%" stopColor="#F43F5E" stopOpacity={0.0} />
+        </linearGradient>
+      </defs>
+      <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} />
+      <YAxis domain={[0, maxY]} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('CTE (mm)')} width={56} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} />
+      <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
+      {!hidden.cte && (
+        <Area type="linear" dataKey="cte" stroke="#F43F5E" fill="url(#cteGradient)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="Cross Tracking Error" />
       )}
     </AreaChart>
   )
@@ -597,9 +549,8 @@ interface AnalyzerSeries {
   strokeDasharray?: string
 }
 
-// Prepares structured datasets for the AdvancedAnalyzer console
 function prepareAnalyzerData(
-  activeTab: 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel',
+  activeTab: 'eef' | 'cte' | 'eef_vel' | 'pwm' | 'pos' | 'vel',
   dBuf: DSample[],
   tBuf: TPoint[],
   angularUnit: string
@@ -624,6 +575,17 @@ function prepareAnalyzerData(
         { key: 'err', name: 'EEF Error', stroke: '#C084FC', type: 'area' as const, fill: '#C084FC' }
       ]
       return { rawData, series, yLabel: '‖e‖ (mm)', defaultYDomain: [0, 'auto'] as [any, any] }
+    }
+    case 'cte': {
+      const ctes = computeCTEList(tBuf)
+      const rawData = tBuf.map((pt, i) => ({
+        t: dBuf[i] ? (dBuf[i].t - firstT) / 1000 : i * 0.02,
+        cte: ctes[i] ?? 0,
+      }))
+      const series = [
+        { key: 'cte', name: 'Cross Tracking Error', stroke: '#F43F5E', type: 'area' as const, fill: '#F43F5E' }
+      ]
+      return { rawData, series, yLabel: 'CTE (mm)', defaultYDomain: [0, 'auto'] as [any, any] }
     }
     case 'eef_vel': {
       const velocities = computeEEFVelocityJacobian(dBuf)
@@ -689,7 +651,7 @@ function AdvancedAnalyzer({
   tBuf,
   angularUnit,
 }: {
-  activeTab: 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel'
+  activeTab: 'eef' | 'cte' | 'eef_vel' | 'pwm' | 'pos' | 'vel'
   dBuf: DSample[]
   tBuf: TPoint[]
   angularUnit: string
@@ -1418,9 +1380,9 @@ export function ChartPanel() {
   const searchParams = useSearchParams()
   const pathname = usePathname()
 
-  const activeTab = (searchParams.get('chart') as 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel') || 'eef'
+  const activeTab = (searchParams.get('chart') as 'cte' | 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel') || 'cte'
 
-  const setActiveTab = (tab: 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel') => {
+  const setActiveTab = (tab: 'cte' | 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel') => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('chart', tab)
     router.replace(`${pathname}?${params.toString()}`, { scroll: false })
@@ -1495,6 +1457,7 @@ export function ChartPanel() {
         e.preventDefault()
         const nameMap: Record<string, string> = {
           eef: 'End-Effector Error Chart',
+          cte: 'Cross Tracking Error Chart',
           eef_vel: 'End-Effector Velocity Chart',
           pwm: 'PWM Command Chart',
           pos: 'Joint Position Chart',
@@ -1515,27 +1478,7 @@ export function ChartPanel() {
     return () => window.removeEventListener('hmi_download_graph', handleDownload)
   }, [isFocused, activeTab, state])
 
-  const tuningAdvice = useMemo(() => {
-    if (
-      state.recordingState !== 'IDLE' ||
-      state.moveCount === 0 ||
-      state.frozenD.length < 3
-    ) {
-      return []
-    }
 
-    const joint1Features = extractFeatures(
-      runFromSamples(state.frozenD, 'e1', 'dth1', 'dth1d')
-    )
-    const joint2Features = extractFeatures(
-      runFromSamples(state.frozenD, 'e2', 'dth2', 'dth2d')
-    )
-
-    return [
-      generateTuningAdvice('J1', joint1Features),
-      generateTuningAdvice('J2', joint2Features),
-    ]
-  }, [state.recordingState, state.moveCount, state.frozenD])
 
   return (
     <Card 
@@ -1559,7 +1502,7 @@ export function ChartPanel() {
           <div className="flex items-center gap-2">
             {/* Quick tab switcher inside full screen analyzer */}
             <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-md border border-hmi-grid mr-4">
-              {(['eef', 'eef_vel', 'pwm', 'pos', 'vel'] as const).map(tab => (
+              {(['cte', 'eef', 'eef_vel', 'pwm', 'pos', 'vel'] as const).map(tab => (
                 <Button
                   key={tab}
                   variant="ghost"
@@ -1572,7 +1515,7 @@ export function ChartPanel() {
                   )}
                   onClick={() => setActiveTab(tab)}
                 >
-                  {tab === 'eef' ? 'EEF err' : tab === 'eef_vel' ? 'EEF vel' : tab === 'pwm' ? 'PWM' : tab === 'pos' ? 'Position' : 'Velocity'}
+                  {tab === 'cte' ? 'CTE' : tab === 'eef' ? 'EEF err' : tab === 'eef_vel' ? 'EEF vel' : tab === 'pwm' ? 'PWM' : tab === 'pos' ? 'Position' : 'Velocity'}
                 </Button>
               ))}
             </div>
@@ -1599,6 +1542,12 @@ export function ChartPanel() {
         {!isFocused && (
           <TabsList className="rounded-none border-b border-hmi-grid bg-hmi-panel px-2 py-0 h-9 shrink-0 flex items-center justify-between">
             <div className="flex items-center gap-0.5">
+              <TabsTrigger
+                value="cte"
+                className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text"
+              >
+                CTE
+              </TabsTrigger>
               <TabsTrigger
                 value="eef"
                 className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text"
@@ -1631,11 +1580,6 @@ export function ChartPanel() {
               </TabsTrigger>
             </div>
             <div className="flex items-center gap-1.5 ml-auto">
-              <TuningAdvicePopover
-                advice={tuningAdvice}
-                moveCount={state.moveCount}
-                hasCompletedRun={state.recordingState === 'IDLE' && state.frozenD.length >= 3}
-              />
               <UiTooltip content={isFocused ? "Collapse: Restores the panel to normal size." : "Expand: Maximizes the telemetry charts."} align="center">
                 <Button 
                   variant="outline" 
@@ -1663,6 +1607,9 @@ export function ChartPanel() {
             <>
               <TabsContent value="eef" className="h-full w-full relative">
                 {activeTab === 'eef' && <EEFErrChart tBuf={chartT} dBuf={chartD} />}
+              </TabsContent>
+              <TabsContent value="cte" className="h-full w-full relative">
+                {activeTab === 'cte' && <CTEChart tBuf={chartT} dBuf={chartD} />}
               </TabsContent>
               <TabsContent value="eef_vel" className="h-full w-full relative">
                 {activeTab === 'eef_vel' && <EEFVelocityChart dBuf={chartD} />}
