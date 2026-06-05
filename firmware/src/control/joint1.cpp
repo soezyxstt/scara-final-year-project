@@ -96,8 +96,16 @@ void controlJoint1() {
   if (frac_abs >= FRAC_ZERO_THRESH) {
     float frac_eff = (frac_abs - FRAC_ZERO_THRESH) / (1.0f - FRAC_ZERO_THRESH);
     frac_eff = constrain(frac_eff, 0.0f, 1.0f);
-    int mag  = PWM_DEADBAND + (int)(frac_eff * (float)(PWM_MAX - PWM_DEADBAND));
-    mag      = constrain(mag, PWM_DEADBAND, PWM_MAX);
+
+    // Calculate dynamic deadband: 70 + 18 * sin^2(theta1)
+    // Scale amplitude (18) relative to base PWM_DEADBAND to support other PWM resolutions (e.g., 10-bit).
+    float db_amp = 18.0f * ((float)PWM_DEADBAND / 70.0f);
+    float s = sinf(theta1);
+    int dynamic_db = PWM_DEADBAND + (int)roundf(db_amp * s * s);
+    dynamic_db = constrain(dynamic_db, 0, PWM_MAX);
+
+    int mag  = dynamic_db + (int)(frac_eff * (float)(PWM_MAX - dynamic_db));
+    mag      = constrain(mag, dynamic_db, PWM_MAX);
     pwm_out  = (total_frac >= 0.0f) ? mag : -mag;
   }
 
