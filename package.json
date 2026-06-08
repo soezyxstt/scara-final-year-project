@@ -13,6 +13,7 @@
     "build": "npm run build -w hmi-ta",
     "fw:build": "npm run build -w scara-firmware",
     "fw:upload": "npm run upload -w scara-firmware",
-    "fw:monitor": "npm run monitor -w scara-firmware"
+    "fw:monitor": "npm run monitor -w scara-firmware",
+    "fw:integrate": "npm run integrate -w scara-firmware"
   }
 }

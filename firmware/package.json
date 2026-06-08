@@ -6,6 +6,7 @@
   "scripts": {
     "build": ".venv\\Scripts\\pio.exe run",
     "upload": ".venv\\Scripts\\pio.exe run --target upload",
-    "monitor": ".venv\\Scripts\\pio.exe device monitor"
+    "monitor": ".venv\\Scripts\\pio.exe device monitor",
+    "integrate": "node ./scripts/integrate-firmware.js"
   }
 }
