@@ -538,7 +538,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
     return fftData[fftData.length - 1].freq
   }, [fftData])
 
-  const dominantFreq = () => {
+  const dominantFreqRaw = useMemo(() => {
     if (fftData.length === 0) return { freq: 0, amp: 0 }
     let maxIndex = 0
     let maxAmp = 0
@@ -549,11 +549,23 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
       }
     }
     return { freq: fftData[maxIndex].freq, amp: maxAmp }
-  }
+  }, [fftData])
 
-  const domFreqInfo = dominantFreq()
-  const domFreqStr = domFreqInfo.freq > 0
-    ? `Peak: ${domFreqInfo.freq} Hz (${domFreqInfo.amp.toFixed(4)}° amp)`
+  const dominantFreqFiltered = useMemo(() => {
+    if (fftData.length === 0) return { freq: 0, amp: 0 }
+    let maxIndex = 0
+    let maxAmp = 0
+    for (let i = 1; i < fftData.length; i++) {
+      if (fftData[i].t1_actual > maxAmp) {
+        maxAmp = fftData[i].t1_actual
+        maxIndex = i
+      }
+    }
+    return { freq: fftData[maxIndex].freq, amp: maxAmp }
+  }, [fftData])
+
+  const domFreqStr = dominantFreqRaw.freq > 0
+    ? `Raw Peak: ${dominantFreqRaw.freq} Hz (${dominantFreqRaw.amp.toFixed(4)}°) | Filt Peak: ${dominantFreqFiltered.freq} Hz (${dominantFreqFiltered.amp.toFixed(4)}°)`
     : '--'
 
   const handleMouseDown = (e: any) => {
@@ -1223,21 +1235,44 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-sans block">
                   🌌 Noise Frequency Spectrum Metrics
                 </span>
-                <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dominant Vibration Freq</span>
-                  <span className="text-xl font-mono font-bold text-amber-400">
-                    {domFreqInfo.freq} Hz
-                  </span>
-                  <span className="text-[9px] text-hmi-muted">Frequency with the largest noise amplitude</span>
-                </Card>
 
-                <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Peak FFT Amplitude</span>
-                  <span className="text-xl font-mono font-bold text-cyan-400">
-                    {domFreqInfo.amp.toFixed(5)}°
-                  </span>
-                  <span className="text-[9px] text-hmi-muted">Spectral amplitude at dominant frequency</span>
-                </Card>
+                {/* Raw ADC Metrics */}
+                <div className="border border-slate-700/50 rounded-lg p-2.5 flex flex-col gap-2 bg-slate-800/10">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">Raw ADC Signal</span>
+                  <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dominant Vibration Freq (Raw)</span>
+                    <span className="text-xl font-mono font-bold text-slate-300">
+                      {dominantFreqRaw.freq} Hz
+                    </span>
+                    <span className="text-[9px] text-hmi-muted">Frequency with the largest raw noise amplitude</span>
+                  </Card>
+                  <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Peak FFT Amplitude (Raw)</span>
+                    <span className="text-xl font-mono font-bold text-slate-400">
+                      {dominantFreqRaw.amp.toFixed(5)}°
+                    </span>
+                    <span className="text-[9px] text-hmi-muted">Spectral amplitude at raw dominant frequency</span>
+                  </Card>
+                </div>
+
+                {/* Filtered Metrics */}
+                <div className="border border-slate-700/50 rounded-lg p-2.5 flex flex-col gap-2 bg-slate-800/10">
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider px-1 font-sans">Filtered Signal</span>
+                  <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dominant Vibration Freq (Filt)</span>
+                    <span className="text-xl font-mono font-bold text-amber-400">
+                      {dominantFreqFiltered.freq} Hz
+                    </span>
+                    <span className="text-[9px] text-hmi-muted">Frequency with the largest filtered noise amplitude</span>
+                  </Card>
+                  <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Peak FFT Amplitude (Filt)</span>
+                    <span className="text-xl font-mono font-bold text-cyan-400">
+                      {dominantFreqFiltered.amp.toFixed(5)}°
+                    </span>
+                    <span className="text-[9px] text-hmi-muted">Spectral amplitude at filtered dominant frequency</span>
+                  </Card>
+                </div>
 
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
                   <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Analysis Sample Size</span>

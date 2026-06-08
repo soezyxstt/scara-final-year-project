@@ -17,6 +17,11 @@ using namespace Params;
 void controlJoint1() {
   float e1 = theta1_d - theta1;
 
+  // ---- Error deadzone (hold mode only) ----
+  // Only active when not tracking a trajectory. During is_moving the
+  // trajectory error is a real signal and must not be zeroed out.
+  if (!is_moving && fabsf(e1) < ERR_DZ) e1 = 0.0f;
+
   // ---- Deadband hold logic ----
   if (is_moving) {
     motor1_active   = true;
@@ -40,13 +45,10 @@ void controlJoint1() {
   float kd_eff = is_moving ? Kd1 : Kd1 * KD_HOLD_SCALE;
 
   if (!motor1_active) {
-    // Motor off — still run integrator decay / accumulation for next wake
-    if (fabsf(e1) >= DB_RELEASE) {
-      integral1 += e1 * DT;
-      integral1  = constrain(integral1, -0.5f, 0.5f);
-    } else {
-      integral1 *= (1.0f - INTEGRAL_DECAY);
-    }
+    // Motor off — always decay integrator, never pre-charge it.
+    // Pre-charging while off causes the I-term to be wound up the moment
+    // the motor re-activates, producing an immediate aggressive kick.
+    integral1 *= (1.0f - INTEGRAL_DECAY);
     // Zero all hardware outputs
     digitalWrite(DC_IN3, LOW);
     digitalWrite(DC_IN4, LOW);
@@ -58,19 +60,27 @@ void controlJoint1() {
     return;
   }
 
+  // ---- Integrator with freeze near setpoint (hold mode only) ----
+  // During tracking (is_moving) the integrator always accumulates so the
+  // I-term can help sustain motion against friction.
+  // During hold (!is_moving) and |e1| < INTEGRAL_FREEZE_THRESH, decay
+  // instead of accumulating to stop I-term winding up through the deadband.
+  if (!is_moving && fabsf(e1) < INTEGRAL_FREEZE_THRESH) {
+    integral1 *= (1.0f - INTEGRAL_DECAY);
+  } else {
+    integral1 += e1 * DT;
+    integral1  = constrain(integral1, -0.5f, 0.5f);
+  }
+
   // ---- D-term ----
   float d_term = constrain(-kd_eff * dTheta1_f, -DTERM_MAX, DTERM_MAX);
 
   // ---- FF from decomposed CTC components, normalised to TAU_NOM_J1 ----
-  float ff_raw         = FF_INERTIA  * ctc_inertia1
-                       + FF_CORIOLIS * ctc_coriolis1
-                       + FF_GRAVITY  * ctc_gravity1;
-  float ff_frac        = constrain(ff_raw / TAU_NOM_J1, -1.0f, 1.0f);
+  float ff_raw          = FF_INERTIA  * ctc_inertia1
+                        + FF_CORIOLIS * ctc_coriolis1
+                        + FF_GRAVITY  * ctc_gravity1;
+  float ff_frac         = constrain(ff_raw / TAU_NOM_J1, -1.0f, 1.0f);
   float ff_contribution = ff_frac * U1_MAX;
-
-  // ---- Integrator ----
-  integral1 += e1 * DT;
-  integral1  = constrain(integral1, -0.5f, 0.5f);
 
   p1_out = kp_eff * e1;
   d1_out = d_term;
@@ -97,16 +107,15 @@ void controlJoint1() {
     float frac_eff = (frac_abs - FRAC_ZERO_THRESH) / (1.0f - FRAC_ZERO_THRESH);
     frac_eff = constrain(frac_eff, 0.0f, 1.0f);
 
-    // Calculate dynamic deadband: 70 + 18 * sin^2(theta1)
-    // Scale amplitude (18) relative to base PWM_DEADBAND to support other PWM resolutions (e.g., 10-bit).
+    // Dynamic deadband: base + 18*sin²(θ1) to compensate gravity load variation
     float db_amp = 18.0f * ((float)PWM_DEADBAND / 70.0f);
     float s = sinf(theta1);
     int dynamic_db = PWM_DEADBAND + (int)roundf(db_amp * s * s);
     dynamic_db = constrain(dynamic_db, 0, PWM_MAX);
 
-    int mag  = dynamic_db + (int)(frac_eff * (float)(PWM_MAX - dynamic_db));
-    mag      = constrain(mag, dynamic_db, PWM_MAX);
-    pwm_out  = (total_frac >= 0.0f) ? mag : -mag;
+    int mag = dynamic_db + (int)(frac_eff * (float)(PWM_MAX - dynamic_db));
+    mag     = constrain(mag, dynamic_db, PWM_MAX);
+    pwm_out = (total_frac >= 0.0f) ? mag : -mag;
   }
 
   last_pwm1 = pwm_out;

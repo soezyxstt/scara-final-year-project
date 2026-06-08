@@ -75,7 +75,7 @@ function ParamField({
   const formatValue = (val: number) => {
     // Determine precision based on step
     if (step && step < 0.1) return val.toFixed(4)
-    if (step && step < 1) return val.toFixed(2)
+    if (step && step < 1) return val.toFixed(3)
     return val.toString()
   }
 
@@ -112,7 +112,7 @@ function ParamField({
     if (step && step < 1) {
       const parts = val.split('.')
       if (parts.length > 1) {
-        const decimals = step < 0.1 ? 4 : 2
+        const decimals = step < 0.1 ? 4 : 3
         limitedVal = parts[0] + '.' + parts[1].substring(0, decimals)
       }
     }
@@ -397,7 +397,7 @@ export function AdvTunerTab() {
                 tooltip="Maximum Cartesian line velocity in m/s (clamped in trajectory planner)."
                 cmd="vmax"
                 min={0}
-                step={0.1}
+                step={0.001}
                 onSend={handleSendParam}
                 disabled={serialStatus !== 'connected'}
               />
@@ -408,7 +408,7 @@ export function AdvTunerTab() {
                 tooltip="Maximum Cartesian acceleration in m/s²."
                 cmd="amax"
                 min={0}
-                step={0.1}
+                step={0.001}
                 onSend={handleSendParam}
                 disabled={serialStatus !== 'connected'}
               />
@@ -419,7 +419,7 @@ export function AdvTunerTab() {
                 tooltip="Maximum clamping limit for joint acceleration in rad/s² for system safety."
                 cmd="ddth"
                 min={0}
-                step={0.1}
+                step={0.001}
                 onSend={handleSendParam}
                 disabled={serialStatus !== 'connected'}
               />
@@ -453,7 +453,7 @@ export function AdvTunerTab() {
                 cmd="idecay"
                 min={0}
                 max={1}
-                step={0.1}
+                step={0.001}
                 onSend={handleSendParam}
                 disabled={serialStatus !== 'connected'}
               />
@@ -464,7 +464,7 @@ export function AdvTunerTab() {
                 tooltip="Maximum clamped output value for Joint 1 controller output torque (PWM / Saturation Limit)."
                 cmd="u1max"
                 min={0}
-                step={0.1}
+                step={0.001}
                 onSend={handleSendParam}
                 disabled={serialStatus !== 'connected'}
               />
@@ -475,7 +475,7 @@ export function AdvTunerTab() {
                 tooltip="Normalization parameter for feedforward scaling on Joint 1 Computed Torque Control."
                 cmd="taunom"
                 min={0}
-                step={0.1}
+                step={0.001}
                 onSend={handleSendParam}
                 disabled={serialStatus !== 'connected'}
               />
@@ -486,7 +486,7 @@ export function AdvTunerTab() {
                 tooltip="Normalization parameter for inertia feedforward scaling on Joint 2 Computed Torque Control."
                 cmd="m22ref"
                 min={0}
-                step={0.1}
+                step={0.001}
                 onSend={handleSendParam}
                 disabled={serialStatus !== 'connected'}
               />
@@ -568,6 +568,30 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
+                label="Error Deadzone (errdz)"
+                name="errdz"
+                hwValue={currentParams.errDz}
+                tooltip="Error below this threshold (rad) is treated as zero — prevents pot noise from feeding the integrator and triggering micro-corrections the motor cannot execute through the deadband."
+                cmd="errdz"
+                min={0.001}
+                max={0.05}
+                step={0.001}
+                onSend={handleSendParam}
+                disabled={serialStatus !== 'connected'}
+              />
+              <ParamField
+                label="Integrator Freeze Threshold (ifreeze)"
+                name="ifreeze"
+                hwValue={currentParams.integralFreezeThresh}
+                tooltip="When |e1| is below this (rad) and motor is active, the integrator decays instead of accumulating. Prevents I-term from winding up through the deadband on its own and triggering a kick → overshoot → jitter cycle near setpoint."
+                cmd="ifreeze"
+                min={0.001}
+                max={0.1}
+                step={0.001}
+                onSend={handleSendParam}
+                disabled={serialStatus !== 'connected'}
+              />
+              <ParamField
                 label="Blending Threshold (fzt)"
                 name="fzt"
                 hwValue={currentParams.fzt}
@@ -575,7 +599,7 @@ export function AdvTunerTab() {
                 cmd="fzt"
                 min={0}
                 max={1}
-                step={0.1}
+                step={0.001}
                 onSend={handleSendParam}
                 disabled={serialStatus !== 'connected'}
               />
@@ -633,7 +657,7 @@ export function AdvTunerTab() {
                 tooltip="Proportional gain (Kp) multiplier scaling factor applied in Hold Mode."
                 cmd="hskp"
                 min={0}
-                step={0.1}
+                step={0.001}
                 onSend={handleSendParam}
                 disabled={serialStatus !== 'connected'}
               />
@@ -644,7 +668,7 @@ export function AdvTunerTab() {
                 tooltip="Derivative gain (Kd) multiplier scaling factor applied in Hold Mode."
                 cmd="hskd"
                 min={0}
-                step={0.1}
+                step={0.001}
                 onSend={handleSendParam}
                 disabled={serialStatus !== 'connected'}
               />
@@ -747,7 +771,7 @@ export function AdvTunerTab() {
                 hwValue={currentParams.alphaTiltDeg}
                 tooltip="Tilt angle in degrees."
                 cmd="atilt"
-                step={0.1}
+                step={0.001}
                 onSend={handleSendParam}
                 disabled={!isTestPage || serialStatus !== 'connected'}
               />

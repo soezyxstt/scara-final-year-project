@@ -19,7 +19,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
-      'fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
+      'fixed inset-0 z-50 bg-black/60 backdrop-blur-sm sheet-overlay',
       className
     )}
     {...props}
@@ -39,12 +39,11 @@ const SheetContent = React.forwardRef<
     <SheetPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed z-50 gap-4 bg-hmi-panel p-6 border-hmi-grid shadow-2xl transition-transform duration-300 ease-out focus:outline-none data-[state=closed]:duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out',
-        // Side configurations
-        side === 'right' && 'inset-y-0 right-0 h-full w-full max-w-md border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
-        side === 'left' && 'inset-y-0 left-0 h-full w-full max-w-md border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left',
-        side === 'top' && 'inset-x-0 top-0 h-auto w-full border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',
-        side === 'bottom' && 'inset-x-0 bottom-0 h-auto w-full border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
+        'fixed z-50 gap-4 bg-hmi-panel p-6 border-hmi-grid shadow-2xl focus:outline-none sheet-slide',
+        side === 'right' && 'inset-y-0 right-0 h-full w-full max-w-md border-l sheet-slide-right',
+        side === 'left' && 'inset-y-0 left-0 h-full w-full max-w-md border-r sheet-slide-left',
+        side === 'top' && 'inset-x-0 top-0 h-auto w-full border-b sheet-slide-top',
+        side === 'bottom' && 'inset-x-0 bottom-0 h-auto w-full border-t sheet-slide-bottom',
         className
       )}
       {...props}

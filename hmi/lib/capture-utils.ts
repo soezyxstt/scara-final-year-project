@@ -1,6 +1,106 @@
 import JSZip from 'jszip'
 import { drawTrace } from '@/components/hmi/xy-trace'
 import type { DSample, TPoint, HMIState } from '@/lib/hmi-types'
+import { withCaptureSession } from '@/lib/capture-session'
+
+function flushPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  })
+}
+
+/** Clone SVG and uniquify internal ids so gradient/mask refs survive standalone export. */
+function prepareSvgForExport(svgElement: SVGElement, width: number, height: number): SVGElement {
+  const clone = svgElement.cloneNode(true) as SVGElement
+
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+  clone.setAttribute('width', String(width))
+  clone.setAttribute('height', String(height))
+
+  const viewBox = svgElement.getAttribute('viewBox')
+  if (viewBox) {
+    clone.setAttribute('viewBox', viewBox)
+  } else {
+    clone.setAttribute('viewBox', `0 0 ${width} ${height}`)
+  }
+
+  const prefix = `exp_${Math.random().toString(36).slice(2, 9)}_`
+  const idMap = new Map<string, string>()
+
+  clone.querySelectorAll('[id]').forEach((node) => {
+    const oldId = node.id
+    if (!oldId) return
+    const newId = `${prefix}${oldId}`
+    idMap.set(oldId, newId)
+    node.id = newId
+  })
+
+  const rewriteRefs = (value: string) => {
+    let out = value
+    idMap.forEach((newId, oldId) => {
+      out = out.replaceAll(`url(#${oldId})`, `url(#${newId})`)
+      out = out.replaceAll(`href="#${oldId}"`, `href="#${newId}"`)
+      out = out.replaceAll(`xlink:href="#${oldId}"`, `xlink:href="#${newId}"`)
+    })
+    return out
+  }
+
+  clone.querySelectorAll('*').forEach((node) => {
+    for (const attr of Array.from(node.attributes)) {
+      if (attr.value.includes('#')) {
+        node.setAttribute(attr.name, rewriteRefs(attr.value))
+      }
+    }
+  })
+
+  clone.querySelectorAll('[style]').forEach((node) => {
+    const style = node.getAttribute('style')
+    if (style?.includes('var(')) {
+      node.setAttribute(
+        'style',
+        style.replace(/var\([^)]+\)/g, 'ui-sans-serif, system-ui, sans-serif')
+      )
+    }
+  })
+
+  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+  styleEl.textContent = `
+    text, tspan {
+      font-family: ui-sans-serif, system-ui, sans-serif !important;
+      font-weight: 500;
+    }
+  `
+  clone.insertBefore(styleEl, clone.firstChild)
+
+  return clone
+}
+
+function findReadyChartSvg(type: string): SVGElement | null {
+  const container = document.querySelector(`#capture-chart-${type}`)
+  if (!container) return null
+
+  const svgs = Array.from(container.querySelectorAll('svg'))
+  if (svgs.length === 0) return null
+
+  const svg = svgs.reduce((best, current) => {
+    const bestRect = best.getBoundingClientRect()
+    const currentRect = current.getBoundingClientRect()
+    return currentRect.width * currentRect.height > bestRect.width * bestRect.height
+      ? current
+      : best
+  })
+
+  const rect = svg.getBoundingClientRect()
+  if (rect.width < 10 || rect.height < 10) return null
+
+  const hasChartGeometry = svg.querySelector(
+    '.recharts-curve, .recharts-area-area, .recharts-line-curve, .recharts-bar-rectangle, path[d]'
+  )
+  const hasStaticContent = svg.querySelector('rect, line, circle, text')
+  if (!hasChartGeometry && !hasStaticContent) return null
+
+  return svg
+}
 
 /**
  * Converts a Recharts SVG element to a PNG/JPEG Blob.
@@ -14,22 +114,9 @@ export async function svgToBlob(
   scale: number = 2,
   format: 'image/png' | 'image/jpeg' = 'image/png'
 ): Promise<Blob> {
-  // 1. Clone the SVG element so we do not modify the DOM
-  const clonedSvg = svgElement.cloneNode(true) as SVGElement
-  clonedSvg.setAttribute('width', width.toString())
-  clonedSvg.setAttribute('height', height.toString())
+  const clonedSvg = prepareSvgForExport(svgElement, width, height)
 
-  // Ensure fonts look premium
-  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-  styleEl.textContent = `
-    text {
-      font-family: Geist, "Geist Sans", ui-sans-serif, system-ui, sans-serif !important;
-      font-weight: 500;
-    }
-  `
-  clonedSvg.insertBefore(styleEl, clonedSvg.firstChild)
-
-  // 2. Convert SVG element to serialized XML string
+  // Convert SVG element to serialized XML string
   const svgString = new XMLSerializer().serializeToString(clonedSvg)
 
   // 3. Create blob URL
@@ -208,6 +295,25 @@ export function getExportPreferences() {
 }
 
 /**
+ * Polls for a painted SVG inside a capture container, waiting up to `timeoutMs`
+ * for the chart to finish rendering (React + useHMISlow can be async).
+ */
+async function waitForChartSvg(type: string, timeoutMs = 5000): Promise<SVGElement> {
+  const started = Date.now()
+
+  while (Date.now() - started < timeoutMs) {
+    const svg = findReadyChartSvg(type)
+    if (svg) {
+      await flushPaint()
+      return svg
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+
+  throw new Error(`Chart "${type}" did not render within ${timeoutMs}ms. Make sure telemetry data is loaded.`)
+}
+
+/**
  * Captures and downloads a single chart.
  */
 export async function downloadSingleGraph(
@@ -232,12 +338,11 @@ export async function downloadSingleGraph(
   if (type === 'xy') {
     blob = await renderXYTraceToBlob(state, true, resolutionScale, exportFormat)
   } else {
-    const svgEl = document.querySelector(`#capture-chart-${type} svg`) as SVGElement
-    if (!svgEl) {
-      throw new Error(`Chart element for ${type} was not found in DOM.`)
-    }
-    const chartH = type === 'params' ? 600 : 400
-    blob = await svgToBlob(svgEl, 800, chartH, '#121212', resolutionScale, exportFormat)
+    blob = await withCaptureSession([type], async () => {
+      const svgEl = await waitForChartSvg(type)
+      const chartH = type === 'params' ? 600 : type === 'metrics' ? 500 : 400
+      return svgToBlob(svgEl, 800, chartH, '#121212', resolutionScale, exportFormat)
+    })
   }
 
   downloadBlob(blob, filename)
@@ -249,7 +354,8 @@ export async function downloadSingleGraph(
 export async function downloadAllGraphs(
   state: HMIState,
   includeCSV = false,
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  customZipName?: string
 ) {
   const isLive = state.recordingState === 'REC'
   const dBuf = isLive ? state.dBuffer : state.frozenD
@@ -272,6 +378,8 @@ export async function downloadAllGraphs(
   zip.file(`01_xy_workspace_trace.${ext}`, xyBlob)
 
   const charts = [
+    { key: 'cte', label: 'cte_cross_track_error' },
+    { key: 'ate', label: 'ate_along_track_error' },
     { key: 'eef', label: 'eef_error_chart' },
     { key: 'eef-vel', label: 'eef_velocity_chart' },
     { key: 'pwm', label: 'pwm_command_chart' },
@@ -288,20 +396,20 @@ export async function downloadAllGraphs(
     { key: 'pid-breakdown', label: 'j1_pid_control_effort_breakdown' },
     { key: 'loop', label: 'microcontroller_loop_execution_time' },
     { key: 'params', label: 'system_parameters_report' },
-  ]
+    { key: 'metrics', label: 'run_metrics_report' },
+  ] as const
 
-  for (let i = 0; i < charts.length; i++) {
-    const chart = charts[i]
-    if (onProgress) onProgress(`Rendering ${chart.label}...`)
-    const svgEl = document.querySelector(`#capture-chart-${chart.key} svg`) as SVGElement
-    if (!svgEl) {
-      throw new Error(`Chart element for ${chart.key} was not found in DOM.`)
+  await withCaptureSession('all', async () => {
+    for (let i = 0; i < charts.length; i++) {
+      const chart = charts[i]
+      if (onProgress) onProgress(`Rendering ${chart.label}...`)
+      const svgEl = await waitForChartSvg(chart.key)
+      const chartH = chart.key === 'params' ? 600 : chart.key === 'metrics' ? 500 : 400
+      const chartBlob = await svgToBlob(svgEl, 800, chartH, '#121212', resolutionScale, exportFormat)
+      const fileNum = String(i + 2).padStart(2, '0')
+      zip.file(`${fileNum}_${chart.label}.${ext}`, chartBlob)
     }
-    const chartH = chart.key === 'params' ? 600 : 400
-    const chartBlob = await svgToBlob(svgEl, 800, chartH, '#121212', resolutionScale, exportFormat)
-    const fileNum = String(i + 2).padStart(2, '0')
-    zip.file(`${fileNum}_${chart.label}.${ext}`, chartBlob)
-  }
+  })
 
   if (includeCSV) {
     if (onProgress) onProgress('Generating telemetry CSV...')
@@ -312,9 +420,12 @@ export async function downloadAllGraphs(
   if (onProgress) onProgress('Packaging ZIP archive...')
   const zipBlob = await zip.generateAsync({ type: 'blob' })
 
-  const zipFilename = includeCSV
-    ? `${prefix}_diagnostics_package_${timestamp}.zip`
-    : `${prefix}_graphs_${timestamp}.zip`
+  const safeName = customZipName ? customZipName.replace(/[^a-zA-Z0-9_-]/g, '_') : null
+  const zipFilename = safeName
+    ? `${safeName}.zip`
+    : includeCSV
+      ? `${prefix}_diagnostics_package_${timestamp}.zip`
+      : `${prefix}_graphs_${timestamp}.zip`
 
   downloadBlob(zipBlob, zipFilename)
 }

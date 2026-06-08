@@ -22,9 +22,9 @@ inline int formatGainsPacket(char* buf, size_t size, float kp1, float ki1, float
 }
 
 // Telemetry tag 'K': AdvParams
-#define TELEMETRY_K_FORMAT "K,%.3f,%.3f,%d,%.2f,%.3f,%d,%.2f,%.2f,%.4f,%.1f,%.3f,%.3f,%.3f,%.2f,%.2f,%.4f,%.5f,%.8f,%.3f,%d,%d,%.3f,%.3f,%.3f\n"
+#define TELEMETRY_K_FORMAT "K,%.3f,%.3f,%d,%.2f,%.3f,%d,%.2f,%.2f,%.4f,%.1f,%.3f,%.3f,%.3f,%.2f,%.2f,%.4f,%.5f,%.8f,%.3f,%d,%d,%.3f,%.3f,%.3f,%.4f,%.4f\n"
 
-inline int formatAdvParamsPacket(char* buf, size_t size, float vmax, float amax, int cfreq, float u1max, float fzt, int pwm_db, float td1r, float td2r, float td1h, float ddth, float dben, float dbrel, float dbvel, float hskp, float hskd, float idecay, float taunom, float m22ref, float alpha_tilt, int td_enabled, int trap_enabled, float ki2_gate, float db2en, float db2rel) {
-  return snprintf(buf, size, TELEMETRY_K_FORMAT, vmax, amax, cfreq, u1max, fzt, pwm_db, td1r, td2r, td1h, ddth, dben, dbrel, dbvel, hskp, hskd, idecay, taunom, m22ref, alpha_tilt, td_enabled, trap_enabled, ki2_gate, db2en, db2rel);
+inline int formatAdvParamsPacket(char* buf, size_t size, float vmax, float amax, int cfreq, float u1max, float fzt, int pwm_db, float td1r, float td2r, float td1h, float ddth, float dben, float dbrel, float dbvel, float hskp, float hskd, float idecay, float taunom, float m22ref, float alpha_tilt, int td_enabled, int trap_enabled, float ki2_gate, float db2en, float db2rel, float err_dz, float integral_freeze_thresh) {
+  return snprintf(buf, size, TELEMETRY_K_FORMAT, vmax, amax, cfreq, u1max, fzt, pwm_db, td1r, td2r, td1h, ddth, dben, dbrel, dbvel, hskp, hskd, idecay, taunom, m22ref, alpha_tilt, td_enabled, trap_enabled, ki2_gate, db2en, db2rel, err_dz, integral_freeze_thresh);
 }
 

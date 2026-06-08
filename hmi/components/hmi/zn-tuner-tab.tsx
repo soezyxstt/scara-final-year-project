@@ -166,9 +166,9 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
   useEffect(() => {
     if (gains) {
       if (activeJoint === 1) {
-        const positiveKp1 = Math.round(Math.max(0, gains.kp1) * 100) / 100
-        const positiveKi1 = Math.round(Math.max(0, gains.ki1) * 100) / 100
-        const positiveKd1 = Math.round(Math.max(0, gains.kd1) * 100) / 100
+        const positiveKp1 = Math.round(Math.max(0, gains.kp1) * 1000) / 1000
+        const positiveKi1 = Math.round(Math.max(0, gains.ki1) * 1000) / 1000
+        const positiveKd1 = Math.round(Math.max(0, gains.kd1) * 1000) / 1000
         setKp(positiveKp1)
         if (!kpFocused) setKpInput(positiveKp1.toString())
         setKi(positiveKi1)
@@ -176,8 +176,8 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
         setKd(positiveKd1)
         if (!kdFocused) setKdInput(positiveKd1.toString())
       } else {
-        const positiveKp2 = Math.round(Math.max(0, gains.kp2) * 100) / 100
-        const positiveKd2 = Math.round(Math.max(0, gains.kd2) * 100) / 100
+        const positiveKp2 = Math.round(Math.max(0, gains.kp2) * 1000) / 1000
+        const positiveKd2 = Math.round(Math.max(0, gains.kd2) * 1000) / 1000
         setKp(positiveKp2)
         if (!kpFocused) setKpInput(positiveKp2.toString())
         setKd(positiveKd2)
@@ -349,7 +349,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     const parts = cleanedVal.split('.')
     let limitedVal = cleanedVal
     if (parts.length > 1) {
-      limitedVal = parts[0] + '.' + parts[1].substring(0, 2)
+      limitedVal = parts[0] + '.' + parts[1].substring(0, 3)
     }
     if (gainName === 'kp') setKpInput(limitedVal)
     else if (gainName === 'ki') setKiInput(limitedVal)
@@ -358,7 +358,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     const val = parseFloat(limitedVal)
     if (isNaN(val)) return
     
-    const clampedVal = Math.round(Math.max(0, val) * 100) / 100
+    const clampedVal = Math.round(Math.max(0, val) * 1000) / 1000
     if (gainName === 'kp') setKp(clampedVal)
     else if (gainName === 'ki') setKi(clampedVal)
     else if (gainName === 'kd') setKd(clampedVal)
@@ -393,7 +393,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       cmdPrefix = activeJoint === 1 ? 'kd1' : 'kd2'
     }
     
-    const cleanVal = Math.max(0.0, Math.round(val * 100) / 100)
+    const cleanVal = Math.max(0.0, Math.round(val * 1000) / 1000)
     // Update local state directly so it feels responsive
     if (gainName === 'kp') {
       setKp(cleanVal)
@@ -406,7 +406,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       setKdInput(cleanVal.toString())
     }
 
-    await serial.sendCommand(`${cmdPrefix},${cleanVal.toFixed(2)}`)
+    await serial.sendCommand(`${cmdPrefix},${cleanVal.toFixed(3)}`)
     await serial.sendCommand('getgains')
   }
 
@@ -448,7 +448,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       setDbInput(newVal.toString())
     } else {
       newVal = Math.max(0.0, newVal)
-      newVal = Math.round(newVal * 100) / 100
+      newVal = Math.round(newVal * 1000) / 1000
       
       // Update local states immediately
       if (gainName === 'kp') {
@@ -463,12 +463,11 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       }
     }
 
-    await serial.sendCommand(`${cmdPrefix},${gainName === 'db' ? newVal : newVal.toFixed(2)}`)
+    await serial.sendCommand(`${cmdPrefix},${gainName === 'db' ? newVal : newVal.toFixed(3)}`)
     if (gainName === 'db') {
       await serial.sendCommand('getparams')
     }
     await serial.sendCommand('getgains')
-  }
 
   // Target command dispatcher
   const handleSendStep = async () => {
@@ -870,7 +869,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
   // Click-to-apply recommendation handler
   const applyRecommendedGain = async (gainName: 'kp' | 'ki' | 'kd', val: number) => {
-    const cleanVal = Math.max(0.0, Math.round(val * 100) / 100)
+    const cleanVal = Math.max(0.0, Math.round(val * 1000) / 1000)
     let cmdPrefix = ''
     if (gainName === 'kp') {
       cmdPrefix = activeJoint === 1 ? 'kp1' : 'kp2'
@@ -879,7 +878,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     } else if (gainName === 'kd') {
       cmdPrefix = activeJoint === 1 ? 'kd1' : 'kd2'
     }
-    await serial.sendCommand(`${cmdPrefix},${cleanVal.toFixed(2)}`)
+    await serial.sendCommand(`${cmdPrefix},${cleanVal.toFixed(3)}`)
     await serial.sendCommand('getgains')
   }
 
@@ -1106,7 +1105,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
-                    step="0.01"
+                    step="0.001"
                     min={0}
                     className="w-20 text-center text-xs h-7 font-mono p-1 text-emerald-400 font-bold bg-hmi-bg border-hmi-grid"
                     value={kpInput}
@@ -1121,7 +1120,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   </div>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="0.001"
                     className="w-16 text-center text-xs h-7 font-mono p-1"
                     value={kpStepInput}
                     onChange={(e) => {
@@ -1152,7 +1151,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
-                      step="0.01"
+                      step="0.001"
                       min={0}
                       className="w-20 text-center text-xs h-7 font-mono p-1 text-emerald-400 font-bold bg-hmi-bg border-hmi-grid"
                       value={kiInput}
@@ -1167,7 +1166,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     </div>
                     <Input
                       type="number"
-                      step="0.01"
+                      step="0.001"
                       className="w-16 text-center text-xs h-7 font-mono p-1"
                       value={kiStepInput}
                       onChange={(e) => {
@@ -1198,7 +1197,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
-                    step="0.01"
+                    step="0.001"
                     min={0}
                     className="w-20 text-center text-xs h-7 font-mono p-1 text-emerald-400 font-bold bg-hmi-bg border-hmi-grid"
                     value={kdInput}
@@ -1213,7 +1212,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   </div>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="0.001"
                     className="w-16 text-center text-xs h-7 font-mono p-1"
                     value={kdStepInput}
                     onChange={(e) => {

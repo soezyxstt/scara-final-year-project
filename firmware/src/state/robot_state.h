@@ -205,6 +205,12 @@ namespace Params {
   extern float TAU_NOM_J1;
   extern float M22_REF;
 
+  // Near-setpoint integrator behaviour
+  // ERR_DZ: error deadzone — |e1| below this is treated as zero (noise floor)
+  // INTEGRAL_FREEZE_THRESH: |e1| below this decays integrator instead of accumulating
+  extern float ERR_DZ;
+  extern float INTEGRAL_FREEZE_THRESH;
+
   // Ki2 gate
   extern float KI2_GATE_RAD;
 

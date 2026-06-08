@@ -1,18 +1,19 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useId } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useHMI } from '@/lib/hmi-context'
+import { useHMI, useHMISlow } from '@/lib/hmi-context'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip as UiTooltip } from '@/components/ui/tooltip'
-import { Maximize2, Minimize2, ZoomIn, ZoomOut, Hand, RefreshCw } from 'lucide-react'
+import { Maximize2, Minimize2, ZoomIn, ZoomOut, Hand, RefreshCw, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { downloadSingleGraph } from '@/lib/capture-utils'
-import { computeCTEList } from '@/lib/cte-utils'
+import { computeCTEList, computeATEList } from '@/lib/cte-utils'
+// sections only used for the focused/fullscreen AdvancedAnalyzer – raw charts now inline
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ReferenceLine, ResponsiveContainer, AreaChart, Area, LineChart, Line, ReferenceArea,
@@ -85,82 +86,293 @@ function computeEEFVelocityJacobian(dBuf: DSample[], max = 500) {
   })
 }
 
-interface Props {
-  dBuf: DSample[]
-  tBuf: TPoint[]
-  stats: import('@/lib/hmi-types').Stats | null
+// ── Pure chart components for PID / J1 Ctrl / J2 Vel tabs ──────────────────
+// All read their own data via useHMISlow so they plug in exactly like CTEChart etc.
+
+function ChartEmpty({ msg }: { msg: string }) {
+  return (
+    <div className="flex items-center justify-center h-full text-hmi-muted text-xs font-semibold uppercase tracking-wider">
+      {msg}
+    </div>
+  )
 }
 
-function StatsBanner({ stats }: { stats: Props['stats'] }) {
-  if (!stats) return null
+export function PIDChart() {
+  const { state } = useHMISlow()
+  const data = useMemo(() => {
+    if (!state.frozenE || state.frozenE.length === 0) return []
+    const firstT = state.frozenE[0].t
+    return downsample(state.frozenE.map(e => ({
+      t: (e.t - firstT) / 1000,
+      p1_out: e.p1_out,
+      i1_out: e.i1_out,
+      d1_out: e.d1_out,
+    })), 500)
+  }, [state.frozenE])
+
+  if (data.length === 0) return <ChartEmpty msg="No PID telemetry — run a move to capture data" />
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 px-4 py-2.5 border-b border-hmi-grid bg-slate-900/40 font-sans text-xs">
-      <UiTooltip content="Accuracy Index (AI): 1 - MCTE/D. Normalized spatial path tracking accuracy index where 100% is perfect tracking." align="center">
-        <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">AI</span>
-          <span className="text-hmi-ideal font-mono font-medium text-sm mt-0.5">
-            {stats.accuracy_idx !== undefined ? `${(stats.accuracy_idx * 100).toFixed(2)}%` : '--'}
-          </span>
-        </div>
-      </UiTooltip>
-      <UiTooltip content="Maximum Cross Tracking Error (CTE) observed during the run (ε_max)." align="center">
-        <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 tracking-wider font-semibold normal-case">ε<sub>max</sub></span>
-          <span className="text-hmi-error font-mono font-medium text-sm mt-0.5">
-            {stats.max_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
-          </span>
-        </div>
-      </UiTooltip>
-      <UiTooltip content="Mean Cross Tracking Error (MCTE) computed as the path-integrated area of lateral deviation divided by path length (A_path / D)." align="center">
-        <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">MCTE</span>
-          <span className="text-hmi-ideal font-mono font-medium text-sm mt-0.5">
-            {stats.MCTE !== undefined ? stats.MCTE.toFixed(2) : stats.mean_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
-          </span>
-        </div>
-      </UiTooltip>
-      <UiTooltip content="Mean Along Track Error (MATE) computed as the path-integrated area of tracking lag divided by path length." align="center">
-        <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">MATE</span>
-          <span className="text-amber-400 font-mono font-medium text-sm mt-0.5">
-            {stats.MATE !== undefined ? stats.MATE.toFixed(2) : '--'}{' '}
-            {stats.MATE !== undefined && <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>}
-          </span>
-        </div>
-      </UiTooltip>
-      <UiTooltip content="Error Bias (R_ε): Percentage of total tracking error due to time delay/lag vs. path shape/contour deviation. >50% Delay suggests increasing Kp/Ki/Kff; >50% Shape suggests tuning Kd or checking mechanics." align="center">
-        <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 tracking-wider font-semibold normal-case">R<sub>ε</sub></span>
-          <span className={cn(
-            "font-mono font-semibold text-sm mt-0.5",
-            stats.error_ratio !== undefined
-              ? stats.error_ratio >= 0.5 ? "text-amber-400" : "text-cyan-400"
-              : "text-slate-200"
-          )}>
-            {stats.error_ratio !== undefined
-              ? stats.error_ratio >= 0.5
-                ? `${(stats.error_ratio * 100).toFixed(0)}% Delay`
-                : `${((1 - stats.error_ratio) * 100).toFixed(0)}% Shape`
-              : '--'}
-          </span>
-        </div>
-      </UiTooltip>
-      <UiTooltip content="Cross Tracking Error at the final settling coordinate of the trajectory (ε_f)." align="center">
-        <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 tracking-wider font-semibold normal-case">ε<sub>f</sub></span>
-          <span className="text-slate-200 font-mono font-medium text-sm mt-0.5">
-            {stats.final_err.toFixed(2)} <span className="text-[10px] font-sans font-normal text-slate-500">mm</span>
-          </span>
-        </div>
-      </UiTooltip>
-      <UiTooltip content="Time taken for the robot to complete the trajectory run (T_el, in seconds)." align="center">
-        <div className="flex flex-col cursor-help">
-          <span className="text-[11px] text-slate-500 tracking-wider font-semibold normal-case">T<sub>el</sub></span>
-          <span className="text-slate-200 font-mono font-medium text-sm mt-0.5">
-            {stats.elapsed_time !== undefined ? `${stats.elapsed_time.toFixed(3)} s` : '--'}
-          </span>
-        </div>
-      </UiTooltip>
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={MARGIN}>
+        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={v => typeof v === 'number' ? v.toFixed(2) : v} />
+        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Output')} width={56} />
+        <Tooltip contentStyle={TS} formatter={v => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l} allowEscapeViewBox={{ x: false, y: false }} />
+        <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px' }} />
+        <Line type="linear" dataKey="p1_out" stroke="#3B82F6" strokeWidth={1.5} dot={false} isAnimationActive={false} name="P Out" />
+        <Line type="linear" dataKey="i1_out" stroke="#10B981" strokeWidth={1.5} dot={false} isAnimationActive={false} name="I Out" />
+        <Line type="linear" dataKey="d1_out" stroke="#EF4444" strokeWidth={1.5} dot={false} isAnimationActive={false} name="D Out" />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+export function J1CtrlChart() {
+  const { state } = useHMISlow()
+  const data = useMemo(() => {
+    if (!state.frozenF || state.frozenF.length === 0) return []
+    const firstT = state.frozenF[0].t
+    return downsample(state.frozenF.map(f => ({
+      t: (f.t - firstT) / 1000,
+      u1_total: f.u1Total,
+      ff1_contrib: f.ff1Contrib,
+    })), 500)
+  }, [state.frozenF])
+
+  if (data.length === 0) return <ChartEmpty msg="No J1 control telemetry — run a move to capture data" />
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={MARGIN}>
+        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={v => typeof v === 'number' ? v.toFixed(2) : v} />
+        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Control effort')} width={56} />
+        <Tooltip contentStyle={TS} formatter={v => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l} allowEscapeViewBox={{ x: false, y: false }} />
+        <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px' }} />
+        <Line type="linear" dataKey="u1_total"    stroke="#4CAF50" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total PID Effort" />
+        <Line type="linear" dataKey="ff1_contrib" stroke="#9C27B0" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="FF Contribution" strokeDasharray="3 3" />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+export function J2VelChart() {
+  const { state } = useHMISlow()
+  const kp2 = state.gains?.kp2 ?? 0
+  const kd2 = state.gains?.kd2 ?? 0
+  const data = useMemo(() => {
+    if (!state.frozenF || state.frozenF.length === 0) return []
+    const firstT = state.frozenF[0].t
+    const frozenD = state.frozenD
+    return downsample(state.frozenF.map(f => {
+      let bestD = null, minDiff = Infinity
+      for (const d of frozenD) {
+        const diff = Math.abs(d.t - f.t)
+        if (diff < minDiff) { minDiff = diff; bestD = d } else break
+      }
+      return {
+        t: (f.t - firstT) / 1000,
+        omega2_raw:     f.omega2Raw,
+        delta_omega_ff: f.deltaOmegaFf,
+        p_out:          bestD ? kp2 * bestD.e2 : 0,
+        d_out:          bestD ? -kd2 * bestD.dth2 : 0,
+        integral2:      f.integral2,
+      }
+    }), 500)
+  }, [state.frozenF, state.frozenD, kp2, kd2])
+
+  if (data.length === 0) return <ChartEmpty msg="No J2 velocity telemetry — run a move to capture data" />
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={MARGIN}>
+        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={v => typeof v === 'number' ? v.toFixed(2) : v} />
+        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Velocity (rad/s)')} width={60} />
+        <Tooltip contentStyle={TS} formatter={v => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l} allowEscapeViewBox={{ x: false, y: false }} />
+        <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px' }} />
+        <Line type="linear" dataKey="omega2_raw"     stroke="#FF9800" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total ω2 Command" />
+        <Line type="linear" dataKey="p_out"          stroke="#2196F3" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 P Out" />
+        <Line type="linear" dataKey="d_out"          stroke="#EF4444" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 D Out" />
+        <Line type="linear" dataKey="integral2"      stroke="#FFEB3B" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 I Out" strokeDasharray="4 2" />
+        <Line type="linear" dataKey="delta_omega_ff" stroke="#9C27B0" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 FF Contrib" strokeDasharray="3 3" />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+// Self-contained metrics panel — reads from context, always visible.
+// Exported so monitor-tab can place it in the bottom 30% split.
+export function MetricsPanel() {
+  const { state } = useHMISlow()
+  // Show stats whenever we're not actively recording — persists through disconnect/refresh
+  const stats = state.recordingState !== 'REC' ? state.stats : null
+  const frozenD = state.frozenD
+
+  const frozenT = state.frozenT
+
+  const computed = useMemo(() => {
+    if (!frozenD || frozenD.length === 0) return null
+    const N = frozenD.length
+    const r2d = 180 / Math.PI
+    let sq1 = 0, sq2 = 0, sqEEF = 0
+    for (let i = 0; i < N; i++) {
+      const d = frozenD[i]
+      const t = frozenT[i]
+      sq1   += (d.e1 * r2d) ** 2
+      sq2   += (d.e2 * r2d) ** 2
+      sqEEF += t ? (t.xi - t.xa) ** 2 + (t.yi - t.ya) ** 2 : 0
+    }
+    const pwms    = frozenD.map(d => d.pwm1)
+    const meanPwm = pwms.reduce((a, b) => a + b, 0) / N
+    const varPwm  = pwms.reduce((s, v) => s + (v - meanPwm) ** 2, 0) / N
+    let jitter = 0
+    if (N > 1) { let ds = 0; for (let i = 1; i < N; i++) ds += Math.abs(pwms[i] - pwms[i-1]); jitter = ds / (N - 1) }
+    const firstT  = frozenD[0].t
+    const times   = frozenD.map(d => (d.t - firstT) / 1000)
+    let settleIdx = -1
+    for (let i = N - 1; i >= 0; i--) {
+      const t = frozenT[i]
+      if (t && Math.sqrt((t.xi - t.xa) ** 2 + (t.yi - t.ya) ** 2) > 2.0) { settleIdx = i; break }
+    }
+    return {
+      rmseJ1:    Math.sqrt(sq1   / N),
+      rmseJ2:    Math.sqrt(sq2   / N),
+      rmseEEF:   Math.sqrt(sqEEF / N),
+      varPwm,
+      jitter,
+      settleTime: settleIdx >= 0 && settleIdx < N - 1 ? times[settleIdx + 1] : 0,
+    }
+  }, [frozenD, frozenT])
+
+  const dash = <span className="text-slate-600">-</span>
+
+  const fmt = (v: number | undefined, digits = 2, unit?: string) =>
+    v !== undefined
+      ? <>{v.toFixed(digits)}{unit && <span className="text-[10px] font-sans font-normal text-slate-500"> {unit}</span>}</>
+      : dash
+
+  const rows: { label: React.ReactNode; value: React.ReactNode; tooltip: string }[] = [
+    {
+      label: 'AI',
+      value: <span className="text-hmi-ideal">{stats?.accuracy_idx !== undefined ? `${(stats.accuracy_idx * 100).toFixed(2)}%` : dash}</span>,
+      tooltip: 'Accuracy Index (AI): 1 − MCTE/D. 100% = perfect path tracking.',
+    },
+    {
+      label: <span>ε<sub>max</sub></span>,
+      value: <span className="text-hmi-error">{fmt(stats?.max_err, 2, 'mm')}</span>,
+      tooltip: 'Maximum Cross Tracking Error (ε_max): worst lateral deviation in the run.',
+    },
+    {
+      label: 'MCTE',
+      value: <span className="text-hmi-ideal">{fmt(stats?.MCTE ?? stats?.mean_err, 2, 'mm')}</span>,
+      tooltip: 'Mean CTE (MCTE): path-integrated lateral area divided by path length.',
+    },
+    {
+      label: 'RMS ATE',
+      value: <span className="text-amber-500">{fmt(stats?.RMS_ATE, 2, 'mm')}</span>,
+      tooltip: 'RMS Along-Track Error: quadratic average of lead/lag without sign cancellation.',
+    },
+    {
+      label: <span>R<sub>ε</sub></span>,
+      value: (
+        <span className={cn(
+          "font-semibold",
+          stats?.error_ratio !== undefined
+            ? stats.error_ratio >= 0.5 ? "text-amber-400" : "text-cyan-400"
+            : "text-slate-600"
+        )}>
+          {stats?.error_ratio !== undefined
+            ? stats.error_ratio >= 0.5
+              ? `${(stats.error_ratio * 100).toFixed(0)}% Delay`
+              : `${((1 - stats.error_ratio) * 100).toFixed(0)}% Shape`
+            : '-'}
+        </span>
+      ),
+      tooltip: 'Error Bias (R_ε): >50% Delay → raise Kp/Ki/Kff; >50% Shape → tune Kd or check mechanics.',
+    },
+    {
+      label: <span>ε<sub>f</sub></span>,
+      value: <span className="text-slate-200">{fmt(stats?.final_err, 2, 'mm')}</span>,
+      tooltip: 'Final CTE (ε_f): cross-track error at the end of the trajectory.',
+    },
+    {
+      label: <span>T<sub>el</sub></span>,
+      value: <span className="text-slate-200">{stats?.elapsed_time !== undefined ? `${stats.elapsed_time.toFixed(3)} s` : dash}</span>,
+      tooltip: 'Elapsed time (T_el): total duration of the last trajectory run.',
+    },
+    {
+      label: 'RMSE J1',
+      value: <span className="text-purple-400">{fmt(computed?.rmseJ1, 3, '°')}</span>,
+      tooltip: 'Joint 1 tracking RMSE (°): root-mean-square of θ1 position error over the run.',
+    },
+    {
+      label: 'RMSE J2',
+      value: <span className="text-purple-400">{fmt(computed?.rmseJ2, 3, '°')}</span>,
+      tooltip: 'Joint 2 tracking RMSE (°): root-mean-square of θ2 position error over the run.',
+    },
+    {
+      label: 'RMSE EEF',
+      value: <span className="text-purple-400">{fmt(computed?.rmseEEF, 3, 'mm')}</span>,
+      tooltip: 'End-effector RMSE (mm): root-mean-square of Cartesian EEF position error over the run.',
+    },
+    {
+      label: 'Ctrl Var',
+      value: <span className="text-emerald-400">{fmt(computed?.varPwm, 1)}</span>,
+      tooltip: 'Control Effort Variance (PWM σ²): higher values indicate more active correction. Very high values may indicate oscillation.',
+    },
+    {
+      label: 'Jitter',
+      value: <span className="text-violet-400">{fmt(computed?.jitter, 2)}</span>,
+      tooltip: 'Actuator Jitter Proxy (mean |ΔPWM| per step): indicator of chattering. Lower is smoother.',
+    },
+    {
+      label: 'Settle',
+      value: <span className="text-amber-400">{computed ? (computed.settleTime > 0 ? `${computed.settleTime.toFixed(3)} s` : '< 20 ms') : dash}</span>,
+      tooltip: 'EEF Settling Time: time elapsed before end-effector stays permanently within 2.0 mm of the target.',
+    },
+  ]
+
+  const handleDownloadMetrics = async () => {
+    try {
+      await downloadSingleGraph('metrics', 'Run Metrics Report', state)
+    } catch (err: any) {
+      toast.error(err.message || 'Export failed')
+    }
+  }
+
+  return (
+    <div className="h-full w-full bg-hmi-panel border border-hmi-grid rounded-lg flex flex-col overflow-hidden">
+      <div className="px-3 py-1.5 border-b border-hmi-grid shrink-0 flex items-center gap-2">
+        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
+          Run Metrics
+        </span>
+        {!stats && (
+          <span className="text-[10px] text-slate-600 italic">— waiting for move data</span>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleDownloadMetrics}
+          disabled={!stats && (!computed)}
+          className="ml-auto h-5 px-1.5 text-[10px] border-slate-700/60 text-slate-400 bg-slate-900/60 hover:bg-slate-800/80 hover:text-slate-200"
+          title="Download Run Metrics"
+        >
+          <Download className="h-3 w-3" />
+        </Button>
+      </div>
+      <div className="flex-1 min-h-0 grid grid-cols-3 auto-rows-min gap-px bg-hmi-grid/30 overflow-y-auto">
+        {rows.map((row, i) => (
+          <UiTooltip key={i} content={row.tooltip} align="center">
+            <div className="flex flex-col justify-center px-3 py-2 bg-hmi-panel cursor-help hover:bg-slate-900/60 transition-colors">
+              <span className="text-[10px] text-slate-500 font-semibold tracking-wide uppercase leading-tight select-none">
+                {row.label}
+              </span>
+              <span className="font-mono font-medium text-sm mt-0.5 leading-tight">
+                {row.value}
+              </span>
+            </div>
+          </UiTooltip>
+        ))}
+      </div>
     </div>
   )
 }
@@ -205,6 +417,7 @@ export function EEFErrChart({
   width?: number
   height?: number
 }) {
+  const gradId = useId().replace(/\W/g, '')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const handleLegendClick = (e: any) => {
     const { dataKey } = e
@@ -228,7 +441,7 @@ export function EEFErrChart({
   const chart = (
     <AreaChart data={data} margin={MARGIN} width={width} height={height}>
       <defs>
-        <linearGradient id="errGradient" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`${gradId}-errGradient`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="5%" stopColor="#C084FC" stopOpacity={0.25} />
           <stop offset="95%" stopColor="#C084FC" stopOpacity={0.0} />
         </linearGradient>
@@ -239,7 +452,7 @@ export function EEFErrChart({
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.err && (
-        <Area type="linear" dataKey="err" stroke="#C084FC" fill="url(#errGradient)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="EEF Error" />
+        <Area type="linear" dataKey="err" stroke="#C084FC" fill={`url(#${gradId}-errGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="EEF Error" />
       )}
     </AreaChart>
   )
@@ -264,6 +477,7 @@ export function CTEChart({
   width?: number
   height?: number
 }) {
+  const gradId = useId().replace(/\W/g, '')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const handleLegendClick = (e: any) => {
     const { dataKey } = e
@@ -287,7 +501,7 @@ export function CTEChart({
   const chart = (
     <AreaChart data={data} margin={MARGIN} width={width} height={height}>
       <defs>
-        <linearGradient id="cteGradient" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`${gradId}-cteGradient`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="5%" stopColor="#F43F5E" stopOpacity={0.25} />
           <stop offset="95%" stopColor="#F43F5E" stopOpacity={0.0} />
         </linearGradient>
@@ -298,7 +512,69 @@ export function CTEChart({
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.cte && (
-        <Area type="linear" dataKey="cte" stroke="#F43F5E" fill="url(#cteGradient)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="Cross Tracking Error" />
+        <Area type="linear" dataKey="cte" stroke="#F43F5E" fill={`url(#${gradId}-cteGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="Cross Tracking Error" />
+      )}
+    </AreaChart>
+  )
+
+  if (width !== undefined && height !== undefined) return chart
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      {chart}
+    </ResponsiveContainer>
+  )
+}
+
+export function ATEChart({
+  tBuf,
+  dBuf,
+  width,
+  height,
+}: {
+  tBuf: TPoint[]
+  dBuf?: DSample[]
+  width?: number
+  height?: number
+}) {
+  const gradId = useId().replace(/\W/g, '')
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
+
+  const data = useMemo(() => {
+    const ates = computeATEList(tBuf)
+    const sampled = downsample(tBuf, 500)
+    const sampledAtes = downsample(ates, 500)
+    const firstMs = dBuf?.[0]?.t ?? 0
+    const useDTime = dBuf && dBuf.length === tBuf.length
+    return sampled.map((_, i) => ({
+      t: useDTime ? (dBuf![i].t - firstMs) / 1000 : i * 0.02,
+      ate: sampledAtes[i] ?? 0,
+    }))
+  }, [tBuf, dBuf])
+
+  const minY = useMemo(() => Math.min(...data.map(d => d.ate), -0.1) * 1.4, [data])
+  const maxY = useMemo(() => Math.max(...data.map(d => d.ate), 0.1) * 1.4, [data])
+
+  const chart = (
+    <AreaChart data={data} margin={MARGIN} width={width} height={height}>
+      <defs>
+        <linearGradient id={`${gradId}-ateGradient`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.25} />
+          <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.0} />
+        </linearGradient>
+      </defs>
+      <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} />
+      <YAxis domain={[minY, maxY]} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('ATE (mm)')} width={56} />
+      <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
+      <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
+      <ReferenceLine y={0} stroke="#4B5563" strokeDasharray="4 2" />
+      {!hidden.ate && (
+        <Area type="linear" dataKey="ate" stroke="#F59E0B" fill={`url(#${gradId}-ateGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="Along Tracking Error" />
       )}
     </AreaChart>
   )
@@ -363,6 +639,7 @@ export function PWMChart({
   width?: number
   height?: number
 }) {
+  const gradId = useId().replace(/\W/g, '')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const handleLegendClick = (e: any) => {
     const { dataKey } = e
@@ -378,7 +655,7 @@ export function PWMChart({
   const chart = (
     <AreaChart data={data} margin={MARGIN} width={width} height={height}>
       <defs>
-        <linearGradient id="pwmGradient" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`${gradId}-pwmGradient`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="5%" stopColor="#10B981" stopOpacity={0.25} />
           <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
         </linearGradient>
@@ -390,7 +667,7 @@ export function PWMChart({
       <Tooltip contentStyle={TS} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.pwm && (
-        <Area type="linear" dataKey="pwm" stroke="#10B981" fill="url(#pwmGradient)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="PWM Output" />
+        <Area type="linear" dataKey="pwm" stroke="#10B981" fill={`url(#${gradId}-pwmGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="PWM Output" />
       )}
     </AreaChart>
   )
@@ -572,7 +849,7 @@ interface AnalyzerSeries {
 }
 
 function prepareAnalyzerData(
-  activeTab: 'eef' | 'cte' | 'eef_vel' | 'pwm' | 'pos' | 'vel',
+  activeTab: 'cte' | 'ate' | 'pos' | 'vel',
   dBuf: DSample[],
   tBuf: TPoint[],
   angularUnit: string
@@ -588,16 +865,6 @@ function prepareAnalyzerData(
   const firstT = dBuf[0].t
 
   switch (activeTab) {
-    case 'eef': {
-      const rawData = tBuf.map((pt, i) => ({
-        t: dBuf[i] ? (dBuf[i].t - firstT) / 1000 : i * 0.02,
-        err: eefErrFromT(pt),
-      }))
-      const series = [
-        { key: 'err', name: 'EEF Error', stroke: '#C084FC', type: 'area' as const, fill: '#C084FC' }
-      ]
-      return { rawData, series, yLabel: '‖e‖ (mm)', defaultYDomain: [0, 'auto'] as [any, any] }
-    }
     case 'cte': {
       const ctes = computeCTEList(tBuf)
       const rawData = tBuf.map((pt, i) => ({
@@ -609,23 +876,16 @@ function prepareAnalyzerData(
       ]
       return { rawData, series, yLabel: 'CTE (mm)', defaultYDomain: [0, 'auto'] as [any, any] }
     }
-    case 'eef_vel': {
-      const velocities = computeEEFVelocityJacobian(dBuf)
-      const series = [
-        { key: 'v_actual', name: 'Actual Velocity', stroke: '#C084FC', type: 'line' as const },
-        { key: 'v_ideal', name: 'Ideal (trapezoid)', stroke: '#06B6D4', type: 'line' as const, strokeDasharray: '4 2' }
-      ]
-      return { rawData: velocities, series, yLabel: 'v (mm/s)', defaultYDomain: ['auto', 'auto'] as [any, any] }
-    }
-    case 'pwm': {
-      const rawData = dBuf.map(d => ({
-        t: (d.t - firstT) / 1000,
-        pwm: d.pwm1,
+    case 'ate': {
+      const ates = computeATEList(tBuf)
+      const rawData = tBuf.map((pt, i) => ({
+        t: dBuf[i] ? (dBuf[i].t - firstT) / 1000 : i * 0.02,
+        ate: ates[i] ?? 0,
       }))
       const series = [
-        { key: 'pwm', name: 'PWM Output', stroke: '#10B981', type: 'area' as const, fill: '#10B981' }
+        { key: 'ate', name: 'Along Tracking Error', stroke: '#F59E0B', type: 'area' as const, fill: '#F59E0B' }
       ]
-      return { rawData, series, yLabel: 'PWM Command', defaultYDomain: [-255, 255] as [any, any] }
+      return { rawData, series, yLabel: 'ATE (mm)', defaultYDomain: ['auto', 'auto'] as [any, any] }
     }
     case 'pos': {
       const scale = angularUnit === 'degrees' ? 180 / Math.PI : 1
@@ -673,7 +933,7 @@ function AdvancedAnalyzer({
   tBuf,
   angularUnit,
 }: {
-  activeTab: 'eef' | 'cte' | 'eef_vel' | 'pwm' | 'pos' | 'vel'
+  activeTab: 'cte' | 'ate' | 'pos' | 'vel'
   dBuf: DSample[]
   tBuf: TPoint[]
   angularUnit: string
@@ -788,7 +1048,7 @@ function AdvancedAnalyzer({
     computedMin = center - range / 2
     computedMax = center + range / 2
     
-    if (activeTab === 'pwm' && yZoomFactor === 1.0) {
+    if ((activeTab as string) === 'pwm' && yZoomFactor === 1.0) {
       return [-255, 255] as [number, number]
     }
     
@@ -1063,7 +1323,7 @@ function AdvancedAnalyzer({
           ) : (
             <div className="w-full h-full relative">
               <ResponsiveContainer width="100%" height="100%">
-                {activeTab === 'eef' || activeTab === 'pwm' ? (
+                {activeTab === 'cte' || activeTab === 'ate' ? (
                   <AreaChart
                     data={displayData}
                     margin={MARGIN}
@@ -1393,20 +1653,33 @@ function AdvancedAnalyzer({
   )
 }
 
+const TAB_LABELS: Record<string, string> = {
+  cte: 'CTE',
+  ate: 'ATE',
+  pos: 'Position',
+  vel: 'Velocity',
+  pid: 'PID',
+  j1ctrl: 'J1 Ctrl',
+  j2vel: 'J2 Vel',
+}
+
 export function ChartPanel() {
   const { state } = useHMI()
   const [isFocused, setIsFocused] = useState(false)
   const [angularUnit, setAngularUnit] = useState('radians')
 
-  const [activeTab, setActiveTabState] = useState<'cte' | 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel'>(() => {
+  const CHART_TABS = ['cte', 'ate', 'pos', 'vel', 'pid', 'j1ctrl', 'j2vel'] as const
+  type ChartTab = typeof CHART_TABS[number]
+
+  const [activeTab, setActiveTabState] = useState<ChartTab>(() => {
     if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      return (params.get('chart') as 'cte' | 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel') || 'cte'
+      const v = new URLSearchParams(window.location.search).get('chart')
+      return (CHART_TABS.includes(v as ChartTab) ? v : 'cte') as ChartTab
     }
     return 'cte'
   })
 
-  const setActiveTab = (tab: 'cte' | 'eef' | 'eef_vel' | 'pwm' | 'pos' | 'vel') => {
+  const setActiveTab = (tab: ChartTab) => {
     setActiveTabState(tab)
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
@@ -1482,16 +1755,13 @@ export function ChartPanel() {
   useEffect(() => {
     const handleDownload = (e: Event) => {
       if (isFocused) {
-        e.preventDefault()
         const nameMap: Record<string, string> = {
-          eef: 'End-Effector Error Chart',
           cte: 'Cross Tracking Error Chart',
-          eef_vel: 'End-Effector Velocity Chart',
-          pwm: 'PWM Command Chart',
+          ate: 'Along Tracking Error Chart',
           pos: 'Joint Position Chart',
           vel: 'Joint Velocity Chart',
         }
-        const chartKey = activeTab === 'eef_vel' ? 'eef-vel' : activeTab
+        const chartKey = activeTab
         toast.promise(
           downloadSingleGraph(chartKey, nameMap[activeTab] || 'Telemetry Chart', state),
           {
@@ -1530,20 +1800,20 @@ export function ChartPanel() {
           <div className="flex items-center gap-2">
             {/* Quick tab switcher inside full screen analyzer */}
             <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-md border border-hmi-grid mr-4">
-              {(['cte', 'eef', 'eef_vel', 'pwm', 'pos', 'vel'] as const).map(tab => (
+              {CHART_TABS.map(tab => (
                 <Button
                   key={tab}
                   variant="ghost"
                   size="sm"
                   className={cn(
                     "h-7 px-3 text-xs rounded",
-                    activeTab === tab 
-                      ? "bg-hmi-btn text-hmi-text font-semibold shadow-sm" 
+                    activeTab === tab
+                      ? "bg-hmi-btn text-hmi-text font-semibold shadow-sm"
                       : "text-hmi-muted hover:text-slate-200"
                   )}
                   onClick={() => setActiveTab(tab)}
                 >
-                  {tab === 'cte' ? 'CTE' : tab === 'eef' ? 'EEF err' : tab === 'eef_vel' ? 'EEF vel' : tab === 'pwm' ? 'PWM' : tab === 'pos' ? 'Position' : 'Velocity'}
+                  {TAB_LABELS[tab]}
                 </Button>
               ))}
             </div>
@@ -1564,48 +1834,20 @@ export function ChartPanel() {
         </div>
       )}
 
-      {!isFocused && <StatsBanner stats={state.recordingState === 'IDLE' ? state.stats : null} />}
       
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as any)} className="flex flex-col flex-1 min-h-0">
         {!isFocused && (
           <TabsList className="rounded-none border-b border-hmi-grid bg-hmi-panel px-2 py-0 h-9 shrink-0 flex items-center justify-between">
             <div className="flex items-center gap-0.5">
-              <TabsTrigger
-                value="cte"
-                className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text"
-              >
-                CTE
-              </TabsTrigger>
-              <TabsTrigger
-                value="eef"
-                className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text"
-              >
-                EEF err
-              </TabsTrigger>
-              <TabsTrigger
-                value="eef_vel"
-                className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text"
-              >
-                EEF vel
-              </TabsTrigger>
-              <TabsTrigger
-                value="pwm"
-                className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text"
-              >
-                PWM
-              </TabsTrigger>
-              <TabsTrigger
-                value="pos"
-                className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text"
-              >
-                Position
-              </TabsTrigger>
-              <TabsTrigger
-                value="vel"
-                className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text"
-              >
-                Velocity
-              </TabsTrigger>
+              {CHART_TABS.map(tab => (
+                <TabsTrigger
+                  key={tab}
+                  value={tab}
+                  className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text px-3"
+                >
+                  {TAB_LABELS[tab]}
+                </TabsTrigger>
+              ))}
             </div>
             <div className="flex items-center gap-1.5 ml-auto">
               <UiTooltip content={isFocused ? "Collapse: Restores the panel to normal size." : "Expand: Maximizes the telemetry charts."} align="center">
@@ -1616,7 +1858,6 @@ export function ChartPanel() {
                   className="h-7 px-1.5 text-[10px] text-slate-300 border-slate-700/60 hover:bg-slate-800/80 hover:text-white"
                 >
                   {isFocused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                  <span className="ml-1">{isFocused ? 'Collapse' : 'Expand'}</span>
                 </Button>
               </UiTooltip>
             </div>
@@ -1625,31 +1866,44 @@ export function ChartPanel() {
 
         <CardContent className="flex-1 min-h-0 p-2 overflow-hidden">
           {isFocused ? (
-            <AdvancedAnalyzer
-              activeTab={activeTab}
-              dBuf={dBuf}
-              tBuf={tBuf}
-              angularUnit={angularUnit}
-            />
+            // For CTE/ATE/POS/VEL use the interactive AdvancedAnalyzer;
+            // for the new tabs, the section components handle their own fullscreen.
+            (['cte', 'ate', 'pos', 'vel'] as const).includes(activeTab as any) ? (
+              <AdvancedAnalyzer
+                activeTab={activeTab as 'cte' | 'ate' | 'pos' | 'vel'}
+                dBuf={dBuf}
+                tBuf={tBuf}
+                angularUnit={angularUnit}
+              />
+            ) : (
+              <div className="h-full w-full">
+                {activeTab === 'pid'    && <PIDChart />}
+                {activeTab === 'j1ctrl' && <J1CtrlChart />}
+                {activeTab === 'j2vel'  && <J2VelChart />}
+              </div>
+            )
           ) : (
             <>
-              <TabsContent value="eef" className="h-full w-full relative overflow-hidden">
-                {activeTab === 'eef' && <EEFErrChart tBuf={chartT} dBuf={chartD} />}
-              </TabsContent>
               <TabsContent value="cte" className="h-full w-full relative overflow-hidden">
                 {activeTab === 'cte' && <CTEChart tBuf={chartT} dBuf={chartD} />}
               </TabsContent>
-              <TabsContent value="eef_vel" className="h-full w-full relative overflow-hidden">
-                {activeTab === 'eef_vel' && <EEFVelocityChart dBuf={chartD} />}
-              </TabsContent>
-              <TabsContent value="pwm" className="h-full w-full relative overflow-hidden">
-                {activeTab === 'pwm' && <PWMChart dBuf={dBuf} />}
+              <TabsContent value="ate" className="h-full w-full relative overflow-hidden">
+                {activeTab === 'ate' && <ATEChart tBuf={chartT} dBuf={chartD} />}
               </TabsContent>
               <TabsContent value="pos" className="h-full w-full relative overflow-hidden">
                 {activeTab === 'pos' && <PositionChart dBuf={dBuf} />}
               </TabsContent>
               <TabsContent value="vel" className="h-full w-full relative overflow-hidden">
                 {activeTab === 'vel' && <VelocityChart dBuf={dBuf} />}
+              </TabsContent>
+              <TabsContent value="pid" className="h-full w-full relative overflow-hidden">
+                {activeTab === 'pid' && <PIDChart />}
+              </TabsContent>
+              <TabsContent value="j1ctrl" className="h-full w-full relative overflow-hidden">
+                {activeTab === 'j1ctrl' && <J1CtrlChart />}
+              </TabsContent>
+              <TabsContent value="j2vel" className="h-full w-full relative overflow-hidden">
+                {activeTab === 'j2vel' && <J2VelChart />}
               </TabsContent>
             </>
           )}

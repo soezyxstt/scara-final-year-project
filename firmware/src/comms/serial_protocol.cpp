@@ -91,7 +91,7 @@ void emitParams() {
     TD1_R, TD2_R, td1.h, DDTH_MAX, DB_ENGAGE, DB_RELEASE, DB_VEL,
     KP_HOLD_SCALE, KD_HOLD_SCALE, INTEGRAL_DECAY, TAU_NOM_J1, M22_REF,
     alpha_tilt * (180.0f / PI), TD_ENABLED ? 1 : 0, TRAP_ENABLED ? 1 : 0, KI2_GATE_RAD,
-    DB2_ENGAGE, DB2_RELEASE
+    DB2_ENGAGE, DB2_RELEASE, ERR_DZ, INTEGRAL_FREEZE_THRESH
   );
   Serial.print(buf);
 }
@@ -131,7 +131,7 @@ void emitFullState() {
   emitPosition();
   emitQueueStatus();
   Serial.print("ESTOP,"); Serial.println(estop_active ? "1" : "0");
-  Serial.print("X,"); Serial.println(MODE_NAMES[op_mode]);
+  // X, tidak dikirim di sini — transitionToMode dan getgains handler masing-masing mengirimnya
 }
 
 // ============================================================

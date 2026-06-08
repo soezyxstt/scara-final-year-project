@@ -381,15 +381,15 @@ The robot continuously sends data packets over serial. Here's what they mean:
 
 | Packet | Rate | Format | Meaning |
 |--------|------|--------|---------|
-| `D` | 500 Hz | `D,ms,th1,th2,th1d,th2d,dth1,dth2,dth1d,dth2d,pwm1,th1raw,th2raw` | Full real-time state |
+| `D` | 500 Hz | `D,ms,th1,th2,th1d,th2d,dth1,dth2,dth1d,dth2d,pwm1,th1raw,th2raw` | Full real-time state (HMI downsamples to 50 Hz) |
 | `E` | 50 Hz | `E,ms,P_pwm,I_pwm,D_pwm,loop_us` | Joint 1 PID components + loop time |
-| `F` | 50 Hz | `F,ms,inertia1,coriolis1,gravity1,inertia2,...,integral2` | Feedforward component breakdown |
+| `F` | 50 Hz | `F,ms,inertia1,coriolis1,gravity1,inertia2,coriolis2,gravity2,ff1,u1,integral1,dω_ff,ω2_raw,integral2` | Feedforward component breakdown |
 | `T` | 50 Hz | `T,x_cmd,y_cmd,x_act,y_act` | Cartesian command vs actual position |
 | `P` | On request | `P,x_mm,y_mm,th1,th2` | Current end-effector position |
 | `M` | On move start | `M,x0,y0,xf,yf` | Trajectory start point and target |
 | `S` | On move end | `S,xf,yf` | Trajectory finished |
-| `G` | On request | `G,Kp1,Ki1,Kd1,Kp2,Ki2,Kd2,16,ffi,ffc,ffg` | Current gains |
-| `K` | On request | 22 parameters | All runtime settings |
+| `G` | On request | `G,Kp1,Ki1,Kd1,Kp2,Ki2,Kd2,mstep,ffi,ffc,ffg` | Current gains and feedforward blends |
+| `K` | On request | 26 parameters | All runtime settings |
 | `X` | On mode change | `X,MODENAME` | Current operating mode |
 | `Q` | On queue change | `Q,pending,px,py` | Move queue status |
 

@@ -65,6 +65,8 @@ export interface AdvParams {
   ki2GateRad: number;
   db2en: number;
   db2rel: number;
+  errDz: number;
+  integralFreezeThresh: number;
 }
 
 export interface ZNSample {
@@ -108,6 +110,7 @@ export interface Stats {
   accuracy_idx: number
   MATE?: number
   MCTE?: number
+  RMS_ATE?: number
   error_ratio?: number
   elapsed_time?: number
 }

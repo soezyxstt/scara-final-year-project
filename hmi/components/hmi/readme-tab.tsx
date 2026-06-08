@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Copy, Check, BookOpen, Cpu, Eye, BarChart2, Book, ChevronDown, ChevronRight, TrendingUp } from 'lucide-react'
+import { Copy, Check, BookOpen, Cpu, Eye, BarChart2, Book, ChevronDown, ChevronRight, TrendingUp, Compass, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Custom Syntax Highlighting for C++/Arduino & Serial Logs ────────────────
@@ -227,8 +227,20 @@ export function ReadmeTab() {
       title: 'Getting started',
       icon: <BookOpen className="h-3.5 w-3.5" />,
       links: [
+        { href: '#overview', label: 'Quick Start Overview' },
         { href: '#connect', label: '1. Connecting the HMI' },
         { href: '#move', label: '2. Sending a Move' },
+        { href: '#modes', label: '3. Operating Modes' },
+      ],
+    },
+    {
+      id: 'pages',
+      title: 'Pages & navigation',
+      icon: <Compass className="h-3.5 w-3.5" />,
+      links: [
+        { href: '#pages-nav', label: 'Home, ZN & Test Pages' },
+        { href: '#zn-page', label: 'ZN Tuner Page (/zn)' },
+        { href: '#test-page', label: 'Test Page (/test)' },
       ],
     },
     {
@@ -238,8 +250,8 @@ export function ReadmeTab() {
       links: [
         { href: '#xy-trace', label: 'XY Trace Canvas' },
         { href: '#charts', label: 'Telemetry Charts' },
-        { href: '#control-panel', label: 'Control Panel Pinned' },
-        { href: '#serial-log', label: 'Serial Log Terminal' },
+        { href: '#metrics', label: 'Run Metrics Panel' },
+        { href: '#control-panel', label: 'Control Panel' },
       ],
     },
     {
@@ -247,19 +259,28 @@ export function ReadmeTab() {
       title: 'Analysis tab',
       icon: <BarChart2 className="h-3.5 w-3.5" />,
       links: [
-        { href: '#performance', label: 'Performance Metrics' },
         { href: '#advanced', label: 'Advanced Analysis' },
-        { href: '#pid-advisor', label: 'PID Advisor Rules' },
+        { href: '#comparison-table', label: 'Data Table & CSV' },
       ],
     },
     {
-      id: 'zn-tuner',
-      title: 'ZN Tuner page',
+      id: 'rest-analysis',
+      title: 'Rest Analysis tab',
       icon: <TrendingUp className="h-3.5 w-3.5" />,
       links: [
-        { href: '#zn-about', label: '1. About ZN Tuning' },
-        { href: '#zn-interface', label: '2. Tuner Workspace' },
-        { href: '#zn-calipers', label: '3. Caliper Analyzer' },
+        { href: '#rest-about', label: 'About Rest Analysis' },
+        { href: '#rest-interface', label: 'Workspace Controls' },
+        { href: '#rest-calipers', label: 'Caliper Analyzer' },
+      ],
+    },
+    {
+      id: 'tools',
+      title: 'Tools & settings',
+      icon: <SlidersHorizontal className="h-3.5 w-3.5" />,
+      links: [
+        { href: '#serial-monitor', label: 'Serial Monitor' },
+        { href: '#settings-menu', label: 'Settings Menu (☰)' },
+        { href: '#keyboard-shortcuts', label: 'Keyboard Shortcuts' },
       ],
     },
     {
@@ -268,6 +289,7 @@ export function ReadmeTab() {
       icon: <Book className="h-3.5 w-3.5" />,
       links: [
         { href: '#terms-control', label: 'Control & Motion' },
+        { href: '#terms-cte', label: 'CTE & ATE Errors' },
         { href: '#terms-pid', label: 'PID Gain Tuning' },
         { href: '#terms-motion', label: 'Kinematics Terms' },
       ],
@@ -289,11 +311,13 @@ export function ReadmeTab() {
 
   // Determine active category based on active scroll ID
   const getActiveCategory = (id: string) => {
-    if (['connect', 'move'].includes(id)) return 'connect'
-    if (['xy-trace', 'charts', 'control-panel', 'serial-log'].includes(id)) return 'xy-trace'
-    if (['performance', 'advanced', 'pid-advisor'].includes(id)) return 'performance'
-    if (['zn-about', 'zn-interface', 'zn-calipers'].includes(id)) return 'zn-tuner'
-    if (['terms-control', 'terms-pid', 'terms-motion'].includes(id)) return 'terms-control'
+    if (['overview', 'connect', 'move', 'modes'].includes(id)) return 'connect'
+    if (['pages-nav', 'zn-page', 'test-page'].includes(id)) return 'pages'
+    if (['xy-trace', 'charts', 'metrics', 'control-panel'].includes(id)) return 'xy-trace'
+    if (['advanced', 'comparison-table'].includes(id)) return 'performance'
+    if (['rest-about', 'rest-interface', 'rest-calipers'].includes(id)) return 'rest-analysis'
+    if (['serial-monitor', 'settings-menu', 'keyboard-shortcuts'].includes(id)) return 'tools'
+    if (['terms-control', 'terms-cte', 'terms-pid', 'terms-motion'].includes(id)) return 'terms-control'
     if (['esp-telemetry', 'esp-commands', 'esp-example'].includes(id)) return 'esp-telemetry'
     return 'connect'
   }
@@ -302,9 +326,11 @@ export function ReadmeTab() {
   // Manage open/closed state for grouping accordions
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     connect: true,
+    pages: false,
     'xy-trace': false,
     performance: false,
-    'zn-tuner': false,
+    'rest-analysis': false,
+    tools: false,
     'terms-control': false,
     'esp-telemetry': false,
   })
@@ -474,6 +500,42 @@ export function ReadmeTab() {
             </div>
           </div>
 
+          {/* 💡 SECTION: OVERVIEW */}
+          <section id="overview" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>Quick Start Overview</span>
+              <a href="#overview" onClick={(e) => { e.preventDefault(); handleScrollTo('#overview') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              This HMI is a browser-based dashboard for monitoring and tuning a 2-DOF planar SCARA robot. It talks to the ESP32 directly over USB — no extra drivers or bridge software required.
+            </p>
+            <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">First-time workflow</h3>
+            <ol className="list-decimal pl-5 space-y-2 text-xs text-zinc-400 mb-5 leading-relaxed">
+              <li>Flash the firmware to the ESP32 (see <InlineCode>docs/firmware/readme.md</InlineCode>).</li>
+              <li>Run <InlineCode>npm run dev</InlineCode> in the <InlineCode>hmi/</InlineCode> folder and open <strong className="text-zinc-300">http://localhost:3000</strong> in Chrome or Edge.</li>
+              <li>Plug in the ESP32, click <InlineCode>Connect</InlineCode>, and select the COM port.</li>
+              <li>Confirm the <strong className="text-zinc-300">Mode Badge</strong> shows <InlineCode>SCARA</InlineCode> (the HMI switches modes automatically per page).</li>
+              <li>Go to the <strong className="text-zinc-300">Monitor</strong> tab, enter a target coordinate in the Control Panel, and click <InlineCode>Send Move</InlineCode>.</li>
+              <li>After the move finishes, check <strong className="text-zinc-300">Run Metrics</strong> below the charts and open the <strong className="text-zinc-300">Analysis</strong> tab for deeper diagnostics.</li>
+            </ol>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 my-4">
+              {[
+                { tab: 'Monitor', desc: 'Live XY trace, charts, metrics, and control panel' },
+                { tab: 'Analysis', desc: 'Post-run phase portrait, CTC torques, and data table' },
+                { tab: 'Rest Analysis', desc: 'Step-response and rest-state telemetry analysis' },
+                { tab: 'README', desc: 'This guide — you are here' },
+              ].map((item, idx) => (
+                <div key={idx} className="p-3 border border-zinc-800 rounded-lg bg-[#101014]">
+                  <p className="text-[11px] font-bold text-hmi-ideal font-mono">{item.tab}</p>
+                  <p className="text-[9.5px] text-zinc-500 mt-1 leading-relaxed">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+            <Callout type="tip">
+              Use the <strong>☰ Settings menu</strong> in the header to switch between the Home dashboard, ZN Tuner (<InlineCode>/zn</InlineCode>), and Test Page (<InlineCode>/test</InlineCode>) without disconnecting serial.
+            </Callout>
+          </section>
+
           {/* 💡 SECTION: CONNECT */}
           <section id="connect" className="scroll-mt-16 mb-12">
             <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
@@ -490,7 +552,8 @@ export function ReadmeTab() {
               <li>Ensure you are running the HMI in <strong className="text-zinc-300">Google Chrome</strong> or <strong className="text-zinc-300">Microsoft Edge</strong>, as Safari and Firefox do not currently support the Web Serial protocol.</li>
               <li>Click the <InlineCode>Connect</InlineCode> button located on the right side of the main header bar.</li>
               <li>Select your microcontroller's COM port in the browser popup (often labeled <span className="italic">USB-to-UART Bridge</span> or <span className="italic">COMx</span>) and click **Connect**.</li>
-              <li>Upon connection, the port badge will display green with the COM name, and the HMI will automatically trigger a <InlineCode>getgains</InlineCode> command to request current PID parameters.</li>
+              <li>Upon connection, the HMI sends <InlineCode>getgains</InlineCode> and <InlineCode>getparams</InlineCode>, then starts sending <InlineCode>ping</InlineCode> to keep the firmware watchdog alive.</li>
+              <li>The <strong className="text-zinc-300">Mode Badge</strong> in the header shows the current firmware mode. The HMI auto-sends <InlineCode>mode,scara</InlineCode> when you are on the home page.</li>
             </ol>
 
             <Callout type="tip">
@@ -552,6 +615,70 @@ export function ReadmeTab() {
             <Callout type="danger">
               <strong>Trajectory Safety Validation:</strong> The HMI includes a safety layer checking all straight-line moves. If a path crosses the inner singularity circle (R &lt; 45 mm), exceeds the outer reach (R &gt; 170 mm), or goes below the horizontal plane (Y &lt; 0), the HMI disables the move command, displays validation warning details in the Control Panel, and overlays a red warning path on the canvas.
             </Callout>
+          </section>
+
+          {/* 💡 SECTION: MODES */}
+          <section id="modes" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>3. Operating Modes</span>
+              <a href="#modes" onClick={(e) => { e.preventDefault(); handleScrollTo('#modes') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              The ESP32 firmware has four operating modes. The HMI switches modes automatically when you navigate between pages, but you can also send mode commands manually from the serial monitor.
+            </p>
+            <PropertyList>
+              <Property name="IDLE" type="SAFE DEFAULT" description="All motors off. The firmware returns here after 8 seconds of serial silence unless ping is sent." />
+              <Property name="SCARA" type="HOME PAGE" description="Full Cartesian operation. Send move,X,Y from the Control Panel. Used on the home page (/)." />
+              <Property name="ZN" type="ZN PAGE" description="Joint-level tuning. Send t1,deg or t2,deg step commands. Used on /zn." />
+              <Property name="TEST" type="TEST PAGE" description="Like SCARA but all 26 runtime parameters are adjustable live. Used on /test." />
+            </PropertyList>
+            <Callout type="warn">
+              If the robot stops responding, check whether the mode badge shows <InlineCode>IDLE</InlineCode>. Click <InlineCode>Connect</InlineCode> or navigate to the correct page to restore the expected mode.
+            </Callout>
+          </section>
+
+          {/* 💡 SECTION: PAGES NAV */}
+          <section id="pages-nav" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>Home, ZN &amp; Test Pages</span>
+              <a href="#pages-nav" onClick={(e) => { e.preventDefault(); handleScrollTo('#pages-nav') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              The HMI has three routes that share one serial connection. Switch between them using the <strong className="text-zinc-300">Page Navigation</strong> section in the ☰ settings menu.
+            </p>
+            <PropertyList>
+              <Property name="/  (Home)" type="SCARA MODE" description="Monitor, Analysis, Rest Analysis, and README tabs. Primary dashboard for Cartesian moves and post-run diagnostics." />
+              <Property name="/zn" type="ZN MODE" description="Dedicated Ziegler-Nichols tuning page with per-joint step commands and caliper analyzer." />
+              <Property name="/test" type="TEST MODE" description="Engineering test bench with Monitor, Analysis (+ raw signals), Rest Analysis, and Params Tuner tabs." />
+            </PropertyList>
+          </section>
+
+          <section id="zn-page" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>ZN Tuner Page (/zn)</span>
+              <a href="#zn-page" onClick={(e) => { e.preventDefault(); handleScrollTo('#zn-page') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              Navigate to <InlineCode>/zn</InlineCode> for classical Ziegler-Nichols joint tuning. The page sends <InlineCode>mode,zn</InlineCode> automatically and provides gain increment controls, <InlineCode>t1</InlineCode>/<InlineCode>t2</InlineCode> step commands, and a live target-vs-actual chart in degrees.
+            </p>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Use the caliper drag tool on the chart to measure ultimate period (<InlineCode>Tu</InlineCode>) and generate recommended P, PI, and PID gains from the ZN rules table.
+            </p>
+          </section>
+
+          <section id="test-page" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>Test Page (/test)</span>
+              <a href="#test-page" onClick={(e) => { e.preventDefault(); handleScrollTo('#test-page') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              The Test page adds engineering tools on top of the home feature set:
+            </p>
+            <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400 leading-relaxed">
+              <li><strong>Params Tuner</strong> — adjust all 26 runtime constants (velocity limits, filter bandwidths, deadbands, trajectory flags) with sync status LEDs.</li>
+              <li><strong>Raw Signal Section</strong> — overlay unfiltered ADC readings on top of filtered position data to diagnose sensor noise.</li>
+              <li>Same Monitor, Analysis, and Rest Analysis tabs as the home page.</li>
+            </ul>
           </section>
 
           {/* 💡 SECTION: XY TRACE */}
@@ -621,56 +748,39 @@ export function ReadmeTab() {
               <a href="#charts" onClick={(e) => { e.preventDefault(); handleScrollTo('#charts') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              The chart panel provides five interactive sub-tabs tracking control system variables over time. Graphs freeze at the end of a run to support static telemetry inspection.
+              The chart panel provides seven interactive sub-tabs tracking control system variables over time. Click <strong className="text-zinc-300">Focus (⊕)</strong> on any chart to open the Advanced Analyzer with calipers, zoom, and pan tools. Graphs freeze when a run ends.
             </p>
 
             <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">Available Visualizations</h3>
             <PropertyList>
-              <Property
-                name="EEF error (mm)"
-                type="AMBER AREA PLOT"
-                description="Euclidean distance error between ideal and actual end-effector coordinates. Shows error accumulation and convergence."
-              />
-              <Property
-                name="EEF vel (mm/s)"
-                type="DUAL LINE CHART"
-                description="Ideal versus actual tool-tip velocity profiles, illustrating acceleration spikes and deceleration behavior."
-              />
-              <Property
-                name="PWM Output"
-                type="SOLID GREEN PLOT"
-                description="The Pulse-Width Modulation command signal written to Joint 1's DC motor driver (range -255 to +255). Shows controller effort saturation."
-              />
-              <Property
-                name="Position (rad)"
-                type="DUAL SUBPLOTS"
-                description="Joint angles θ1 and θ2 versus desired reference values (Dashed lines indicate references; solid lines show sensor readings)."
-              />
-              <Property
-                name="Velocity (rad/s)"
-                type="SPEED PLOTS"
-                description="Joint angular velocity values showing high-frequency motor chattering and compliance lag."
-              />
+              <Property name="CTE (mm)" type="CROSS-TRACK ERROR" description="Lateral deviation from the ideal path — perpendicular distance from actual position to the planned trajectory segment." />
+              <Property name="ATE (mm)" type="ALONG-TRACK ERROR" description="Lead/lag error along the path direction. Positive means the robot is ahead; negative means it is behind." />
+              <Property name="Position" type="JOINT ANGLES" description="θ1 and θ2 versus desired references. Unit follows the global radians/degrees setting." />
+              <Property name="Velocity" type="JOINT SPEEDS" description="Joint angular velocities versus desired references." />
+              <Property name="PID" type="J1 BREAKDOWN" description="Joint 1 proportional, integral, and derivative term contributions over time." />
+              <Property name="J1 Ctrl" type="COMBINED SIGNAL" description="Total Joint 1 control signal including feedforward and feedback components." />
+              <Property name="J2 Vel" type="STEPPER COMMAND" description="Stepper motor commanded angular velocity." />
             </PropertyList>
+          </section>
 
-            <h3 className="text-sm font-semibold text-zinc-200 mt-6 mb-2">Post-Run Statistics</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-3">
-              Once a run completes (transition to `IDLE`), the statistical summary card computes:
+          {/* 💡 SECTION: METRICS PANEL */}
+          <section id="metrics" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>Run Metrics Panel</span>
+              <a href="#metrics" onClick={(e) => { e.preventDefault(); handleScrollTo('#metrics') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              Below the charts on the Monitor tab, the <strong className="text-zinc-300">Run Metrics</strong> grid summarizes the last completed trajectory. Hover any cell for a tooltip explanation.
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 my-3">
-              {[
-                { title: 'Samples', desc: 'Total data count' },
-                { title: 'Max Error', desc: 'Peak deviation' },
-                { title: 'Mean Error', desc: 'Average error' },
-                { title: 'Final Error', desc: 'Steady-state offset' },
-                { title: 'Max PWM', desc: 'Peak motor drive' },
-              ].map((item, idx) => (
-                <div key={idx} className="p-3 border border-zinc-800 rounded-lg bg-[#101014] text-center">
-                  <p className="text-[11px] font-bold text-zinc-200 font-mono">{item.title}</p>
-                  <p className="text-[9.5px] text-zinc-500 mt-0.5">{item.desc}</p>
-                </div>
-              ))}
-            </div>
+            <PropertyList>
+              <Property name="AI" description="Accuracy Index — 1 minus mean CTE divided by path length. 100% means perfect tracking." />
+              <Property name="εmax / MCTE" description="Peak and mean cross-tracking error in millimetres." />
+              <Property name="RMS ATE" description="Root-mean-square along-track error without sign cancellation." />
+              <Property name="Rε" description="Error bias ratio — whether error is dominated by delay (>50%) or shape distortion." />
+              <Property name="RMSE J1/J2/EEF" description="Per-joint and end-effector position RMSE." />
+              <Property name="Ctrl Var / Jitter" description="PWM variance and mean step-to-step change — indicators of control chatter." />
+              <Property name="Settle" description="Time until the end-effector stays within 2 mm of the target." />
+            </PropertyList>
           </section>
 
           {/* 💡 SECTION: CONTROL PANEL */}
@@ -704,65 +814,15 @@ export function ReadmeTab() {
                 type="DRIVER CONFIG"
                 description="Configures step subdivisions (Full, Half, 1/4, 1/8, 1/16) for the stepper driver. Divisor selection sends 'mstep,N' over serial."
               />
-            </PropertyList>
-          </section>
-
-          {/* 💡 SECTION: SERIAL LOG */}
-          <section id="serial-log" className="scroll-mt-16 mb-12">
-            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
-              <span>Serial Log Terminal</span>
-              <a href="#serial-log" onClick={(e) => { e.preventDefault(); handleScrollTo('#serial-log') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
-            </h2>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              The terminal logging panel shows raw command responses. High-frequency telemetry lines (<InlineCode>T</InlineCode> and <InlineCode>D</InlineCode> packets) are automatically filtered out to keep the terminal readable, while specific key transitions are highlighted with distinct badges.
-            </p>
-
-            <div className="p-4 rounded-xl border border-zinc-800 bg-[#0e0e11] font-mono text-[11px] space-y-2 mb-4">
-              <div className="flex items-center gap-2"><span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] font-bold">MOVE</span> <span className="text-zinc-400">M,0.00,120.00,100.00,80.00 (Trajectory initialization)</span></div>
-              <div className="flex items-center gap-2"><span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold">DONE</span> <span className="text-zinc-400">S (Robot successfully arrived at target)</span></div>
-              <div className="flex items-center gap-2"><span className="px-1.5 py-0.5 rounded bg-zinc-850 text-zinc-300 border border-zinc-700 text-[9px] font-bold">GAINS</span> <span className="text-zinc-400">G,2.500,0.010,0.050,1.200,0.005,0.030,8 (Gains query return)</span></div>
-              <div className="flex items-center gap-2"><span className="text-sky-400 font-bold">[DEBUG]</span> <span className="text-zinc-500">Free heap: 218402 bytes</span></div>
-            </div>
-
-            <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">Terminal Execution Controls</h3>
-            <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400 mb-4 leading-relaxed">
-              <li><strong>Clear Log:</strong> Clear local console logs and resets the persisted browser store.</li>
-              <li><strong>Clear Graph:</strong> Erases the trace plot paths and transmits a <InlineCode>clrgraph</InlineCode> command over serial to clear local arrays on the microcontroller.</li>
-            </ul>
-          </section>
-
-          {/* 💡 SECTION: PERFORMANCE SUMMARY */}
-          <section id="performance" className="scroll-mt-16 mb-12">
-            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
-              <span>Control Performance Metrics</span>
-              <a href="#performance" onClick={(e) => { e.preventDefault(); handleScrollTo('#performance') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
-            </h2>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              Located at the top of the **Analysis** tab, these cards calculate control parameters for transient response and steady-state accuracy:
-            </p>
-
-            <PropertyList>
               <Property
-                name="Rise Time (tr)"
-                type="TRANSIENT RESPONSE"
-                description="The time interval (measured in samples) required for the feedback signal to rise from 10% to 90% of its final value. Lower samples indicate faster response speeds."
-              />
-              <Property
-                name="Overshoot (%OS)"
-                type="DAMPING INDICATOR"
-                description="The peak value of the actual path relative to the final settled value, expressed as a percentage. Excessive overshoot (>20%) suggests that derivative damping (Kd) is too low or proportional gain (Kp) is set too high."
-              />
-              <Property
-                name="Settling Time (ts)"
-                type="SYSTEM STABILITY"
-                description="The sample index after which the feedback signal enters and remains within a narrow band (default ±2% or ±5%) around the target value. Measures how quickly oscillations damp out."
-              />
-              <Property
-                name="Steady-State Error (ESS)"
-                type="ACCURACY METRIC"
-                description="The average error over the last 10% of samples. Tells you if the joint stopped short of the target. Corrected by increasing the integral gain (Ki)."
+                name="Feedforward blends"
+                type="CTC CONFIG"
+                description="Inertia (ffi), Coriolis (ffc), and gravity (ffg) feedforward blend factors from 0.0 (pure PID) to 1.0 (full model assist)."
               />
             </PropertyList>
+            <Callout type="danger">
+              The header <strong>🛑 Stop</strong> button sends <InlineCode>estop</InlineCode> instantly. After an E-STOP, the button changes to <strong>🔄 RESUME</strong> which sends <InlineCode>resume</InlineCode> to re-enable motor outputs without moving.
+            </Callout>
           </section>
 
           {/* 💡 SECTION: ADVANCED ANALYSIS */}
@@ -776,125 +836,60 @@ export function ReadmeTab() {
             </p>
 
             <PropertyList>
-              <Property
-                name="Phase Portrait (J1 & J2)"
-                type="STATE-SPACE PLOT"
-                description="Plots joint error (horizontal) vs. rate of change of joint error (vertical) for both joints on a single grid. A stable system spirals inward and terminates at the origin. Loop trajectories indicate limit-cycle oscillations."
-              />
-              <Property
-                name="Frequency Content (FFT)"
-                type="FAST FOURIER TRANSFORM"
-                description="Computes frequency spectrum analysis of the position error. Low-frequency peaks show planned tracking, while high-frequency spikes suggest mechanical resonance or encoder noise."
-              />
-              <Property
-                name="Control Effort Proxy"
-                type="INTEGRATED WORK"
-                description="Calculates the running integral of absolute PWM signals: ∫|PWM| dt. Lower values indicate more energy-efficient trajectories, helping you evaluate whether your PID parameters consume excess power."
-              />
-              <Property
-                name="Ideal vs. Actual Table"
-                type="TELEMETRY ARCHIVE"
-                description="A scrollable, spreadsheet-style table listing raw position values for every control tick. This data is available for troubleshooting and manual export."
-              />
+              <Property name="Phase Portrait" type="STATE-SPACE" description="Joint position vs velocity for both joints. Stable systems spiral inward; loops indicate limit-cycle oscillations." />
+              <Property name="EEF Error & Velocity" type="CARTESIAN" description="End-effector Cartesian error and velocity profiles from the frozen trajectory run." />
+              <Property name="PWM & Control Effort" type="ACTUATOR WORK" description="Motor drive signal and integrated control effort (∫|PWM|dt)." />
+              <Property name="CTC Feedforward Torques" type="MODEL-BASED" description="Inertia, Coriolis, and gravity feedforward components per joint from the computed torque model." />
+              <Property name="Loop Duration" type="TIMING" description="Microcontroller control loop execution time in microseconds." />
             </PropertyList>
           </section>
 
-          {/* 💡 SECTION: PID ADVISOR */}
-          <section id="pid-advisor" className="scroll-mt-16 mb-12">
+          <section id="comparison-table" className="scroll-mt-16 mb-12">
             <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
-              <span>PID Advisor Rules</span>
-              <a href="#pid-advisor" onClick={(e) => { e.preventDefault(); handleScrollTo('#pid-advisor') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+              <span>Data Table &amp; CSV Export</span>
+              <a href="#comparison-table" onClick={(e) => { e.preventDefault(); handleScrollTo('#comparison-table') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              Upon a move's completion, the rule-based **PID Advisor** analyzes the telemetry log and provides tuning recommendations:
+              Expand the <strong className="text-zinc-300">Ideal vs Actual Data Table</strong> section at the bottom of the Analysis tab for a paginated sample-by-sample view. Export the full dataset as CSV from the table or via the ☰ settings menu ZIP packager.
             </p>
+          </section>
 
-            <PropertyList>
-              <Property
-                name="Critical (Red Alert)"
-                type="STABILITY WARNING"
-                description="Indicates severe issues such as undamped oscillations, joint saturation, or no movement response. Reduce gains immediately before mechanical damage occurs."
-              />
-              <Property
-                name="Suggestion (Amber)"
-                type="TUNING ADVICE"
-                description="Recommends gain adjustments (e.g., 'Overshoot exceeds 15%, try increasing Kd1 or reducing Kp1 by 10%')."
-              />
-              <Property
-                name="Info (Blue)"
-                type="SYSTEM NOTE"
-                description="Confirming stable behavior, like validating that steady-state error is within acceptable limits."
-              />
-              <Property
-                name="Success (Green)"
-                type="OPTIMAL BEHAVIOR"
-                description="Indicates that both joint trajectories converged within target thresholds with minimal overshoot."
-              />
-            </PropertyList>
-
-            <Callout type="tip">
-              Tuning workflow: Adjust only <strong>one parameter at a time</strong>. Run a test move, check the PID Advisor suggestions, and make iterative adjustments.
+          {/* 💡 SECTION: REST ANALYSIS */}
+          <section id="rest-about" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>Rest Analysis Tab</span>
+              <a href="#rest-about" onClick={(e) => { e.preventDefault(); handleScrollTo('#rest-about') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              The <strong className="text-zinc-300">Rest Analysis</strong> tab on the home page provides a continuous high-rate telemetry workspace for step-response and rest-state study. Unlike the Monitor tab (which records per-move buffers), this tab accumulates data continuously and supports caliper-based analysis.
+            </p>
+            <Callout type="info">
+              For dedicated Ziegler-Nichols joint tuning with gain increment controls, use the separate <strong>ZN Tuner page</strong> at <InlineCode>/zn</InlineCode> (see Pages &amp; Navigation above).
             </Callout>
           </section>
 
-          {/* 💡 SECTION: ZN TUNER */}
-          <section id="zn-about" className="scroll-mt-16 mb-12">
+          <section id="rest-interface" className="scroll-mt-16 mb-12">
             <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
-              <span>Ziegler-Nichols Tuning Page</span>
-              <a href="#zn-about" onClick={(e) => { e.preventDefault(); handleScrollTo('#zn-about') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+              <span>Rest Analysis Workspace</span>
+              <a href="#rest-interface" onClick={(e) => { e.preventDefault(); handleScrollTo('#rest-interface') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              Accessible via the **ZN** navigation link in the header, this dedicated page provides client-side estimators and calculator rules implementing the heuristic **Ziegler-Nichols closed-loop tuning method**. It operates on a decoupled high-speed telemetry feed where coordinates and commands are processed in degrees.
-            </p>
-            <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">The Ziegler-Nichols Heuristic</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              The tuning procedure is carried out by setting the integral gain (<InlineCode>Ki</InlineCode>) and derivative gain (<InlineCode>Kd</InlineCode>) to zero, then increasing the proportional gain (<InlineCode>Kp</InlineCode>) until the joint response exhibits **sustained (ultimate) oscillations** under a step reference.
-            </p>
-            <PropertyList>
-              <Property
-                name="Ultimate Gain (Ku)"
-                description="The value of proportional gain Kp at which the control loop begins to oscillate continuously with a constant amplitude."
-              />
-              <Property
-                name="Ultimate Period (Tu)"
-                description="The time period (seconds) of one complete oscillation cycle at the ultimate gain. Measured between consecutive peaks."
-              />
-            </PropertyList>
-          </section>
-
-          <section id="zn-interface" className="scroll-mt-16 mb-12">
-            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
-              <span>ZN Tuner Workspace Details</span>
-              <a href="#zn-interface" onClick={(e) => { e.preventDefault(); handleScrollTo('#zn-interface') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
-            </h2>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              The page contains a custom control sidebar on the left and a continuous Recharts rendering stream on the right.
+              The workspace has a control sidebar and a continuous chart stream. Data persists across page refreshes in local storage.
             </p>
             <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">Workspace Controls</h3>
             <PropertyList>
-              <Property
-                name="Joint Selector Toggle"
-                description="Toggle between tuning Joint 1 (DC motor + potentiometer feedback) and Joint 2 (stepper motor)."
-              />
-              <Property
-                name="Gains & Increments"
-                description="Input fields for Kp, Ki, Kd, and deadband offsets, equipped with increment/decrement caliper controls to adjust parameters by configurable step sizes."
-              />
-              <Property
-                name="Step Move Command"
-                description="Send immediate target position changes in degrees (e.g. t1 or t2 commands) to trigger step response cycles on the device."
-              />
-              <Property
-                name="Plotting Serialization"
-                description="Entering this page automatically sends 'plot,1' to request raw controller logging from the ESP32. Navigating away restores default 'plot,0'."
-              />
+              <Property name="Joint Selector" description="Toggle between Joint 1 (DC motor) and Joint 2 (stepper) for analysis." />
+              <Property name="View Modes" description="Position, Raw ADC, Compare (filtered vs raw), Velocity, and FFT spectrum views." />
+              <Property name="Step Target" description="Send t1,deg or t2,deg commands to trigger step responses on the active joint." />
+              <Property name="Freeze / Scroll" description="Pause the live chart to inspect a segment, or lock the viewport while data continues buffering." />
+              <Property name="CSV Export" description="Export the full buffer, a caliper selection, last 10/20 seconds, or a run bookmark window." />
             </PropertyList>
           </section>
 
-          <section id="zn-calipers" className="scroll-mt-16 mb-12">
+          <section id="rest-calipers" className="scroll-mt-16 mb-12">
             <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
-              <span>Caliper Analyzer & Tuning Table</span>
-              <a href="#zn-calipers" onClick={(e) => { e.preventDefault(); handleScrollTo('#zn-calipers') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+              <span>Caliper Analyzer</span>
+              <a href="#rest-calipers" onClick={(e) => { e.preventDefault(); handleScrollTo('#rest-calipers') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
               To analyze transient characteristics or oscillation periods, click and drag on the live timeline graph to define an analysis window. This locks the timeline and populates three analyzer tabs:
@@ -952,6 +947,82 @@ export function ReadmeTab() {
             </div>
           </section>
 
+          {/* 💡 SECTION: SERIAL MONITOR */}
+          <section id="serial-monitor" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>Serial Monitor</span>
+              <a href="#serial-monitor" onClick={(e) => { e.preventDefault(); handleScrollTo('#serial-monitor') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              Click the <strong className="text-zinc-300">Serial Monitor</strong> button in the header to open a VS Code–style bottom-sheet log panel. High-frequency <InlineCode>T</InlineCode> and <InlineCode>D</InlineCode> packets are filtered out; status lines appear with color-coded badges (<InlineCode>MOVE</InlineCode>, <InlineCode>DONE</InlineCode>, <InlineCode>GAINS</InlineCode>). Press <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-300 font-mono">ESC</kbd> or click the button again to close. Drag the top edge to resize.
+            </p>
+            <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400 leading-relaxed">
+              <li><strong>Clear Log</strong> — removes local console entries.</li>
+              <li><strong>Clear Graph</strong> — erases chart buffers and sends <InlineCode>clrgraph</InlineCode> to the firmware.</li>
+            </ul>
+            <Callout type="info">
+              Firmware messages prefixed with <InlineCode>INFO:</InlineCode>, <InlineCode>WARN:</InlineCode>, or <InlineCode>ERR:</InlineCode> also appear as toast notifications in the bottom-right corner.
+            </Callout>
+          </section>
+
+          <section id="settings-menu" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>Settings Menu (☰)</span>
+              <a href="#settings-menu" onClick={(e) => { e.preventDefault(); handleScrollTo('#settings-menu') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              The ☰ button in the header opens the settings sidebar with four sections:
+            </p>
+            <PropertyList>
+              <Property name="Page Navigation" description="Switch between Home (/), ZN Tuner (/zn), and Test Page (/test) without disconnecting." />
+              <Property name="Dashboard Preferences" description="Toggle angular units (radians/degrees) and adjust ghost trail opacity on the XY canvas." />
+              <Property name="Graph Exports" description="Download individual charts as PNG/JPEG at 1×, 2×, or 3× DPI, or package all graphs + CSV + params report into a ZIP." />
+              <Property name="Keyboard Shortcuts" description="View and rebind hotkeys for tab switching, E-STOP, ghost toggle, serial connect, and more." />
+            </PropertyList>
+          </section>
+
+          <section id="keyboard-shortcuts" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>Keyboard Shortcuts</span>
+              <a href="#keyboard-shortcuts" onClick={(e) => { e.preventDefault(); handleScrollTo('#keyboard-shortcuts') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              Shortcuts are disabled while typing in input fields. Rebind any key in the ☰ settings menu.
+            </p>
+            <div className="overflow-x-auto my-3 border border-zinc-850 rounded-xl">
+              <table className="min-w-full divide-y divide-zinc-850 bg-[#101014]/50 text-[11px] font-sans text-zinc-400">
+                <thead className="bg-[#141418] text-zinc-300">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-semibold">Key</th>
+                    <th className="px-4 py-2 text-left font-semibold">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-850/60">
+                  {[
+                    ['1', 'Switch to Monitor tab'],
+                    ['2', 'Switch to Analysis tab'],
+                    ['3', 'Switch to README tab'],
+                    ['Backspace', 'Emergency Stop'],
+                    ['p', 'Toggle pick-point mode on XY canvas'],
+                    ['x / y', 'Focus Xf / Yf input fields'],
+                    ['g', 'Toggle ghost trail'],
+                    ['a', 'Toggle arm link overlay'],
+                    ['c', 'Clear graph & buffers'],
+                    ['m', 'Toggle settings menu'],
+                    ['s', 'Connect / Disconnect serial'],
+                    ['r', 'Reconnect last port'],
+                    ['d', 'Download graph(s)'],
+                  ].map(([key, action]) => (
+                    <tr key={key}>
+                      <td className="px-4 py-2 font-mono text-hmi-ideal">{key}</td>
+                      <td className="px-4 py-2">{action}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           {/* 💡 SECTION: TERMS CONTROL */}
           <section id="terms-control" className="scroll-mt-16 mb-12">
             <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
@@ -991,6 +1062,20 @@ export function ReadmeTab() {
                 name="Steady-State Error"
                 description="The persistent error remaining after the robot has stopped moving and settled."
               />
+            </PropertyList>
+          </section>
+
+          <section id="terms-cte" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>Key Terms: CTE &amp; ATE Errors</span>
+              <a href="#terms-cte" onClick={(e) => { e.preventDefault(); handleScrollTo('#terms-cte') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <PropertyList>
+              <Property name="CTE (Cross Tracking Error)" description="Perpendicular distance from the actual end-effector position to the nearest point on the ideal path segment. Measures how far off-path the robot is." />
+              <Property name="ATE (Along Tracking Error)" description="Signed error along the path direction. Positive = ahead of schedule; negative = lagging behind." />
+              <Property name="MCTE" description="Mean CTE integrated over path length — the primary tracking accuracy metric in Run Metrics." />
+              <Property name="Accuracy Index (AI)" description="1 − MCTE/D where D is total path length. 100% = perfect tracking." />
+              <Property name="Error Bias (Rε)" description="Ratio indicating whether tracking error is dominated by delay (>50%) or shape distortion (<50%)." />
             </PropertyList>
           </section>
 
@@ -1121,92 +1206,86 @@ Serial.println(ya, 2);`}
               </div>
 
               <div className="pt-4 border-t border-zinc-800/40">
-                <p className="text-xs font-bold text-zinc-200 mb-1">D — Dynamics sample (sent every control tick, same rate as T)</p>
-                <p className="text-xs text-zinc-400 mb-2">Sends detailed system dynamics parameters for the live telemetry graphs.</p>
+                <p className="text-xs font-bold text-zinc-200 mb-1">D — Dynamics sample (500 Hz from firmware, downsampled to 50 Hz in HMI)</p>
+                <p className="text-xs text-zinc-400 mb-2">Joint-level sensor data for charts and Rest Analysis. Joint errors are computed by the HMI.</p>
                 <CodeBlock
                   filename="Arduino Print Output"
-                  code={`// t      = time since move start (ms)
-// th1    = actual joint 1 angle (rad)
-// th2    = actual joint 2 angle (rad)
-// th1d   = desired joint 1 angle (rad)
-// th2d   = desired joint 2 angle (rad)
-// e1     = joint 1 error = th1d - th1 (rad)
-// e2     = joint 2 error = th2d - th2 (rad)
-// v1     = actual joint 1 speed (rad/s)
-// v2     = actual joint 2 speed (rad/s)
-// v1d    = desired joint 1 speed (rad/s)
-// v2d    = desired joint 2 speed (rad/s)
-// pwm1   = command PWM output written to joint 1, -255 to 255 (int)
+                  code={`// t       = timestamp (ms)
+// th1/th2 = actual joint angles (rad)
+// th1d/th2d = desired joint angles (rad)
+// dth1/dth2 = actual velocities (rad/s)
+// dth1d/dth2d = desired velocities (rad/s)
+// pwm1    = J1 control output (-255 to 255)
+// th1raw/th2raw = unfiltered ADC angles (rad)
 Serial.print("D,");
-Serial.print(t);       Serial.print(",");
-Serial.print(th1, 4);  Serial.print(",");
-Serial.print(th2, 4);  Serial.print(",");
-Serial.print(th1d, 4); Serial.print(",");
-Serial.print(th2d, 4); Serial.print(",");
-Serial.print(e1, 4);   Serial.print(",");
-Serial.print(e2, 4);   Serial.print(",");
-Serial.print(v1, 4);   Serial.print(",");
-Serial.print(v2, 4);   Serial.print(",");
-Serial.print(v1d, 4);  Serial.print(",");
-Serial.print(v2d, 4);  Serial.print(",");
-Serial.println(pwm1);`}
+Serial.print(t);        Serial.print(",");
+Serial.print(th1, 4);   Serial.print(",");
+Serial.print(th2, 4);   Serial.print(",");
+Serial.print(th1d, 4);  Serial.print(",");
+Serial.print(th2d, 4);  Serial.print(",");
+Serial.print(dth1, 4);  Serial.print(",");
+Serial.print(dth2, 4);  Serial.print(",");
+Serial.print(dth1d, 4); Serial.print(",");
+Serial.print(dth2d, 4); Serial.print(",");
+Serial.print(pwm1);     Serial.print(",");
+Serial.print(th1raw, 4); Serial.print(",");
+Serial.println(th2raw, 4);`}
                 />
-                <div className="mt-1"><span className="text-[10px] text-zinc-500 font-mono">Example: <InlineCode>D,125,0.7854,0.5236,0.7900,0.5260,0.0046,0.0024,0.12,0.08,0.14,0.09,180</InlineCode></span></div>
+                <div className="mt-1"><span className="text-[10px] text-zinc-500 font-mono">Example: <InlineCode>D,125,0.7854,0.5236,0.7900,0.5260,0.12,0.08,0.14,0.09,180,0.7840,0.5220</InlineCode></span></div>
               </div>
 
               <div className="pt-4 border-t border-zinc-800/40">
                 <p className="text-xs font-bold text-zinc-200 mb-1">G — Gains report (sent on gains change or query)</p>
-                <p className="text-xs text-zinc-400 mb-2">Reports the current PID values, microstep settings, and Computed Torque Control blends back to the HMI.</p>
+                <p className="text-xs text-zinc-400 mb-2">Reports PID values, microstep divisor, and feedforward blend factors.</p>
                 <CodeBlock
                   filename="Arduino Print Output"
-                  code={`// Send this on startup, when gains change, or in response to a "getgains" command
-Serial.print("G,");
+                  code={`Serial.print("G,");
 Serial.print(kp1, 3); Serial.print(",");
 Serial.print(ki1, 3); Serial.print(",");
 Serial.print(kd1, 3); Serial.print(",");
 Serial.print(kp2, 3); Serial.print(",");
 Serial.print(ki2, 3); Serial.print(",");
 Serial.print(kd2, 3); Serial.print(",");
-Serial.print(mstep);  Serial.print(",");  // Stepper microstep divisor (int)
-Serial.print(ff1, 2); Serial.print(",");  // J1 CTC Blend (float 0.0-1.0)
-Serial.println(ff2, 2);                   // J2 CTC Blend (float 0.0-1.0)`}
+Serial.print(mstep);  Serial.print(",");
+Serial.print(ffi, 2); Serial.print(",");  // inertia FF blend
+Serial.print(ffc, 2); Serial.print(",");  // coriolis FF blend
+Serial.println(ffg, 2);                   // gravity FF blend`}
                 />
-                <div className="mt-1"><span className="text-[10px] text-zinc-500 font-mono">Example: <InlineCode>G,2.500,0.010,0.050,1.200,0.000,0.030,8,0.50,0.80</InlineCode></span></div>
+                <div className="mt-1"><span className="text-[10px] text-zinc-500 font-mono">Example: <InlineCode>G,0.600,0.030,0.020,4.000,0.005,0.100,16,0.50,0.30,0.80</InlineCode></span></div>
               </div>
 
               <div className="pt-4 border-t border-zinc-800/40">
-                <p className="text-xs font-bold text-zinc-200 mb-1">F — Forces and Control Internal (sent at 10 Hz)</p>
-                <p className="text-xs text-zinc-400 mb-2">Streams the analytical Computed Torque Control torques and feedback errors breakdown.</p>
+                <p className="text-xs font-bold text-zinc-200 mb-1">F — Feedforward breakdown (50 Hz)</p>
+                <p className="text-xs text-zinc-400 mb-2">Per-joint inertia, Coriolis, and gravity feedforward torques plus control signals.</p>
                 <CodeBlock
                   filename="Arduino Print Output"
-                  code={`// t               = time since move start (ms)
-// ctc_ff1, ctc_ff2 = Joint analytical CTC torques (N·m)
-// ff1_contrib     = Joint 1 CTC torque contribution
-// u1_total        = Combined torque signal applied to DC J1
-// integral1       = Integral term of Joint 1
-// delta_omega_ff  = Stepper speed error correction (rad/s)
-// omega2_raw      = Stepper command velocity (rad/s)
-Serial.print("F,");
-Serial.print(t);              Serial.print(",");
-Serial.print(ctc_ff1, 3);     Serial.print(",");
-Serial.print(ctc_ff2, 3);     Serial.print(",");
+                  code={`Serial.print("F,");
+Serial.print(t); Serial.print(",");
+Serial.print(inertia1, 3); Serial.print(",");
+Serial.print(coriolis1, 3); Serial.print(",");
+Serial.print(gravity1, 3); Serial.print(",");
+Serial.print(inertia2, 3); Serial.print(",");
+Serial.print(coriolis2, 3); Serial.print(",");
+Serial.print(gravity2, 3); Serial.print(",");
 Serial.print(ff1_contrib, 3); Serial.print(",");
-Serial.print(u1_total, 3);    Serial.print(",");
-Serial.print(integral1, 3);   Serial.print(",");
+Serial.print(u1_total, 3); Serial.print(",");
+Serial.print(integral1, 3); Serial.print(",");
 Serial.print(delta_omega_ff, 3); Serial.print(",");
-Serial.println(omega2_raw, 3);`}
+Serial.print(omega2_raw, 3); Serial.print(",");
+Serial.println(integral2, 3);`}
                 />
-                <div className="mt-1"><span className="text-[10px] text-zinc-500 font-mono">Example: <InlineCode>F,125,0.452,0.180,0.226,1.450,0.012,0.005,0.420</InlineCode></span></div>
               </div>
 
               <div className="pt-4 border-t border-zinc-800/40">
-                <p className="text-xs font-bold text-zinc-200 mb-1">K — Constants and System Params (sent on request/boot)</p>
-                <p className="text-xs text-zinc-400 mb-2">Provides the 18 constant parameters for velocity limits, deadbands, smoothing alphas, and hold modes.</p>
+                <p className="text-xs font-bold text-zinc-200 mb-1">K — Runtime parameters (26 fields, sent on request/boot)</p>
+                <p className="text-xs text-zinc-400 mb-2">Velocity/acceleration limits, filter bandwidths, deadbands, trajectory flags, and hold mode coefficients.</p>
                 <CodeBlock
                   filename="Arduino Print Output"
-                  code={`// Prints K, vmax, amax, cfreq, u1max, fzt, pwm_db, apos, adpos, aacc, ddth, dben, dbrel, dbvel, hskp, hskd, idecay, taunom, m22ref
+                  code={`// K,vmax,amax,cfreq,u1max,fzt,pwm_db,td1r,td2r,td_h,ddth,
+//   dben,dbrel,dbvel,hskp,hskd,idecay,taunom,m22ref,alpha_tilt_deg,
+//   td_enabled,trap_enabled,ki2_gate_rad,db2en,db2rel,err_dz,integral_freeze_thresh
 Serial.print("K,");
-Serial.print(vmax, 3);   Serial.print(","); // ... (etc. all 18 parameters CSV)`}
+Serial.print(vmax, 3); Serial.print(","); // ... (all 26 parameters CSV)`}
                 />
               </div>
 
@@ -1284,31 +1363,15 @@ Serial.println(loop_duration_us);`}
                 type="DRIVER DIVISOR"
                 description="Sets the stepper motor driver microstep setting. N can be 1, 2, 4, 8, or 16."
               />
-              <Property
-                name="estop"
-                type="EMERGENCY SHUTDOWN"
-                description="Emergency stop. Halts all active trajectories and shuts off motor driver outputs immediately."
-              />
-              <Property
-                name="getgains"
-                type="QUERY TRIGGER"
-                description="Requests that the ESP32 send a G packet containing its current PID parameters. Sent by the HMI immediately on connect."
-              />
-              <Property
-                name="getparams"
-                type="QUERY TRIGGER"
-                description="Requests that the ESP32 send a K packet containing its current tuning constants and limit values. Sent by the HMI immediately on connect."
-              />
-              <Property
-                name="clrgraph"
-                type="BUFFER CLEAR"
-                description="Informs the firmware that the HMI graph has been cleared, allowing it to reset internal data buffers if needed."
-              />
-              <Property
-                name="<param_name>,val"
-                type="PARAM ADJUST"
-                description="Sets any of the 18 system tuning constants (e.g. vmax, val) directly. Supported parameters: vmax, amax, cfreq, u1max, fzt, db, apos, adpos, aacc, dben, dbrel, dbvel, ddth, hskp, hskd, idecay, taunom, m22ref."
-              />
+              <Property name="estop / resume" type="SAFETY" description="Emergency stop cuts motor outputs. Resume clears the E-STOP latch and re-enables outputs without moving." />
+              <Property name="ping" type="WATCHDOG" description="Resets the firmware 8-second serial watchdog. Sent automatically by the HMI heartbeat." />
+              <Property name="mode,<name>" type="MODE SWITCH" description="Switch firmware mode: idle, scara, zn, or test. Sent automatically by ModeRouter on page navigation." />
+              <Property name="plot,<0|1>" type="LOGGING" description="Enable/disable high-rate D logging. Sent automatically on /zn and /test routes." />
+              <Property name="getgains / getparams" type="QUERY" description="Request G (gains) or K (runtime params) packets. Sent on connect." />
+              <Property name="ffi,ffc,ffg" type="FEEDFORWARD" description="Set inertia, Coriolis, and gravity feedforward blend factors (0.0–1.0)." />
+              <Property name="clrgraph" type="BUFFER CLEAR" description="Clear trajectory buffers on the HMI and firmware." />
+              <Property name="t1,<deg> / t2,<deg>" type="ZN STEP" description="Set joint target angle in degrees (ZN and TEST modes)." />
+              <Property name="<param>,val" type="TEST PARAM" description="Set any of 26 runtime constants on the Test page (vmax, amax, td1r, td2r, etc.)." />
             </PropertyList>
           </section>
 

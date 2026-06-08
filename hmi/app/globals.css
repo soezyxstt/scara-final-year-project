@@ -41,6 +41,32 @@ body {
   min-height: 100vh;
 }
 
+/* Sheet overlay + slide animations
+   Using keyframe animations so Radix waits for animationend before unmounting */
+@keyframes sheet-overlay-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheet-overlay-out { from { opacity: 1; } to { opacity: 0; } }
+
+.sheet-overlay[data-state=open]   { animation: sheet-overlay-in  200ms ease forwards; }
+.sheet-overlay[data-state=closed] { animation: sheet-overlay-out 150ms ease forwards; }
+
+@keyframes sheet-slide-in-right  { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes sheet-slide-out-right { from { transform: translateX(0); } to { transform: translateX(100%); } }
+@keyframes sheet-slide-in-left   { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes sheet-slide-out-left  { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+@keyframes sheet-slide-in-top    { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+@keyframes sheet-slide-out-top   { from { transform: translateY(0); } to { transform: translateY(-100%); } }
+@keyframes sheet-slide-in-bottom { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes sheet-slide-out-bottom{ from { transform: translateY(0); } to { transform: translateY(100%); } }
+
+.sheet-slide-right[data-state=open]   { animation: sheet-slide-in-right  300ms cubic-bezier(0.4,0,0.2,1) forwards; }
+.sheet-slide-right[data-state=closed] { animation: sheet-slide-out-right 200ms cubic-bezier(0.4,0,0.2,1) forwards; }
+.sheet-slide-left[data-state=open]    { animation: sheet-slide-in-left   300ms cubic-bezier(0.4,0,0.2,1) forwards; }
+.sheet-slide-left[data-state=closed]  { animation: sheet-slide-out-left  200ms cubic-bezier(0.4,0,0.2,1) forwards; }
+.sheet-slide-top[data-state=open]     { animation: sheet-slide-in-top    300ms cubic-bezier(0.4,0,0.2,1) forwards; }
+.sheet-slide-top[data-state=closed]   { animation: sheet-slide-out-top   200ms cubic-bezier(0.4,0,0.2,1) forwards; }
+.sheet-slide-bottom[data-state=open]  { animation: sheet-slide-in-bottom 300ms cubic-bezier(0.4,0,0.2,1) forwards; }
+.sheet-slide-bottom[data-state=closed]{ animation: sheet-slide-out-bottom 200ms cubic-bezier(0.4,0,0.2,1) forwards; }
+
 @keyframes tooltip-fade-in-center {
   from {
     opacity: 0;

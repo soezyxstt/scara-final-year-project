@@ -62,9 +62,9 @@ function GainField({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevIsSubmitting = useRef(isSubmitting)
 
-  // Helper to round to 2 decimal places and return string
+  // Helper to round to 3 decimal places and return string
   const formatValue = (val: number) => {
-    return (Math.round(val * 100) / 100).toString()
+    return (Math.round(val * 1000) / 1000).toString()
   }
 
   // 1. Sync from hardware value when clean and not focused
@@ -101,7 +101,7 @@ function GainField({
     const parts = cleanedVal.split('.')
     let limitedVal = cleanedVal
     if (parts.length > 1) {
-      limitedVal = parts[0] + '.' + parts[1].substring(0, 2)
+      limitedVal = parts[0] + '.' + parts[1].substring(0, 3)
     }
     setLocalValue(limitedVal)
     
@@ -112,7 +112,7 @@ function GainField({
     }
     
     const positiveHwValue = Math.max(0, hwValue ?? 0)
-    const formattedHw = Math.round(positiveHwValue * 100) / 100
+    const formattedHw = Math.round(positiveHwValue * 1000) / 1000
     if (hwValue !== undefined && Math.abs(formattedHw - parsed) < 0.0001) {
       setStatus('clean')
     } else {
@@ -193,7 +193,7 @@ function GainField({
       </div>
       <Input
         type="number"
-        step="0.01"
+        step="0.001"
         min={0}
         name={name}
         value={localValue}
@@ -932,7 +932,7 @@ export function ControlPanel() {
                   <span className={cn(
                     "font-mono font-bold ml-1 transition-colors",
                     ffInertiaStatus === 'dirty' ? 'text-amber-400' : ffInertiaStatus === 'waiting' ? 'text-blue-400 animate-pulse' : 'text-purple-400'
-                  )}>{parseFloat(ffInertia).toFixed(2)}</span>
+                  )}>{parseFloat(ffInertia).toFixed(3)}</span>
                 </div>
               </Tooltip>
               <StatusLED status={ffInertiaStatus} />
@@ -941,7 +941,7 @@ export function ControlPanel() {
               type="range"
               min="0"
               max="1"
-              step="0.05"
+              step="0.001"
               value={ffInertia}
               onChange={e => handleFfInertiaChange(e.target.value)}
               className={cn("h-7 cursor-pointer w-full transition-all duration-250", ffInertiaAccentClass)}
@@ -956,7 +956,7 @@ export function ControlPanel() {
                   <span className={cn(
                     "font-mono font-bold ml-1 transition-colors",
                     ffCoriolisStatus === 'dirty' ? 'text-amber-400' : ffCoriolisStatus === 'waiting' ? 'text-blue-400 animate-pulse' : 'text-purple-400'
-                  )}>{parseFloat(ffCoriolis).toFixed(2)}</span>
+                  )}>{parseFloat(ffCoriolis).toFixed(3)}</span>
                 </div>
               </Tooltip>
               <StatusLED status={ffCoriolisStatus} />
@@ -965,7 +965,7 @@ export function ControlPanel() {
               type="range"
               min="0"
               max="1"
-              step="0.05"
+              step="0.001"
               value={ffCoriolis}
               onChange={e => handleFfCoriolisChange(e.target.value)}
               className={cn("h-7 cursor-pointer w-full transition-all duration-250", ffCoriolisAccentClass)}
@@ -980,7 +980,7 @@ export function ControlPanel() {
                   <span className={cn(
                     "font-mono font-bold ml-1 transition-colors",
                     ffGravityStatus === 'dirty' ? 'text-amber-400' : ffGravityStatus === 'waiting' ? 'text-blue-400 animate-pulse' : 'text-purple-400'
-                  )}>{parseFloat(ffGravity).toFixed(2)}</span>
+                  )}>{parseFloat(ffGravity).toFixed(3)}</span>
                 </div>
               </Tooltip>
               <StatusLED status={ffGravityStatus} />
@@ -989,7 +989,7 @@ export function ControlPanel() {
               type="range"
               min="0"
               max="1"
-              step="0.05"
+              step="0.001"
               value={ffGravity}
               onChange={e => handleFfGravityChange(e.target.value)}
               className={cn("h-7 cursor-pointer w-full transition-all duration-250", ffGravityAccentClass)}

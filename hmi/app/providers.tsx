@@ -3,6 +3,7 @@
 import { HMIProvider } from '@/lib/hmi-context'
 import { ModeRouter } from '@/components/hmi/mode-router'
 import { KeybindingsHandler } from '@/components/hmi/keybindings-handler'
+import { CaptureChartsHost } from '@/components/hmi/capture-charts-host'
 import type { ReactNode } from 'react'
 
 /**
@@ -15,6 +16,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <HMIProvider>
       <ModeRouter />
       <KeybindingsHandler />
+      <CaptureChartsHost />
       {children}
     </HMIProvider>
   )

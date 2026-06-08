@@ -1072,7 +1072,7 @@ export function XYTrace() {
                 showArm && "bg-slate-800 text-hmi-actual border-hmi-actual/30 hover:bg-slate-800/90"
               )}
             >
-              Arm Links {showArm ? 'on' : 'off'}
+              Arms {showArm ? 'on' : 'off'}
             </Button>
           </Tooltip>
 
@@ -1140,14 +1140,13 @@ export function XYTrace() {
           </div>
 
           <Tooltip content={isFocused ? "Collapse: Restores the panel to normal size." : "Expand: Maximizes the workspace trace."} align="center">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={(e) => { e.stopPropagation(); setIsFocused(!isFocused); }} 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); setIsFocused(!isFocused); }}
               className="h-5 px-1.5 text-[10px] border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80"
             >
               {isFocused ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-              <span className="ml-1">{isFocused ? 'Collapse' : 'Expand'}</span>
             </Button>
           </Tooltip>
         </div>

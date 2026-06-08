@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useHMI } from '@/lib/hmi-context'
 import {
   Sheet,
@@ -36,10 +37,6 @@ import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  svgToBlob,
-  renderXYTraceToBlob,
-  generateCSVString,
-  downloadBlob,
   downloadSingleGraph,
   downloadAllGraphs,
 } from '@/lib/capture-utils'
@@ -50,8 +47,6 @@ import {
   type HotkeyBinding,
   type HMIHotkeyAction,
 } from '@/lib/keybindings-store'
-
-
 export function CaptureMenu() {
   const { state } = useHMI()
   const pathname = usePathname()
@@ -59,6 +54,8 @@ export function CaptureMenu() {
   const [isGraphsOpen, setIsGraphsOpen] = useState(false)
   const [exportState, setExportState] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [zipPrompt, setZipPrompt] = useState<{ includeCSV: boolean } | null>(null)
+  const [zipCustomName, setZipCustomName] = useState('')
 
   // Exporter Preferences
   const [exportFormat, setExportFormat] = useState<'image/png' | 'image/jpeg'>('image/png')
@@ -206,10 +203,18 @@ export function CaptureMenu() {
     }
   }
 
+  // Show filename prompt before ZIP download
+  const handleRequestZip = (includeCSV: boolean) => {
+    setIsOpen(false)
+    setZipCustomName(filenamePrefix || 'scara_hmi')
+    setZipPrompt({ includeCSV })
+  }
+
   // Compile ZIP with images (and optional CSV)
-  const handleExportZip = async (includeCSV = false) => {
+  const handleExportZip = async (includeCSV: boolean, customName: string) => {
+    setZipPrompt(null)
     try {
-      await downloadAllGraphs(state, includeCSV, (msg) => setExportState(msg))
+      await downloadAllGraphs(state, includeCSV, (msg) => setExportState(msg), customName)
       setExportState(null)
       setSuccessMsg('Zip download initiated!')
       setTimeout(() => setSuccessMsg(null), 1500)
@@ -221,15 +226,16 @@ export function CaptureMenu() {
   }
 
   return (
+    <>
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
         <Button
           variant="outline"
           size="sm"
-          className="h-8 gap-1.5 border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-200"
+          className="h-8 w-8 p-0 border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-200 flex items-center justify-center"
+          title="Menu"
         >
           <Menu className="h-4 w-4" />
-          Menu
         </Button>
       </SheetTrigger>
 
@@ -410,6 +416,8 @@ export function CaptureMenu() {
                 <CollapsibleContent className="border-t border-slate-900 bg-slate-950/20 p-2 flex flex-col gap-1">
                   {[
                     { id: 'xy', label: 'XY Workspace Trace' },
+                    { id: 'cte', label: 'CTE Cross-Track Error' },
+                    { id: 'ate', label: 'ATE Along-Track Error' },
                     { id: 'eef', label: 'End-Effector Error Chart' },
                     { id: 'eef-vel', label: 'End-Effector Velocity Chart' },
                     { id: 'pwm', label: 'PWM Command Chart' },
@@ -426,6 +434,7 @@ export function CaptureMenu() {
                     { id: 'pid-breakdown', label: 'J1 PID Control Effort Breakdown' },
                     { id: 'loop', label: 'Microcontroller Loop Execution Time' },
                     { id: 'params', label: 'System Parameters Report' },
+                    { id: 'metrics', label: 'Run Metrics Report' },
                   ].map((graph) => (
                     <button
                       key={graph.id}
@@ -443,28 +452,28 @@ export function CaptureMenu() {
               {/* Capture All Graphs Button */}
               <Button
                 variant="default"
-                disabled={exportState !== null}
-                onClick={() => handleExportZip(false)}
+                disabled={exportState !== null || zipPrompt !== null}
+                onClick={() => handleRequestZip(false)}
                 className="w-full flex items-center justify-start gap-2.5 h-10 text-slate-200 bg-slate-900 border border-slate-800 hover:bg-slate-800 font-semibold shadow-md"
               >
                 <FolderArchive className="h-4.5 w-4.5 text-amber-500" />
                 <div className="text-left flex flex-col">
                   <span className="text-xs leading-none">Capture All Graphs</span>
-                  <span className="text-[9px] text-slate-500 font-normal">Bundles 17 images into ZIP archive</span>
+                  <span className="text-[9px] text-slate-500 font-normal">Bundles 20 images into ZIP archive</span>
                 </div>
               </Button>
 
               {/* Capture All Graphs + Table CSV Button */}
               <Button
                 variant="default"
-                disabled={exportState !== null}
-                onClick={() => handleExportZip(true)}
+                disabled={exportState !== null || zipPrompt !== null}
+                onClick={() => handleRequestZip(true)}
                 className="w-full flex items-center justify-start gap-2.5 h-10 text-slate-200 bg-slate-900 border border-slate-800 hover:bg-slate-850 font-semibold shadow-md"
               >
                 <FileSpreadsheet className="h-4.5 w-4.5 text-emerald-500" />
                 <div className="text-left flex flex-col">
                   <span className="text-xs leading-none">Capture All + Table CSV</span>
-                  <span className="text-[9px] text-slate-500 font-normal">Bundles 17 images and raw spreadsheet CSV</span>
+                  <span className="text-[9px] text-slate-500 font-normal">Bundles 20 images and raw spreadsheet CSV</span>
                 </div>
               </Button>
             </div>
@@ -622,6 +631,56 @@ export function CaptureMenu() {
           SCARA Diagnostics Tool v1.0.0
         </div>
       </SheetContent>
+
     </Sheet>
+
+    {/* Portaled above all UI layers — avoids header/sheet z-index stacking traps */}
+    {zipPrompt && typeof document !== 'undefined' && createPortal(
+      <div className="fixed inset-0 z-[300] flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setZipPrompt(null)} />
+        <div className="relative z-10 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-6 w-80 flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-bold text-white">Name your ZIP file</h2>
+            <p className="text-[11px] text-slate-400">
+              {zipPrompt.includeCSV ? 'Images + CSV' : 'Images only'} · 19 charts
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Input
+              autoFocus
+              type="text"
+              value={zipCustomName}
+              onChange={(e) => setZipCustomName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, '_'))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleExportZip(zipPrompt.includeCSV, zipCustomName)
+                if (e.key === 'Escape') setZipPrompt(null)
+              }}
+              placeholder="scara_hmi"
+              className="h-9 bg-slate-950 border-slate-700 text-sm text-white font-mono focus-visible:ring-1 focus-visible:ring-hmi-ideal/50"
+            />
+            <span className="text-[10px] text-slate-500 font-mono">
+              → <span className="text-slate-300">{zipCustomName || 'scara_hmi'}.zip</span>
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => handleExportZip(zipPrompt.includeCSV, zipCustomName)}
+              className="flex-1 h-9 text-sm bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-semibold"
+            >
+              Download
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setZipPrompt(null)}
+              className="h-9 px-4 text-sm border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+  </>
   )
 }

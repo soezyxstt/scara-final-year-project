@@ -62,73 +62,73 @@ Below is the annotated directory tree detailing the purpose of every key file in
 ```text
 hmi/
 ├── app/                              # Next.js App Router Root Shell
-│   ├── favicon.ico                   # HMI Favicon Asset
 │   ├── globals.css                   # [Config] Tailwind CSS v4 Theme, Keyframes, Scrollbars
-│   ├── layout.tsx                    # [Entry] App layout shell, initializes font variables
-│   ├── page.tsx                      # [Entry] Root page mapping the HMIRoot component
-│   └── zn/                           # Ziegler-Nichols Tuner subpage route
-│       ├── page.tsx                  # ZN Client wrapper dynamic load shell
-│       └── zn-page-content.tsx       # ZN Page main wrapper shell
+│   ├── layout.tsx                    # [Entry] Root layout + Providers wrapper
+│   ├── providers.tsx                 # [Entry] HMIProvider, ModeRouter, KeybindingsHandler
+│   ├── page.tsx                      # [Entry] Home route → HMIRoot
+│   ├── zn/                           # Ziegler-Nichols Tuner route (/zn)
+│   │   ├── page.tsx
+│   │   └── zn-page-content.tsx
+│   └── test/                         # Engineering test bench route (/test)
+│       ├── page.tsx
+│       └── test-page-content.tsx
 ├── components/                       # Shared Component Layer
 │   ├── hmi/                          # Core HMI Features & Views
-│   │   ├── advanced-analysis.tsx     # [UI/Logic] FFT, Control effort proxy, CTC torques, efforts, and loop diagnostics
-│   │   ├── adv-tuner-tab.tsx         # [UI/Logic] Form selectors for 18 system constants & queue tracker
-│   │   ├── analysis-tab.tsx          # [UI] Layout shell for the Post-Run Diagnostics Tab
-│   │   ├── capture-menu.tsx          # [UI/Logic] Slide-out config sidebar & diagnostics zip packager
-│   │   ├── chart-panel.tsx           # [UI] Multi-tab Recharts telemetry dashboard & PID Advisor
-│   │   ├── comparison-table.tsx      # [UI/Logic] CSV telemetry exporter and sample-by-sample table
-│   │   ├── control-panel.tsx         # [UI/Logic] Form selectors for PID tuning & robot coordinate moves
-│   │   ├── header.tsx                # [Reference] Unused layout version of the header bar
-│   │   ├── hmi-root.tsx              # [Entry] Main shell (routing tabs, e-stop, serial connection toggle)
-│   │   ├── keybindings-handler.tsx   # [Logic] Global keyboard listeners for switching tabs & actions
-│   │   ├── monitor-tab.tsx           # [UI] Layout shell for the Live Monitoring Tab
-│   │   ├── params-report.tsx         # [UI] SVG Report Sheet rendering all controller configurations
-│   │   ├── phase-portrait.tsx        # [UI] Recharts joint state-space θ vs θ̇ plotting panel
-│   │   ├── readme-tab.tsx            # [UI] Rich user guide containing physical formulas & sketch code
-│   │   ├── serial-log.tsx            # [UI/Logic] Green console displaying parsed system updates
-│   │   ├── step-metrics.tsx          # [UI/Logic] Calculator for rise, settling, peak, and steady-state error
-│   │   ├── xy-trace.tsx              # [UI/Core] Canvas drawing of ideal/actual paths and physical links
-│   │   └── zn-tuner-tab.tsx          # [UI/Logic] Ziegler-Nichols calculator & drag-selection caliper analyzer
+│   │   ├── advanced-analysis.tsx     # [UI/Logic] FFT, control effort, CTC torques, loop diagnostics
+│   │   ├── adv-tuner-tab.tsx         # [UI/Logic] 26 runtime constants tuner (Test page only)
+│   │   ├── analysis-tab.tsx          # [UI] Post-run diagnostics layout
+│   │   ├── capture-charts-host.tsx   # [Logic] Off-screen chart render host for exports
+│   │   ├── capture-menu.tsx          # [UI/Logic] Settings sidebar, exports, keybindings
+│   │   ├── chart-panel.tsx           # [UI] Telemetry charts + MetricsPanel
+│   │   ├── comparison-table.tsx      # [UI/Logic] CSV exporter and sample table
+│   │   ├── control-panel.tsx         # [UI/Logic] PID, moves, feedforward, microstepping
+│   │   ├── hmi-root.tsx              # [Entry] Home shell (Monitor/Analysis/Rest/README tabs)
+│   │   ├── keybindings-handler.tsx   # [Logic] Global keyboard shortcut listeners
+│   │   ├── mode-router.tsx           # [Logic] Auto mode,scara|zn|test per route
+│   │   ├── monitor-tab.tsx           # [UI] Live monitoring layout
+│   │   ├── params-report.tsx         # [UI] SVG system parameters report
+│   │   ├── phase-portrait.tsx        # [UI] Joint state-space θ vs θ̇ plot
+│   │   ├── raw-signal-section.tsx    # [UI] Raw ADC overlay (Test page)
+│   │   ├── readme-tab.tsx            # [UI] In-app user guide
+│   │   ├── serial-log.tsx            # [UI/Logic] Serial log console content
+│   │   ├── serial-terminal.tsx       # [UI] Bottom-sheet serial monitor shell
+│   │   ├── xy-trace.tsx              # [UI/Core] Canvas workspace map
+│   │   ├── zn-analysis-tab.tsx       # [UI/Logic] Rest Analysis tab
+│   │   └── zn-tuner-tab.tsx          # [UI/Logic] ZN page tuner workspace
 │   └── ui/                           # Atomic Radix + Tailwind Primitive Wrapper Components
-│       ├── badge.tsx                 # Atomic Badge component
-│       ├── button.tsx                # Atomic button (variants: default, outline, ghost, estop)
-│       ├── card.tsx                  # Standard container cards
-│       ├── collapsible.tsx           # Radix Collapsible animation wrapper
-│       ├── input.tsx                 # Text/number forms
-│       ├── resizable.tsx             # Split-panel resizer layouts
-│       ├── select.tsx                # Radix drop-down selects
-│       ├── sheet.tsx                 # Radix Sheet slide-out primitive wrapper
-│       ├── table.tsx                 # paginated UI table primitive
-│       ├── tabs.tsx                  # Recharts telemetry page tabs
-│       └── tooltip.tsx               # informative helper hover tooltips
+├── hooks/
+│   └── use-heartbeat.ts              # Periodic ping to firmware watchdog
 ├── lib/                              # Core Logic & Utilities Layer
-│   ├── capture-utils.ts              # ZIP packager and SVG export helpers
-│   ├── hmi-context.tsx               # React global reducer state provider & Web Serial read-loop
-│   ├── hmi-types.ts                  # TypeScript interfaces for samples, actions, and states
-│   ├── keybindings-store.ts          # Key config layout registries
-│   ├── trajectory-safety.ts          # Straight-line trajectory checking validation rules
-│   ├── tuning-advisor.ts             # Rule-based PID parameters suggestion analyzer
-│   └── utils.ts                      # Tailwind layout class consolidation helper
+│   ├── capture-session.ts            # Export session state
+│   ├── capture-utils.ts              # ZIP/PNG/JPEG export helpers
+│   ├── cte-utils.ts                  # Cross/along tracking error computation
+│   ├── hmi-context.tsx               # Global reducer + Web Serial read-loop
+│   ├── hmi-types.ts                  # State and sample interfaces
+│   ├── keybindings-store.ts          # Keyboard shortcut persistence
+│   ├── telemetry-types.ts            # Auto-generated telemetry field types
+│   ├── trajectory-safety.ts          # Move validation rules
+│   ├── tuning-advisor.ts             # Rule-based PID suggestions
+│   └── utils.ts                      # Tailwind class helper (cn)
 
 ### Core HMI Components (`components/hmi/`)
 
 #### 1. `HMIRoot` & `HMIShell`
 *   **File Path**: [hmi-root.tsx](../../hmi/components/hmi/hmi-root.tsx)
-*   **Purpose**: acts as the entry shell of the application. Renders the top header bar, manages the global tab toggle state (`'monitor' | 'analysis' | 'adv-tuner' | 'readme'`), displays connectivity states, renders off-screen hidden instances of the charts for high-resolution PNG/JPEG exports, and encapsulates everything in the `<HMIProvider>` context.
+*   **Purpose**: Home page entry shell. Renders the header bar and manages tab state (`'monitor' | 'analysis' | 'rest' | 'readme'`). Serial connection and `HMIProvider` live in `app/providers.tsx` so they persist across route changes.
 *   **Props**: None.
-*   **Controls/Renders**: Tab switcher buttons, Network Status (online/offline), Serial Status (connected / reconnecting / disconnected), Disconnect/Connect buttons, the global Emergency Stop button, and the slide-out `CaptureMenu` trigger.
+*   **Controls/Renders**: Tab links, `ModeBadge`, Connect/Disconnect, Serial Monitor toggle, E-STOP/RESUME, and `CaptureMenu`.
 
 #### 2. `MonitorTab`
 *   **File Path**: [monitor-tab.tsx](../../hmi/components/hmi/monitor-tab.tsx)
 *   **Purpose**: Layout organizer for the live telemetry panel.
 *   **Props**: None.
-*   **Controls/Renders**: Splits the screen horizontally using resizable handles. Renders `XYTrace` on the left and vertical splits of `ChartPanel` and `SerialLog` on the right, with `ControlPanel` pinned to the bottom.
+*   **Controls/Renders**: Horizontal split — `XYTrace` left, `ChartPanel` + `MetricsPanel` right (vertical split). `ControlPanel` pinned to the bottom. Serial log moved to header `SerialTerminalSheet`.
 
 #### 3. `AnalysisTab`
 *   **File Path**: [analysis-tab.tsx](../../hmi/components/hmi/analysis-tab.tsx)
-*   **Purpose**: Layout organizer for the post-run diagnostic panel.
+*   **Purpose**: Layout organizer for the post-run diagnostic panel (frozen buffers only).
 *   **Props**: None.
-*   **Controls/Renders**: Renders `StepMetrics`, a collapsible "Advanced Analysis" container (housing `PhasePortrait`, `FFTSection`, `ControlEffortSection`, `CTCTorqueSection`, `ControlInternalSection`, `StepperVelocitySection`, `PIDBreakdownSection`, and `LoopDurationSection`), and `ComparisonTable`.
+*   **Controls/Renders**: Collapsible "Advanced Analysis" with `PhasePortrait`, EEF error/velocity charts, `PWMChart`, `ControlEffortSection`, `CTCTorqueSection`, `LoopDurationSection`. Collapsible `ComparisonTable` below.
 
 #### 4. `XYTrace`
 *   **File Path**: [xy-trace.tsx](../../hmi/components/hmi/xy-trace.tsx)
@@ -141,19 +141,14 @@ hmi/
 4. Bottom-left status board: Displays live numerical Cartesian coordinate positions and deviation error.
 *   **Events**: Listens for the custom `hmi_config_updated` window event to reactively update the ghost trail opacity.
 
-#### 5. `ChartPanel` & Helper Charts
+#### 5. `ChartPanel`, `MetricsPanel` & Helper Charts
 *   **File Path**: [chart-panel.tsx](../../hmi/components/hmi/chart-panel.tsx)
-*   **Purpose**: Organizes, downsamples, and plots real-time telemetry variables over time, switching to the comprehensive `AdvancedAnalyzer` when expanded/maximized.
+*   **Purpose**: Organizes and plots real-time telemetry (throttled to 5 Hz DOM updates). Switches to `AdvancedAnalyzer` in focus mode.
 *   **Props**: None.
 *   **Controls/Renders**:
-    *   `StatsBanner`: Renders Max Error, Mean Error, Final Error, and Max PWM during `IDLE` state (hidden in expanded/focused mode).
-    *   `TuningAdvicePopover`: Renders an expert-level PID Tuning Suggestion overlay.
-    *   Tabs wrapping the individual Recharts implementations or rendering `AdvancedAnalyzer` if maximized:
-        *   `EEFErrChart`: Amber area plot displaying Euclidean end-effector distance error (mm).
-        *   `EEFVelocityChart`: Ideal vs. actual end-effector Cartesian velocities (mm/s).
-        *   `PWMChart`: Green area chart graphing controller output commands ($[-255, 255]$).
-        *   `PositionChart`: Double line chart graphing joint angular displacements ($\theta_1, \theta_2$) vs desired coordinates ($\theta_{1d}, \theta_{2d}$).
-        *   `VelocityChart`: Joint angular speeds ($\dot{\theta}_1, \dot{\theta}_2$) vs desired references ($\dot{\theta}_{1d}, \dot{\theta}_{2d}$).
+    *   `MetricsPanel`: Post-run summary grid (AI, MCTE, RMS ATE, RMSE, jitter, settling time) — rendered below charts on Monitor tab.
+    *   Chart tabs: `CTEChart`, `ATEChart`, `PositionChart`, `VelocityChart`, `PIDChart`, `J1CtrlChart`, `J2VelChart`.
+    *   Focus mode unlocks caliper, zoom, pan, and viewport statistics tools.
 
 #### 6. `ControlPanel` & `GainField`
 *   **File Path**: [control-panel.tsx](../../hmi/components/hmi/control-panel.tsx)
@@ -166,11 +161,11 @@ hmi/
     *   Microstep: Dropdown menu selector (`Full`, `Half`, `Quarter`, `1/8`, `1/16`).
     *   PID field state machine: Typing locks prevents incoming gains sync from overwriting active typing fields (with blur to submit).
 
-#### 7. `StepMetrics` & `MetricCard`
-*   **File Path**: [step-metrics.tsx](../../hmi/components/hmi/step-metrics.tsx)
-*   **Purpose**: Calculates and displays standard control system performance criteria from post-run buffers.
-*   **Props**: None.
-*   **Controls/Renders**: Select inputs to filter by signal type (`eef`, `th1`, `th2`) and settling tolerance bands ($\pm2\%$ vs $\pm5\%$). Displays: Rise Time ($t_r$), Overshoot percentage ($\%OS$), Settling Time ($t_s$), and Steady-State Error ($e_{ss}$).
+#### 7. `ZNAnalysisTab` (Rest Analysis)
+*   **File Path**: [zn-analysis-tab.tsx](../../hmi/components/hmi/zn-analysis-tab.tsx)
+*   **Purpose**: Continuous high-rate telemetry workspace for step-response and rest-state analysis on the Home and Test pages.
+*   **Props**: `isActive: boolean`.
+*   **Controls/Renders**: Joint selector, view modes (pos/raw/compare/vel/fft), drag caliper analyzer, step commands, freeze/scroll, scoped CSV export.
 
 #### 8. `PhasePortrait`
 *   **File Path**: [phase-portrait.tsx](../../hmi/components/hmi/phase-portrait.tsx)
@@ -197,25 +192,24 @@ hmi/
 *   **Props**: None.
 *   **Controls/Renders**: Renders a paginated table of raw data columns (Sample Index, Timestamp, Desired/Actual angles and errors, and Euclidean tooltip error) and an "Export CSV" trigger.
 
-#### 11. `SerialLog`
-*   **File Path**: [serial-log.tsx](../../hmi/components/hmi/serial-log.tsx)
-*   **Purpose**: Log console for text streams.
-*   **Props**: None.
-*   **Controls/Renders**: Displays the last 15 lines of raw text received over serial, parsing and adding badges to markers (`MOVE`, `DONE`, `GAINS`). Renders a "Clear Log" button and a "Clear Graph" button (which sends `clrgraph` and flushes state buffers).
+#### 11. `SerialLog` & `SerialTerminalSheet`
+*   **File Paths**: [serial-log.tsx](../../hmi/components/hmi/serial-log.tsx), [serial-terminal.tsx](../../hmi/components/hmi/serial-terminal.tsx)
+*   **Purpose**: Resizable bottom-sheet serial monitor toggled from the header.
+*   **Controls/Renders**: Filters high-frequency `T`/`D` packets. Badges for `MOVE`, `DONE`, `GAINS`. Clear Log and Clear Graph (`clrgraph`) buttons.
 
 #### 12. `ReadmeTab`
 *   **File Path**: [readme-tab.tsx](../../hmi/components/hmi/readme-tab.tsx)
 *   **Purpose**: A local documentation tab containing user instructions, connection guides, mathematical explanations of the SCARA kinematics, ZN tuning methodology, and an example Arduino integration sketch.
 *   **Props**: None.
 
-#### 13. `AdvTunerTab` & `ParamField`
+#### 13. `AdvTunerTab` (Test Page Only)
 *   **File Path**: [adv-tuner-tab.tsx](../../hmi/components/hmi/adv-tuner-tab.tsx)
-*   **Purpose**: Dedicated tuning board to sync and tune 18 system parameters (vmax, amax, filters, deadbands, J1 Hold Mode). Features caliper-style parameter forms with inline status LEDs (Green/Amber/Blue/Red) and a Live Trajectory Queue status panel.
+*   **Purpose**: Engineering params tuner on `/test` — syncs and tunes 26 runtime constants with inline status LEDs and trajectory queue panel.
 *   **Props**: None.
 
-#### 14. `ZNTunerTab`
+#### 14. `ZNTunerTab` (`/zn` Page)
 *   **File Path**: [zn-tuner-tab.tsx](../../hmi/components/hmi/zn-tuner-tab.tsx)
-*   **Purpose**: Independent subpage workspace for Ziegler-Nichols tuning of Joint 1 or Joint 2, featuring a decoupled high-speed telemetry feed.
+*   **Purpose**: Dedicated Ziegler-Nichols tuning workspace on the `/zn` route.
 *   **Props**: `isActive: boolean`.
 *   **Controls/Renders**:
     *   Gain Increment Controllers: Caliper buttons to bump gains and deadbands by custom step sizes.
@@ -323,10 +317,15 @@ Commands are written to the port's stream writer as raw strings terminated with 
 | `kd2,<val>` | `ControlPanel` (Submit J2 Derivative Gain) | Updates Joint 2 Derivative Gain ($K_{d2}$) in active RAM on microcontroller. |
 | `mstep,<val>` | `ControlPanel` (Microstepping select dropdown) | Subdivides physical stepper resolution. Valid arguments: `1`, `2`, `4`, `8`, or `16`. |
 | `getgains` | `useSerial` (Mount handshake), `ControlPanel` | Queries active PID parameter values and microstepping dividers. |
-| `getparams` | `AdvTunerTab` (Sync button) | Queries parameter blocks list `K` manually. |
-| `clrgraph` | `SerialLog` (Clicking "Clear Graph" button) | Commands microcontroller firmware to purge historical trajectory coordinates. |
-| `estop` | `HMIShell` (Clicking "🛑 E-STOP" header button) | **EMERGENCY STOP**: Halts all active stepper control pulses and cuts PWM power supply to DC motors immediately. |
-| `<param>,<val>` | `AdvTunerTab` (Submit parameter) | Sets any of the 18 constant parameters (`vmax`, `amax`, `cfreq`, `u1max`, `fzt`, `pwm_db`, `apos`, `adpos`, `aacc`, `ddth`, `dben`, `dbrel`, `dbvel`, `hskp`, `hskd`, `idecay`, `taunom`, `m22ref`) on microcontroller. |
+| `getparams` | `AdvTunerTab` (Sync button), connect handshake | Queries parameter block `K`. |
+| `ping` | `useHeartbeat` hook | Resets firmware serial watchdog (8 s timeout). |
+| `mode,<name>` | `ModeRouter` | Auto-sends `mode,scara|zn|test` when route changes. |
+| `plot,<0\|1>` | `HMIProvider` pathname effect | Enables high-rate D logging on `/zn` and `/test`. |
+| `resume` | Header RESUME button | Clears E-STOP state. |
+| `clrgraph` | `SerialLog` (Clear Graph button) | Purges trajectory buffers. |
+| `estop` | Header E-STOP button | Emergency stop — cuts motor outputs. |
+| `ffi,<val>` / `ffc,<val>` / `ffg,<val>` | `ControlPanel` | Feedforward blend factors (0–1). |
+| `<param>,<val>` | `AdvTunerTab` (Test page) | Sets any of 26 runtime constants (`vmax`, `amax`, `cfreq`, `td1r`, `td2r`, etc.). |
 
 ---
 
@@ -338,7 +337,7 @@ All client-microcontroller bindings are initialized in [hmi-context.tsx](../../h
 1.  **Request & Open**:
     Clicking "Connect" calls `navigator.serial.requestPort()`. The system reads properties via `port.getInfo()`, registers the selected port string descriptor in `localStorage` under key `hmi_lastPort`, opens the connection at **921600 baud**, and saves the writer reference in a React useRef variable.
 2.  **Handshake**:
-    Upon successful connection, the HMI actively sends the `'getgains\n'` and `'getparams\n'` queries to retrieve current gains and advanced tuning parameter values from the device.
+    Upon successful connection, the HMI sends `getgains` and `getparams`. The `useHeartbeat` hook sends `ping` periodically. `ModeRouter` sends the correct `mode,<name>` for the active route.
 3.  **Read-Loop**:
     An asynchronous loops starts:
     ```typescript
@@ -391,60 +390,37 @@ T,xi,yi,xa,ya
 *   `ya`: Float. Actual measured Y coordinate (mm).
 
 #### 4. Detailed Joint Telemetry Sample (`D`)
-High-frequency payload containing joint-level sensor values used by the charts, phase portraits, and metrics calculator. This packet operates in two formats depending on the active workspace:
-*   **SCARA Default Mode** (Angles in Radians):
-    ```text
-    D,t,th1,th2,th1d,th2d,e1,e2,v1,v2,v1d,v2d,pwm1
-    ```
-    *   `t`: Float. System timestamp (ms).
-    *   `th1`: Float. Measured angular position of Joint 1 (radians).
-    *   `th2`: Float. Measured angular position of Joint 2 (radians).
-    *   `th1d`: Float. Desired reference angle for Joint 1 (radians).
-    *   `th2d`: Float. Desired reference angle for Joint 2 (radians).
-    *   `e1`: Float. Error displacement of Joint 1 (radians).
-    *   `e2`: Float. Error displacement of Joint 2 (radians).
-    *   `v1`: Float. Angular velocity of Joint 1 (rad/s).
-    *   `v2`: Float. Angular velocity of Joint 2 (rad/s).
-    *   `v1d`: Float. Reference target velocity of Joint 1 (rad/s).
-    *   `v2d`: Float. Reference target velocity of Joint 2 (rad/s).
-    *   `pwm1`: Float. Control input written to Joint 1's motor driver ($[-255, 255]$).
-*   **ZN Tuner Mode** (Angles in Degrees, length of split values is 6):
-    ```text
-    D,t1_target,t1_actual,t2_target,t2_actual,pwm1
-    ```
-    *   `t1_target`, `t1_actual`: Desired and actual Joint 1 angles (degrees).
-    *   `t2_target`, `t2_actual`: Desired and actual Joint 2 angles (degrees).
-    *   `pwm1`: Actuator output command.
-
-#### 5. Forces/Control Internal Sample (`F`)
-Fires at 10 Hz containing Computed Torque Control analytical outputs and internal PID tracking accumulators.
+High-frequency payload (500 Hz from firmware, downsampled to 50 Hz for main charts). Angles in radians:
 ```text
-F,t,ctc_ff1,ctc_ff2,ff1_contrib,u1_total,integral1,delta_omega_ff,omega2_raw
+D,t,th1,th2,th1d,th2d,dth1,dth2,dth1d,dth2d,pwm1,th1raw,th2raw
 ```
-*   `t`: Float. System timestamp (ms).
-*   `ctc_ff1`, `ctc_ff2`: Feedforward torque terms computed analytically (N·m).
-*   `ff1_contrib`: Scaled feedforward contribution to final controller output.
-*   `u1_total`: Total combined control signal applied to J1 actuator.
-*   `integral1`: Current integrated error accumulator of J1 PID.
-*   `delta_omega_ff`: Angular velocity error correction scaling term (rad/s).
-*   `omega2_raw`: Stepper raw command velocity signal (rad/s).
+*   `t`: Timestamp (ms).
+*   `th1`, `th2`: Measured joint angles (rad).
+*   `th1d`, `th2d`: Desired joint angles (rad).
+*   `dth1`, `dth2`: Actual angular velocities (rad/s).
+*   `dth1d`, `dth2d`: Desired angular velocities (rad/s).
+*   `pwm1`: J1 control output ($[-255, 255]$).
+*   `th1raw`, `th2raw`: Unfiltered ADC angles (rad).
+*   Joint errors `e1`, `e2` are computed by the HMI as `th1d - th1`, `th2d - th2`.
+*   On `/zn` and `/test` routes, every D sample is also dispatched as a `zn_sample` window event (converted to degrees) for Rest Analysis / ZN charts.
+
+#### 5. Feedforward Breakdown (`F`) — 50 Hz
+```text
+F,t,inertia1,coriolis1,gravity1,inertia2,coriolis2,gravity2,ff1_contrib,u1_total,integral1,delta_omega_ff,omega2_raw,integral2
+```
+*   Per-joint inertia, Coriolis, and gravity feedforward torques plus combined control signals and integrator states.
 
 #### 6. Controller Gains Report (`G`)
-Fired in response to a `getgains` query or whenever gains are updated online.
 ```text
-G,kp1,ki1,kd1,kp2,ki2,kd2,mstep,ff1,ff2
+G,kp1,ki1,kd1,kp2,ki2,kd2,mstep,ffi,ffc,ffg
 ```
-*   `kp1`, `ki1`, `kd1`: PID values for Joint 1.
-*   `kp2`, `ki2`, `kd2`: PID values for Joint 2. (Note: Ki2 is restored).
-*   `mstep`: Active microstepping divider (`1` | `2` | `4` | `8` | `16`).
-*   `ff1`, `ff2`: Active Computed Torque Control blend factors ($[0.0, 1.0]$).
+*   PID gains, microstep divisor, and feedforward blend factors (inertia, Coriolis, gravity).
 
-#### 7. Constants/Params Report (`K`)
-Fired on boot or in response to a `getparams` query containing current limit variables and Hold Mode coefficients.
+#### 7. Runtime Parameters Report (`K`) — 26 fields
 ```text
-K,vmax,amax,cfreq,u1max,fzt,pwm_db,apos,adpos,aacc,ddth,dben,dbrel,dbvel,hskp,hskd,idecay,taunom,m22ref
+K,vmax,amax,cfreq,u1max,fzt,pwm_db,td1r,td2r,td_h,ddth,dben,dbrel,dbvel,hskp,hskd,idecay,taunom,m22ref,alpha_tilt_deg,td_enabled,trap_enabled,ki2_gate_rad,db2en,db2rel,err_dz,integral_freeze_thresh
 ```
-*   Tuning constants: Max velocity, max acceleration, filters alpha coefficients, deadband limits, hold thresholds, and torque factors. See `AdvTunerTab` for field details.
+*   Velocity/acceleration limits, filter bandwidths, deadbands, hold mode, trajectory flags. See `AdvTunerTab` on the Test page for field details.
 
 #### 8. Trajectory Queue Status (`Q`)
 Fired when moves are queued or executed.
@@ -497,7 +473,9 @@ export interface HMIState {
   frozenE: ESample[]                        // Retained controller effort/duration snap after move ends
   stats: Stats | null                       // Computed max error/PWM details
   gains: Gains | null                       // PID values reported from the device
-  params: AdvParams | null                  // 18 system constants reported from the device
+  params: AdvParams | null                  // 26 runtime constants reported from the device
+  currentMode: ESPMode | null               // Active firmware mode (IDLE/SCARA/ZN/TEST)
+  estopped: boolean                         // E-STOP latch state from ESTOP packet
   hasSyncedParams: boolean                  // Sync state flag indicating device params synch
   queueStatus: { pendingStatus: number; pendingX: number; pendingY: number } | null // Trajectory queue status
   logLines: string[]                        // Terminal line logs list

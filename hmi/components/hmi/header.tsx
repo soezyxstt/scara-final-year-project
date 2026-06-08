@@ -31,19 +31,6 @@ export function Header() {
 
   const lastPort = portName ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('hmi_lastPort') : null) ?? ''
 
-  const statusLabel =
-    serialStatus === 'connected'
-      ? `● ${portName ?? 'COM?'}`
-      : serialStatus === 'reconnecting'
-        ? '⚠ Reconnecting…'
-        : '○ Not connected'
-
-  const statusColor =
-    serialStatus === 'connected'
-      ? 'bg-hmi-ok text-white'
-      : serialStatus === 'reconnecting'
-        ? 'bg-hmi-warn text-black'
-        : 'bg-hmi-off text-hmi-muted'
 
   return (
     <header className="sticky top-0 z-50 bg-hmi-panel border-b border-hmi-grid px-4 h-12 flex items-center shrink-0">
@@ -68,26 +55,8 @@ export function Header() {
 
       {/* ── CENTER: Connection group (passive, utility-level) ─────────── */}
       <div className="flex items-center gap-2 mx-auto">
-        {/* COM port selector — utility level */}
-        {availablePorts.length > 0 ? (
-          <Select value={selectedPort} onValueChange={setSelectedPort}>
-            <SelectTrigger className="w-32 h-6 text-[11px] border-hmi-grid/60 bg-transparent text-hmi-muted">
-              <SelectValue placeholder={lastPort || 'Select port'} />
-            </SelectTrigger>
-            <SelectContent>
-              {availablePorts.map(p => (
-                <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : lastPort ? (
-          <span className="text-[11px] text-hmi-muted border border-hmi-grid/50 rounded px-2 py-0.5 font-mono">
-            {lastPort}
-          </span>
-        ) : null}
 
-        {/* Status badges — passive/read-only context */}
-        <Badge className={`${statusColor} text-[10px] px-1.5 py-0 font-normal`}>{statusLabel}</Badge>
+
         <Badge className={`${online ? 'bg-hmi-ok text-white' : 'bg-hmi-off text-hmi-muted'} text-[10px] px-1.5 py-0 font-normal`}>
           {online ? '● Online' : '○ Offline'}
         </Badge>

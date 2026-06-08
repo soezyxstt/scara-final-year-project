@@ -192,8 +192,8 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
         </button>
       )}
 
-      {/* Charts container */}
-      <div className="w-full flex-1 min-h-0">
+      {/* Charts container — flex-1 min-h-0 required so ResponsiveContainer gets a non-zero height */}
+      <div className="w-full flex-1 min-h-0" style={!isFocused && height ? { height } : undefined}>
         <ResponsiveContainer width="100%" height="100%">
           {chart}
         </ResponsiveContainer>

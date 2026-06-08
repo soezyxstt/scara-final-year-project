@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useId } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -211,7 +211,7 @@ export function FFTSection({
               Peaks above ~10 Hz are typically potentiometer noise, not structural dynamics.
               (X axis is frequency bin — scale by tick rate when known.)
             </p>
-            <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+            <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
               <ResponsiveContainer width="100%" height="100%">
                 {chart}
               </ResponsiveContainer>
@@ -231,6 +231,7 @@ export function ControlEffortSection({
   height?: number
 }) {
   const { state } = useHMISlow()
+  const gradId = useId().replace(/\W/g, '')
   const [isFocused, setIsFocused] = useState(false)
 
   // Listen for Escape key to close focus
@@ -258,7 +259,7 @@ export function ControlEffortSection({
   const chart = (
     <AreaChart data={data} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <defs>
-        <linearGradient id="effortGradient" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`${gradId}-effortGradient`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
           <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
         </linearGradient>
@@ -281,7 +282,7 @@ export function ControlEffortSection({
         }} 
       />
       <Tooltip contentStyle={TS} />
-      <Area type="linear" dataKey="effort" stroke="#10B981" fill="url(#effortGradient)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+      <Area type="linear" dataKey="effort" stroke="#10B981" fill={`url(#${gradId}-effortGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} />
     </AreaChart>
   )
 
@@ -354,7 +355,7 @@ export function ControlEffortSection({
         {data.length === 0 ? (
           <p className="text-xs text-hmi-muted">No data.</p>
         ) : (
-          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>
@@ -484,7 +485,7 @@ export function CTCTorqueSection({
         {chartData.length === 0 ? (
           <p className="text-xs text-hmi-muted italic">No CTC torque logging. Run a move to capture telemetry.</p>
         ) : (
-          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>
@@ -523,8 +524,6 @@ export function ControlInternalSection({
         t: (f.t - firstT) / 1000,
         u1_total: f.u1Total,
         ff1_contrib: f.ff1Contrib,
-        integral1: f.integral1,
-        integral2: f.integral2,
       }))
     )
   }, [state.frozenF])
@@ -538,8 +537,6 @@ export function ControlInternalSection({
       <Legend verticalAlign="top" height={20} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '2px' }} />
       <Line type="linear" dataKey="u1_total" stroke="#4CAF50" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total PID Effort" />
       <Line type="linear" dataKey="ff1_contrib" stroke="#9C27B0" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="FF Contribution" />
-      <Line type="linear" dataKey="integral1" stroke="#FFEB3B" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J1 Integrator Term" />
-      <Line type="linear" dataKey="integral2" stroke="#E91E63" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 Integrator Term" />
     </LineChart>
   )
 
@@ -602,7 +599,7 @@ export function ControlInternalSection({
         {chartData.length === 0 ? (
           <p className="text-xs text-hmi-muted italic">No internal control logging. Run a move to capture telemetry.</p>
         ) : (
-          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>
@@ -633,17 +630,41 @@ export function StepperVelocitySection({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isFocused])
 
+  const kp2 = state.gains?.kp2 ?? 0
+  const kd2 = state.gains?.kd2 ?? 0
+
   const chartData = useMemo(() => {
     if (!state.frozenF || state.frozenF.length === 0) return []
     const firstT = state.frozenF[0].t
     return localDownsample(
-      state.frozenF.map((f) => ({
-        t: (f.t - firstT) / 1000,
-        omega2_raw: f.omega2Raw,
-        delta_omega_ff: f.deltaOmegaFf,
-      }))
+      state.frozenF.map((f) => {
+        // Find closest D sample by timestamp (ms) to align data correctly
+        let bestD = null
+        let minDiff = Infinity
+        for (let j = 0; j < state.frozenD.length; j++) {
+          const d = state.frozenD[j]
+          const diff = Math.abs(d.t - f.t)
+          if (diff < minDiff) {
+            minDiff = diff
+            bestD = d
+          } else {
+            break
+          }
+        }
+
+        const p_out = bestD ? kp2 * bestD.e2 : 0
+        const d_out = bestD ? -kd2 * bestD.dth2 : 0
+        return {
+          t: (f.t - firstT) / 1000,
+          omega2_raw: f.omega2Raw,
+          delta_omega_ff: f.deltaOmegaFf,
+          p_out,
+          d_out,
+          integral2: f.integral2,
+        }
+      })
     )
-  }, [state.frozenF])
+  }, [state.frozenF, state.frozenD, kp2, kd2])
 
   const chart = (
     <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
@@ -652,8 +673,11 @@ export function StepperVelocitySection({
       <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Velocity (rad/s)', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
       <Legend verticalAlign="top" height={20} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '2px' }} />
-      <Line type="linear" dataKey="omega2_raw" stroke="#FF9800" strokeWidth={1.5} dot={false} isAnimationActive={false} name="omega2 Command" />
-      <Line type="linear" dataKey="delta_omega_ff" stroke="#2196F3" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="Sync Deviation Correction" />
+      <Line type="linear" dataKey="omega2_raw" stroke="#FF9800" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total omega2 Command" />
+      <Line type="linear" dataKey="p_out" stroke="#2196F3" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 P Out" />
+      <Line type="linear" dataKey="d_out" stroke="#EF4444" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 D Out" />
+      <Line type="linear" dataKey="integral2" stroke="#FFEB3B" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 I Out" />
+      <Line type="linear" dataKey="delta_omega_ff" stroke="#9C27B0" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="J2 FF Contribution" />
     </LineChart>
   )
 
@@ -716,7 +740,7 @@ export function StepperVelocitySection({
         {chartData.length === 0 ? (
           <p className="text-xs text-hmi-muted italic">No stepper command logging. Run a move to capture telemetry.</p>
         ) : (
-          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>
@@ -832,7 +856,7 @@ export function PIDBreakdownSection({
         {chartData.length === 0 ? (
           <p className="text-xs text-hmi-muted italic">No PID telemetry. Run a move to capture telemetry.</p>
         ) : (
-          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>
@@ -852,6 +876,7 @@ export function LoopDurationSection({
   height?: number
 }) {
   const { state } = useHMISlow()
+  const gradId = useId().replace(/\W/g, '')
   const [isFocused, setIsFocused] = useState(false)
 
   useEffect(() => {
@@ -877,7 +902,7 @@ export function LoopDurationSection({
   const chart = (
     <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <defs>
-        <linearGradient id="colorLoop" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`${gradId}-colorLoop`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.2}/>
           <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
         </linearGradient>
@@ -886,7 +911,7 @@ export function LoopDurationSection({
       <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
       <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Duration (µs)', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(1) : v} />
-      <Area type="monotone" dataKey="loop_duration_us" stroke="#8B5CF6" strokeWidth={1.5} fillOpacity={1} fill="url(#colorLoop)" name="Loop Duration (µs)" isAnimationActive={false} />
+      <Area type="monotone" dataKey="loop_duration_us" stroke="#8B5CF6" strokeWidth={1.5} fillOpacity={1} fill={`url(#${gradId}-colorLoop)`} name="Loop Duration (µs)" isAnimationActive={false} />
     </AreaChart>
   )
 
@@ -949,7 +974,7 @@ export function LoopDurationSection({
         {chartData.length === 0 ? (
           <p className="text-xs text-hmi-muted italic">No loop duration telemetry. Run a move to capture telemetry.</p>
         ) : (
-          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "h-[240px] w-full")}>
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>

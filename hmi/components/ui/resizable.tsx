@@ -33,7 +33,7 @@ const ResizableHandle = ({
 }) => (
   <Separator
     className={cn(
-      'group relative flex items-center justify-center bg-transparent transition-all outline-none select-none z-50',
+      'group relative flex items-center justify-center bg-transparent transition-all outline-none select-none z-10',
       // For vertical separator (horizontal layout split, default): 8px wide target
       'w-2 h-full cursor-col-resize hover:bg-hmi-ideal/10 active:bg-hmi-ideal/20',
       'aria-[orientation=vertical]:w-2 aria-[orientation=vertical]:h-full aria-[orientation=vertical]:cursor-col-resize',

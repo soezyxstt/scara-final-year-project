@@ -62,7 +62,7 @@ namespace RobotState {
   unsigned long last_serial_rx_ms = 0;
   unsigned long last_telemetry_ms = 0;
 
-  bool  plot_enabled = false;
+  bool  plot_enabled = true;
 
   char    serial_buf[64] = {};
   uint8_t serial_idx     = 0;
@@ -131,19 +131,19 @@ namespace CtcState {
 
 namespace Params {
 
-  float Kp1 = 0.6f;
+  float Kp1 = 0.3f;
   float Ki1 = 0.03f;
-  float Kd1 = 0.02f;
+  float Kd1 = 0.01f;
   float Kp2 = 4.0f;
-  float Ki2 = 0.005f;
-  float Kd2 = 0.1f;
+  float Ki2 = 0.03f;
+  float Kd2 = 0.01f;
 
   float FF_INERTIA  = 0.0f;
   float FF_CORIOLIS = 0.0f;
   float FF_GRAVITY  = 0.0f;
 
-  float V_MAX       = 0.035f;
-  float A_MAX       = 0.06f;
+  float V_MAX       = 0.05f;
+  float A_MAX       = 0.08f;
   bool  TRAP_ENABLED = true;
 
   float U1_MAX           = 1.0f;
@@ -154,25 +154,28 @@ namespace Params {
   float DB_RELEASE      = 0.004f;
   float DB_VEL          = 0.15f;
   int   MOTOR1_MIN_TICKS = 5;
-  float DTERM_MAX        = 1.0f;
+  float DTERM_MAX        = 0.8f;
 
   float KP_HOLD_SCALE = 0.60f;
   float KD_HOLD_SCALE = 1.80f;
 
   float INTEGRAL_DECAY = 0.004f;
 
-  float DDTH_MAX = 10.0f;
+  float DDTH_MAX = 2.0f;
 
   float TAU_NOM_J1 = 0.03f;
   float M22_REF    = 2.464e-6f;
+
+  float ERR_DZ               = 0.005f;  // rad — error below this treated as zero
+  float INTEGRAL_FREEZE_THRESH = 0.015f; // rad — integrator decays instead of accumulating
 
   float KI2_GATE_RAD = 0.05f;
 
   float DB2_ENGAGE = 0.008f;
   float DB2_RELEASE = 0.005f;
 
-  float TD1_R = 30.0f;
-  float TD2_R = 30.0f;
+  float TD1_R = 20.0f;
+  float TD2_R = 20.0f;
   bool  TD_ENABLED = true;
 
   float alpha_tilt = 0.0f;
@@ -185,6 +188,6 @@ namespace Params {
 
   float SETTLE_ERR_RAD   = 0.01f;
   int   SETTLE_TICKS_REQ = 20;
-  float TRAJ_MAX_OVERTIME = 5.0f;
+  float TRAJ_MAX_OVERTIME = 2.0f;
 
 }  // namespace Params

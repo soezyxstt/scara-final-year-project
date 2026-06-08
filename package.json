@@ -11,8 +11,8 @@
     "gen": "node shared/telemetry/generate.mjs",
     "dev": "npm run dev -w hmi-ta",
     "build": "npm run build -w hmi-ta",
-    "firmware:build": "npm run build -w scara-firmware",
-    "firmware:upload": "npm run upload -w scara-firmware",
-    "firmware:monitor": "npm run monitor -w scara-firmware"
+    "fw:build": "npm run build -w scara-firmware",
+    "fw:upload": "npm run upload -w scara-firmware",
+    "fw:monitor": "npm run monitor -w scara-firmware"
   }
 }

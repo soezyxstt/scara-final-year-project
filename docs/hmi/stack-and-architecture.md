@@ -1,97 +1,149 @@
 # SCARA HMI: Stack and Architecture Reference
 
-This document recaps the technical stack, directory layout, core architecture, and state management of the SCARA Robot HMI. It is designed to help any developer or AI agent quickly understand the system structure without reading the entire codebase.
+This document recaps the technical stack, directory layout, core architecture, and state management of the SCARA Robot HMI.
 
 ---
 
 ## 1. Technology Stack
 
-The HMI is built with a modern front-end web stack tailored for industrial telemetry and real-time visualization:
-
-*   **Framework**: [Next.js v16.2.6](https://nextjs.org) (using App Router, client-side shell execution).
-*   **Library**: [React v19.2.4](https://react.dev) (for interactive components and context-driven state management).
-*   **Language**: [TypeScript v5](https://www.typescriptlang.org/) (for strict typings across serial payloads and components).
-*   **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) with a dark, high-contrast, industrial theme design system.
-*   **Hardware Interface**: [Web Serial API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API) (enabling direct serial COM port communication directly from Chrome/Edge).
-*   **Visualizations**: 
-    *   **HTML5 Canvas**: Performance-optimized real-time drawing for the 2D workspace tracing (`XYTrace`).
-    *   **Recharts v3.8.1**: Declarative charting library for plotting step responses, velocities, control efforts, and FFT.
-*   **UI Components**: [Radix UI](https://www.radix-ui.com/) primitives (Collapsible, Select, Slot, Tabs, Tooltip) with custom styled-wrappers.
+* **Framework**: [Next.js v16.2.6](https://nextjs.org) (App Router, client-side shell).
+* **Library**: [React v19.2.4](https://react.dev) with Context + Reducer state management.
+* **Language**: [TypeScript v5](https://www.typescriptlang.org/).
+* **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) — dark industrial theme.
+* **Hardware Interface**: [Web Serial API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API) at **921600** baud.
+* **Visualizations**:
+  * **HTML5 Canvas** — real-time workspace tracing (`XYTrace`).
+  * **Recharts v3.8.1** — telemetry charts, FFT, and diagnostic plots.
+* **UI Components**: Radix UI primitives (Collapsible, Dialog, Select, Sheet, Tabs, Tooltip).
+* **Notifications**: Sonner toast library for `INFO:`, `WARN:`, and `ERR:` serial messages.
 
 ---
 
 ## 2. Directory Layout
 
-The codebase has a clean component-driven layout:
-
 ```text
-├── .next/                  # Next.js build output
-├── app/                    # Next.js App Router root
-│   ├── favicon.ico
-│   ├── globals.css         # Tailwind v4 theme definitions and custom colors
-│   ├── layout.tsx          # Root shell layout
-│   └── page.tsx            # Standard route page importing HMIRoot
-├── components/             # Reusable UI component layer
-│   ├── hmi/                # Core HMI features and views
-│   │   ├── advanced-analysis.tsx  # FFT and Control Effort Proxy sections
-│   │   ├── analysis-tab.tsx       # Layout for the Analysis Tab
-│   │   ├── chart-panel.tsx        # Multi-tab line/area charts for telemetry
-│   │   ├── comparison-table.tsx   # Detailed sample table with CSV exporter
-│   │   ├── control-panel.tsx      # PID inputs, target movement & microstepping forms
-│   │   ├── header.tsx             # HMI title & toolbar header
-│   │   ├── hmi-root.tsx           # Entry point and general Shell layout
-│   │   ├── monitor-tab.tsx        # Layout for the Monitor Tab (Live Telemetry)
-│   │   ├── phase-portrait.tsx     # Joint space phase portrait plotting
-│   │   ├── serial-log.tsx         # Console/log list for incoming serial text
-│   │   ├── step-metrics.tsx       # Step response rise/settling time metrics
-│   │   └── xy-trace.tsx           # Canvas-based 2D arm workspace mapping
-│   └── ui/                 # Atomic design components (Badge, Button, Card, etc.)
-├── lib/                    # Shared libraries and state management
-│   ├── hmi-context.tsx     # Main React state Context, Reducer, and Web Serial Loop
-│   ├── hmi-types.ts        # TypeScript typings for state, actions, and models
-│   └── utils.ts            # Tailwind class union utility (cn)
-├── types/                  # Ambient TypeScript declarations
-│   └── web-serial.d.ts     # Minimal type declarations for navigator.serial
-├── package.json            # Scripts and dependencies
-└── tsconfig.json           # TypeScript configuration
+hmi/
+├── app/                              # Next.js App Router
+│   ├── globals.css                   # Tailwind v4 theme and custom colors
+│   ├── layout.tsx                    # Root shell + Providers wrapper
+│   ├── page.tsx                      # Home route → HMIRoot
+│   ├── providers.tsx                 # HMIProvider, ModeRouter, KeybindingsHandler
+│   ├── zn/                           # ZN Tuner route (/zn)
+│   │   ├── page.tsx
+│   │   └── zn-page-content.tsx
+│   └── test/                         # Test bench route (/test)
+│       ├── page.tsx
+│       └── test-page-content.tsx
+├── components/
+│   ├── hmi/                          # Core HMI features
+│   │   ├── hmi-root.tsx              # Home shell (4 tabs)
+│   │   ├── monitor-tab.tsx           # Live monitoring layout
+│   │   ├── analysis-tab.tsx          # Post-run diagnostics layout
+│   │   ├── zn-analysis-tab.tsx       # Rest Analysis tab
+│   │   ├── zn-tuner-tab.tsx          # ZN page tuner workspace
+│   │   ├── adv-tuner-tab.tsx         # Test page params tuner
+│   │   ├── chart-panel.tsx           # Telemetry charts + MetricsPanel
+│   │   ├── xy-trace.tsx              # Canvas workspace map
+│   │   ├── control-panel.tsx         # PID, moves, feedforward
+│   │   ├── advanced-analysis.tsx     # CTC, effort, loop duration sections
+│   │   ├── capture-menu.tsx          # Settings sidebar
+│   │   ├── capture-charts-host.tsx   # Off-screen chart render host for exports
+│   │   ├── serial-terminal.tsx       # Bottom-sheet serial monitor
+│   │   ├── serial-log.tsx            # Log console content
+│   │   ├── readme-tab.tsx            # In-app user guide
+│   │   ├── keybindings-handler.tsx   # Global keyboard shortcuts
+│   │   ├── mode-router.tsx           # Auto mode switching per route
+│   │   └── ...
+│   └── ui/                           # Atomic Radix + Tailwind wrappers
+├── hooks/
+│   └── use-heartbeat.ts              # Periodic ping to firmware watchdog
+├── lib/
+│   ├── hmi-context.tsx               # Global state, Web Serial read-loop
+│   ├── hmi-types.ts                  # State and sample interfaces
+│   ├── telemetry-types.ts            # Auto-generated telemetry field types
+│   ├── cte-utils.ts                  # Cross/along tracking error math
+│   ├── capture-utils.ts              # PNG/JPEG/ZIP export helpers
+│   ├── capture-session.ts            # Export session state
+│   ├── keybindings-store.ts          # Keyboard shortcut persistence
+│   ├── trajectory-safety.ts          # Move validation rules
+│   └── tuning-advisor.ts             # Rule-based PID suggestions
+└── types/
+    └── web-serial.d.ts               # navigator.serial declarations
 ```
 
 ---
 
-## 3. Core State Management & Data Flow
+## 3. Multi-Route Architecture
 
-State is managed globally in client-side memory via React Context (`HMIContext`) and a reducer defined in [hmi-context.tsx](../../hmi/lib/hmi-context.tsx).
+```
+┌─────────────────────────────────────────────────────────┐
+│  app/layout.tsx → Providers (HMIProvider)             │
+│    ├── ModeRouter    — sends mode,scara|zn|test per URL  │
+│    ├── KeybindingsHandler                              │
+│    ├── CaptureChartsHost — hidden export render targets │
+│    └── {children}                                        │
+│         ├── /           → HMIRoot (Home)                 │
+│         ├── /zn         → ZNTunerShell                   │
+│         └── /test       → TestTunerShell                 │
+└─────────────────────────────────────────────────────────┘
+```
+
+The serial port connection persists across route changes because `HMIProvider` lives in `app/layout.tsx`, not inside individual pages.
+
+---
+
+## 4. Core State Management & Data Flow
+
+State is managed globally via React Context (`HMIContext`) and a reducer in `hmi-context.tsx`.
 
 ### Data Ingestion Flow
 
 ```mermaid
 graph TD
-    MCU[Microcontroller / ESP32] -- Serial Output --> SerialPort[Web Serial API]
-    SerialPort -- Uint8Array Stream --> ReadLoop[readLoop in hmi-context.tsx]
-    ReadLoop -- TextDecoder lines --> ParseLine[parseLine parsing]
-    
-    ParseLine -- "M,x0,y0,xf,yf" --> MOVE_START[Dispatch: MOVE_START]
-    ParseLine -- "S" --> MOVE_END[Dispatch: MOVE_END]
-    ParseLine -- "T,xi,yi,xa,ya" --> T_SAMPLE[Dispatch: T_SAMPLE]
-    ParseLine -- "D,t,th1,..." --> D_SAMPLE[Dispatch: D_SAMPLE]
-    ParseLine -- "G,kp1,ki1,..." --> GAINS[Dispatch: GAINS]
-    ParseLine -- Raw Text --> LOG_LINE[Dispatch: LOG_LINE]
+    MCU[ESP32] -- Serial --> SerialPort[Web Serial API]
+    SerialPort -- Uint8Array --> ReadLoop[readLoop]
+    ReadLoop -- TextDecoder lines --> ParseLine[parseLine]
 
-    MOVE_START --> ResetBuffers[Clear tBuffer/dBuffer, sets REC mode]
-    MOVE_END --> StatsCompute[Compute stats, set IDLE, freeze buffers]
+    ParseLine -- "M,x0,y0,xf,yf" --> MOVE_START
+    ParseLine -- "S" --> MOVE_END
+    ParseLine -- "T,xi,yi,xa,ya" --> T_SAMPLE
+    ParseLine -- "D,t,th1,..." --> D_SAMPLE
+    ParseLine -- "F,t,..." --> F_SAMPLE
+    ParseLine -- "E,t,..." --> E_SAMPLE
+    ParseLine -- "G,kp1,..." --> GAINS
+    ParseLine -- "K,vmax,..." --> PARAMS
+    ParseLine -- "X,MODE" --> MODE_CHANGE
+    ParseLine -- Raw Text --> LOG_LINE
 ```
 
+### Sampling Rates
+* **D packets** arrive at 500 Hz from firmware; the HMI downsamples to 50 Hz (every 10th sample) for chart buffers.
+* **T, F, E packets** arrive at 50 Hz natively.
+* Chart DOM updates are throttled to 5 Hz (200 ms) during live recording to keep Recharts responsive.
+
 ### Buffer Limits
-To prevent browser memory bloat during high-frequency telemetry logging, buffers are restricted to:
-*   `MAX_BUFFER = 2000` (samples per trajectory run).
-*   `MAX_LOG_LINES = 100` (lines in the serial console).
+* `MAX_BUFFER = 2000` samples per trajectory run (main HMI charts).
+* `MAX_BUFFER = 10000` samples (Rest Analysis / ZN buffer).
+* `MAX_LOG_LINES = 100` serial console lines.
 
 ---
 
-## 4. Web Serial Connection Lifecycle
+## 5. Web Serial Connection Lifecycle
 
-The Serial controller handles automatic reconnection and connection handshakes:
-1.  **Connecting**: Clicking "Connect" requests a port via `navigator.serial.requestPort()`. It stores the selected COM port descriptor in `localStorage('hmi_lastPort')` and opens it at **921600 baud**.
-2.  **Handshake**: Upon opening, it writes `'getgains\n'` to fetch the active PID gains and microstepping configuration from the microcontroller.
-3.  **Read Loop**: Reads stream chunks asynchronously, splits them by `\n`, and routes individual strings to the parser.
-4.  **Auto Reconnect**: If the port is disconnected abruptly, the status switches to `reconnecting` and a 2000ms polling interval kicks in to re-establish the connection once the device is plugged back in.
+1. **Connecting**: `navigator.serial.requestPort()` stores the port descriptor in `localStorage('hmi_lastPort')` and opens at **921600** baud.
+2. **Handshake**: Sends `getgains` and `getparams` to sync PID gains and runtime parameters.
+3. **Heartbeat**: `useHeartbeat` sends `ping` periodically to prevent the firmware 8-second serial watchdog from returning to IDLE.
+4. **Read Loop**: Asynchronous stream reader splits on `\n` and routes lines to `parseLine`.
+5. **Plot Mode**: When pathname is `/zn` or `/test`, sends `plot,1`; otherwise `plot,0`.
+6. **Auto Reconnect**: On disconnect, status becomes `reconnecting` and polls `navigator.serial.getPorts()` every 2000 ms.
+
+---
+
+## 6. Home Page Tab Structure
+
+| Tab | Component | Purpose |
+| :--- | :--- | :--- |
+| Monitor | `MonitorTab` | Live XY trace, charts, metrics, control panel |
+| Analysis | `AnalysisTab` | Frozen post-run diagnostics |
+| Rest Analysis | `ZNAnalysisTab` | Continuous step/rest telemetry analysis |
+| README | `ReadmeTab` | In-app documentation |

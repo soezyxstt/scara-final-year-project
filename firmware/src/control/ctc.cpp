@@ -17,8 +17,9 @@ using namespace Params;
 //  computeCTC
 //
 //  Gravity formula (alpha_tilt = base tilt from horizontal):
-//    G1 = (m1*d1 + m2*L1)*g*cos(alpha+θ1d) + m2*d2*g*cos(alpha+θ1d+θ2d)
-//    G2 = m2*d2*g*cos(alpha+θ1d+θ2d)
+//    G1 = (m1*d1 + m2*L1)*g*sin(alpha)*cos(θ1d) + m2*d2*g*sin(alpha)*cos(θ1d+θ2d)
+//    G2 = m2*d2*g*sin(alpha)*cos(θ1d+θ2d)
+//    G1=G2=0 when alpha=0 (horizontal SCARA)
 // ============================================================
 
 void computeCTC() {
@@ -35,12 +36,12 @@ void computeCTC() {
   float C1_raw  = -h_coeff * dTheta2_d * (2.0f * dTheta1_d + dTheta2_d);
   float C2_raw  =  h_coeff * dTheta1_d * dTheta1_d;
 
-  // Gravity — alpha_tilt enters only here
-  float ang1   = alpha_tilt + theta1_d;
-  float ang12  = alpha_tilt + theta1_d + theta2_d;
-  float G1_raw = (m1*d1 + m2*L1) * g_accel * cosf(ang1)
-               +  m2*d2           * g_accel * cosf(ang12);
-  float G2_raw =  m2*d2           * g_accel * cosf(ang12);
+  // Gravity — only non-zero when base is tilted from horizontal (alpha_tilt != 0)
+  // Derived from PE = m*g*r*sin(θ)*sin(alpha): G = -∂PE/∂θ = m*g*r*sin(alpha)*cos(θ)
+  float sa     = sinf(alpha_tilt);
+  float G1_raw = (m1*d1 + m2*L1) * g_accel * sa * cosf(theta1_d)
+               +  m2*d2           * g_accel * sa * cosf(theta1_d + theta2_d);
+  float G2_raw =  m2*d2           * g_accel * sa * cosf(theta1_d + theta2_d);
 
   // Inertia term: M·ddθ
   ctc_inertia1  = M11 * ddTheta1_d + M12 * ddTheta2_d;

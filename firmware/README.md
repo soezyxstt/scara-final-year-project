@@ -17,3 +17,15 @@ The full, detailed documentation has been moved to the central documentation fol
    - **Serial Monitor**: Connect at **921600** baud rate.
 
 For wiring guides, pin assignments, operating modes, tuning procedures, and command references, see the [Full Firmware README](../docs/firmware/readme.md).
+
+## HMI Integration
+
+The web dashboard (`/hmi`) connects at **921600** baud and auto-switches firmware modes per page:
+
+| HMI route | Sends | Purpose |
+| :--- | :--- | :--- |
+| `/` | `mode,scara` | Cartesian moves and trajectory monitoring |
+| `/zn` | `mode,zn` | Joint-level Ziegler-Nichols tuning |
+| `/test` | `mode,test` | Live parameter tuning and raw signal diagnostics |
+
+See the [HMI README](../hmi/README.md) or the in-app **README** tab for the full user guide.

@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-full bg-hmi-bg text-hmi-text antialiased overflow-hidden">
         <Providers>
           {children}
-          <Toaster theme="dark" richColors closeButton position="top-right" />
+          <Toaster theme="dark" richColors closeButton position="bottom-right" />
         </Providers>
       </body>
     </html>

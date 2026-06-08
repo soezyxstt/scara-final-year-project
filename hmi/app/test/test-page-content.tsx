@@ -16,6 +16,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { ModeBadge } from '@/components/mode-badge'
+import { SerialMonitorButton, SerialTerminalSheet } from '@/components/hmi/serial-terminal'
 
 type TestTab = 'monitor' | 'analysis' | 'rest' | 'params'
 
@@ -47,15 +48,9 @@ function TestTunerShell() {
 
   useHeartbeat(serialStatus === 'connected')
 
-  // Reactively stream plot format on connect and handle cleanup
-  useEffect(() => {
-    if (serialStatus === 'connected') {
-      serial.sendCommand('plot,1').catch(() => {})
-      return () => {
-        serial.sendCommand('plot,0').catch(() => {})
-      }
-    }
-  }, [serialStatus, serial])
+  // plot,1/0 is managed centrally by HMIProvider (pathname effect).
+  // Do NOT send plot,0 here — the cleanup caused a race condition that
+  // silenced D-packets on the rest tab every time deps changed.
 
   useEffect(() => {
     const handleSwitchTab = (e: Event) => {
@@ -71,6 +66,7 @@ function TestTunerShell() {
     return () => window.removeEventListener('hmi_switch_tab', handleSwitchTab)
   }, [router, setActiveTab])
 
+  const [serialLogOpen, setSerialLogOpen] = useState(false)
   const [lastPort, setLastPort] = useState('')
   useEffect(() => {
     const val = localStorage.getItem('hmi_lastPort') ?? ''
@@ -79,25 +75,12 @@ function TestTunerShell() {
     })
   }, [portName])
 
-  const statusLabel =
-    serialStatus === 'connected'
-      ? `● ${portName ?? 'COM?'}`
-      : serialStatus === 'reconnecting'
-        ? '⚠ Reconnecting…'
-        : '○ Not connected'
-
-  const statusColor =
-    serialStatus === 'connected'
-      ? 'bg-hmi-ok text-white'
-      : serialStatus === 'reconnecting'
-        ? 'bg-hmi-warn text-black'
-        : 'bg-hmi-off text-hmi-muted'
 
   return (
     <div className="flex flex-col h-screen min-w-[1280px] bg-hmi-bg text-hmi-text">
       {/* ── Header bar ── */}
       <header className="sticky top-0 z-50 bg-hmi-panel border-b border-hmi-grid px-4 h-12 flex items-center gap-4 shrink-0">
-        <span className="text-sm font-bold text-hmi-text shrink-0 tracking-wide uppercase">SCARA Test Page</span>
+        <span className="text-sm font-bold text-hmi-text shrink-0 tracking-wide uppercase">Testing</span>
 
         {/* Tab Selector */}
         <nav className="flex h-12 shrink-0 gap-1 border-l border-hmi-grid/50 pl-2">
@@ -148,22 +131,13 @@ function TestTunerShell() {
         </nav>
 
         <div className="flex items-center gap-2 ml-auto">
-          <Tooltip content="Serial Status: Shows whether the HMI is connected to the microcontroller's serial port." align="right">
-            <Badge className={cn("cursor-help", statusColor)}>{statusLabel}</Badge>
-          </Tooltip>
+
           <ModeBadge />
           <Tooltip content="Network Status: Indicates if the web page is currently connected to the network." align="right">
-            <Badge className={cn("cursor-help", online ? 'bg-hmi-ok text-white' : 'bg-hmi-off text-hmi-muted')}>
-              {online ? '● Online' : '○ Offline'}
+            <Badge className={cn("cursor-help font-bold", online ? 'bg-hmi-ok text-white' : 'bg-hmi-off text-hmi-muted')}>
+              {online ? '●' : '○'}
             </Badge>
           </Tooltip>
-          {lastPort && (
-            <Tooltip content="Last COM Port: Shows the USB Vendor/Product ID information of the last connected serial port." align="right">
-              <span className="text-xs text-hmi-muted border border-hmi-grid rounded px-2 py-0.5 font-mono cursor-help">
-                {lastPort}
-              </span>
-            </Tooltip>
-          )}
 
           {serialStatus === 'connected' ? (
             <Tooltip content="Disconnect: Closes the serial communication channel." align="right">
@@ -178,6 +152,13 @@ function TestTunerShell() {
               </Button>
             </Tooltip>
           )}
+
+          <SerialMonitorButton
+            open={serialLogOpen}
+            onToggle={() => setSerialLogOpen(v => !v)}
+            serialConnected={serialStatus === 'connected'}
+          />
+
           {estopped ? (
             <Tooltip content="RESUME: Clears the E-STOP state and re-enables motor outputs." align="right">
               <Button variant="resume" size="sm" className="animate-pulse" onClick={() => serial.sendCommand('resume')}>
@@ -187,13 +168,15 @@ function TestTunerShell() {
           ) : (
             <Tooltip content="EMERGENCY STOP: Instantly halts all trajectory movements and cuts power to the joint motors." align="right">
               <Button variant="estop" size="sm" onClick={() => serial.sendCommand('estop')}>
-                🛑 E-STOP
+                🛑 Stop
               </Button>
             </Tooltip>
           )}
           <CaptureMenu />
         </div>
       </header>
+
+      <SerialTerminalSheet open={serialLogOpen} onClose={() => setSerialLogOpen(false)} />
 
       {/* ── Page content ── */}
       <div className="flex-1 min-h-0 overflow-y-auto">

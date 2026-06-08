@@ -11,6 +11,7 @@ import {
   type Dispatch,
   type ReactNode,
 } from 'react'
+import { usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import type {
   DSample,
@@ -27,7 +28,7 @@ import type {
   ZNSample,
 } from './hmi-types'
 import { parseDSample, parseGains, parseAdvParams } from './telemetry-types'
-import { computeCTEList, computeMCTE } from './cte-utils'
+import { computeCTEList, computeMCTE, computeATEList } from './cte-utils'
 
 const MAX_BUFFER = 2000
 const MAX_LOG_LINES = 100
@@ -57,6 +58,8 @@ export const defaultParams: AdvParams = {
   ki2GateRad: 0.02,
   db2en: 0.008,
   db2rel: 0.005,
+  errDz: 0.005,
+  integralFreezeThresh: 0.015,
 }
 
 // ─── localStorage persistence ────────────────────────────────────────────────
@@ -64,13 +67,10 @@ const LS_KEY = 'hmi_state_v1'
 
 type PersistedState = Pick<
   HMIState,
-  | 'dBuffer'
-  | 'tBuffer'
-  | 'fBuffer'
-  | 'prevTBuffer'
   | 'frozenD'
   | 'frozenT'
   | 'frozenF'
+  | 'frozenE'
   | 'stats'
   | 'gains'
   | 'params'
@@ -97,13 +97,10 @@ function loadPersistedState(): Partial<PersistedState> {
 function saveState(state: HMIState) {
   try {
     const toSave: PersistedState = {
-      dBuffer: state.dBuffer,
-      tBuffer: state.tBuffer,
-      fBuffer: state.fBuffer,
-      prevTBuffer: state.prevTBuffer,
       frozenD: state.frozenD,
       frozenT: state.frozenT,
       frozenF: state.frozenF,
+      frozenE: state.frozenE,
       stats: state.stats,
       gains: state.gains,
       params: state.params,
@@ -147,10 +144,7 @@ function computeStats(tBuf: TPoint[], dBuf: DSample[]) {
 
   // Compute longitudinal and lateral error components for filtered points
   const eLats = filteredCtes // CTE is the lateral error
-  const eLongs = filteredT.map((p, idx) => {
-    const eTotal = Math.sqrt((p.xa - p.xi) ** 2 + (p.ya - p.yi) ** 2)
-    return Math.sqrt(Math.max(0, eTotal ** 2 - eLats[idx] ** 2))
-  })
+  const eLongs = computeATEList(filteredT)
 
   // Integrate over distance to get average longitudinal and lateral errors
   let areaLong = 0
@@ -180,8 +174,15 @@ function computeStats(tBuf: TPoint[], dBuf: DSample[]) {
     MCTE = eLats.reduce((a, b) => a + b, 0) / eLats.length
   }
 
-  const error_ratio = (MATE + MCTE) > 0 
-    ? MATE / (MATE + MCTE) 
+  let sumSqLong = 0
+  for (let i = 0; i < eLongs.length; i++) {
+    sumSqLong += eLongs[i] ** 2
+  }
+  const RMS_ATE = Math.sqrt(sumSqLong / eLongs.length)
+
+  const absMATE = Math.abs(MATE)
+  const error_ratio = (absMATE + MCTE) > 0 
+    ? absMATE / (absMATE + MCTE) 
     : 0.5
 
   const accuracy_idx = totalDist > 0 ? 1 - mean_err / totalDist : 1.0
@@ -198,6 +199,7 @@ function computeStats(tBuf: TPoint[], dBuf: DSample[]) {
     accuracy_idx,
     MATE,
     MCTE,
+    RMS_ATE,
     error_ratio,
     elapsed_time,
   }
@@ -235,19 +237,19 @@ function buildInitialState(): HMIState {
     recordingState: persisted.recordingState ?? 'WAITING',
     moveCount: persisted.moveCount ?? 0,
     currentMove: persisted.currentMove ?? null,
-    dBuffer: persisted.dBuffer ?? [],
-    tBuffer: persisted.tBuffer ?? [],
-    fBuffer: persisted.fBuffer ?? [],
+    dBuffer: [],
+    tBuffer: [],
+    fBuffer: [],
     eBuffer: [],
-    prevTBuffer: persisted.prevTBuffer ?? [],
+    prevTBuffer: [],
     showGhost: persisted.showGhost ?? true,
     frozenD: persisted.frozenD ?? [],
     frozenT: persisted.frozenT ?? [],
     frozenF: persisted.frozenF ?? [],
-    frozenE: [],
+    frozenE: persisted.frozenE ?? [],
     stats: persisted.stats ?? null,
     gains,
-    params: persisted.params ?? defaultParams,
+    params: persisted.params ? { ...defaultParams, ...persisted.params } : defaultParams,
     hasSyncedParams: persisted.hasSyncedParams ?? false,
     queueStatus: persisted.queueStatus ?? null,
     logLines: persisted.logLines ?? [],
@@ -280,20 +282,6 @@ function reducer(state: HMIState, action: HMIAction): HMIState {
     case 'MODE_CHANGE': {
       const modeStr = action.payload as ESPMode
       if (state.currentMode === modeStr) return state
-      
-      const modeNames: Record<ESPMode, string> = {
-        IDLE: 'Idle',
-        SCARA: 'SCARA',
-        ZN: 'Ziegler-Nichols (ZN)',
-        TEST: 'Test',
-      }
-      const modeName = modeNames[modeStr] || modeStr
-      toast.success(`Mode ${modeName} Aktif`, {
-        description: modeStr === 'IDLE'
-          ? 'Semua output motor dinonaktifkan.'
-          : `Sistem berhasil beralih ke Mode ${modeName}.`
-      })
-      
       return { ...state, currentMode: modeStr }
     }
     case 'MOVE_START': {
@@ -762,7 +750,7 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
           break
         }
         case 'K': {
-          const [, vmax, amax, cfreq, u1max, fzt, pwm_db, td1r, td2r, td_h, ddth, dben, dbrel, dbvel, hskp, hskd, idecay, taunom, m22ref, alpha_tilt_deg, td_enabled, trap_enabled, ki2_gate_rad, db2en, db2rel] = parts.map(Number)
+          const [, vmax, amax, cfreq, u1max, fzt, pwm_db, td1r, td2r, td_h, ddth, dben, dbrel, dbvel, hskp, hskd, idecay, taunom, m22ref, alpha_tilt_deg, td_enabled, trap_enabled, ki2_gate_rad, db2en, db2rel, err_dz, integral_freeze_thresh] = parts.map(Number)
           const params: AdvParams = {
             vmax: vmax ?? 0,
             amax: amax ?? 0,
@@ -788,6 +776,8 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
             ki2GateRad: ki2_gate_rad ?? 0.02,
             db2en: db2en ?? 0.008,
             db2rel: db2rel ?? 0.005,
+            errDz: err_dz ?? 0.005,
+            integralFreezeThresh: integral_freeze_thresh ?? 0.015,
           }
           dispatch({ type: 'PARAMS', params })
           break
@@ -858,18 +848,25 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
       const writer = port.writable!.getWriter() as WritableStreamDefaultWriter<Uint8Array>
       writerRef.current = writer
 
-      const savedName = localStorage.getItem('hmi_lastPort') ?? 'COM?'
-      dispatch({ type: 'SERIAL_STATUS', status: 'connected', portName: savedName })
+      const storedPort = localStorage.getItem('hmi_lastPort')
+      const ports = await navigator.serial.getPorts()
+      const idx = ports.findIndex(p => {
+        const info = p.getInfo()
+        const portInfo = port.getInfo()
+        return info.usbVendorId === portInfo.usbVendorId && info.usbProductId === portInfo.usbProductId
+      })
+      const portNum = idx !== -1 ? idx + 1 : 1
+      const friendlyName = storedPort || `COM${portNum}`
+
+      localStorage.setItem('hmi_lastPort', friendlyName)
+      dispatch({ type: 'SERIAL_STATUS', status: 'connected', portName: friendlyName })
 
       sampleIdxRef.current = 0
       const enc = new TextEncoder()
       await writer.write(enc.encode('ping\n'))
       await writer.write(enc.encode('getgains\n'))
       await writer.write(enc.encode('getparams\n'))
-      if (typeof window !== 'undefined') {
-        const isPlotEnabledPage = window.location.pathname.includes('/zn') || window.location.pathname.includes('/test')
-        await writer.write(enc.encode(isPlotEnabledPage ? 'plot,1\n' : 'plot,0\n'))
-      }
+      // plot,1/plot,0 dikirim oleh effect pathname di HMIProvider setelah serialStatus menjadi 'connected'
 
       activeRef.current = true
       readLoop(port).then(() => {
@@ -906,9 +903,6 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
     }
     try {
       const port = await navigator.serial.requestPort()
-      const info = port.getInfo()
-      const name = `COM (${info.usbVendorId?.toString(16) ?? '?'}:${info.usbProductId?.toString(16) ?? '?'})`
-      localStorage.setItem('hmi_lastPort', name)
       await openPort(port)
     } catch (e: unknown) {
       if (e instanceof Error && e.name !== 'NotFoundError') console.error(e)
@@ -918,9 +912,6 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
   // Used by HMIProvider for auto-connect to an already-granted port
   const connectToPort = useCallback(async (port: SerialPort) => {
     try {
-      const info = port.getInfo()
-      const name = `COM (${info.usbVendorId?.toString(16) ?? '?'}:${info.usbProductId?.toString(16) ?? '?'})`
-      localStorage.setItem('hmi_lastPort', name)
       await openPort(port)
     } catch (e: unknown) {
       if (e instanceof Error) console.error('Auto-connect failed:', e.message)
@@ -1001,6 +992,7 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
 export function HMIProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, buildInitialState)
   const serial = useSerial(dispatch)
+  const pathname = usePathname()
 
   // ── Persist state to localStorage on every meaningful change ────────────
   useEffect(() => {
@@ -1056,6 +1048,32 @@ export function HMIProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('offline', onOffline)
     }
   }, [])
+
+  // ── Mode change toast ────────────────────────────────────────────────────
+  // Dipisah dari reducer agar tidak terkena double-invocation React StrictMode.
+  useEffect(() => {
+    if (!state.currentMode) return
+    const modeNames: Record<ESPMode, string> = {
+      IDLE: 'Idle',
+      SCARA: 'SCARA',
+      ZN: 'Ziegler-Nichols (ZN)',
+      TEST: 'Test',
+    }
+    const modeName = modeNames[state.currentMode] || state.currentMode
+    toast.success(`Mode ${modeName} Aktif`, {
+      description: state.currentMode === 'IDLE'
+        ? 'Semua output motor dinonaktifkan.'
+        : `Sistem berhasil beralih ke Mode ${modeName}.`
+    })
+  }, [state.currentMode])
+
+  // ── Sync plot_enabled with current page ─────────────────────────────────
+  // Fires on initial connect AND whenever the user navigates between pages.
+  useEffect(() => {
+    if (state.serialStatus !== 'connected') return
+    const isPlotPage = pathname.includes('/zn') || pathname.includes('/test')
+    serial.sendCommand(isPlotPage ? 'plot,1' : 'plot,0').catch(() => {})
+  }, [pathname, state.serialStatus, serial])
 
   // ── Heartbeat "ping" to serial ───────────────────────────────────────────
   useEffect(() => {

@@ -42,7 +42,7 @@ void processSerialCommand(const char *cmd_raw) {
     Serial.println("SUCCESS: ESTOP cleared.");
     return;
   }
-  if (input == "getgains")  { emitFullState(); return; }
+  if (input == "getgains")  { emitFullState(); Serial.print("X,"); Serial.println(MODE_NAMES[op_mode]); return; }
   if (input == "getparams") { emitParams();    return; }
   if (input == "clrgraph") {
     Serial.println("SUCCESS: clrgraph acknowledged.");
@@ -275,6 +275,16 @@ void processSerialCommand(const char *cmd_raw) {
       DTHETA_RAW_CLAMP = input.substring(8).toFloat();
       Serial.print("INFO: DTHETA_RAW_CLAMP="); Serial.println(DTHETA_RAW_CLAMP, 2);
       return;
+    }
+    if (input.startsWith("errdz,")) {
+      ERR_DZ = input.substring(6).toFloat();
+      Serial.print("INFO: ERR_DZ="); Serial.println(ERR_DZ, 4);
+      emitParams(); return;
+    }
+    if (input.startsWith("ifreeze,")) {
+      INTEGRAL_FREEZE_THRESH = input.substring(8).toFloat();
+      Serial.print("INFO: INTEGRAL_FREEZE_THRESH="); Serial.println(INTEGRAL_FREEZE_THRESH, 4);
+      emitParams(); return;
     }
   }
 

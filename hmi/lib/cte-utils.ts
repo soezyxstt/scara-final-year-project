@@ -79,3 +79,42 @@ export function computeMCTE(tBuf: TPoint[], ctes: number[]): number {
   }
   return totalArea / totalDist
 }
+
+/**
+ * Calculates Along-Track Error (ATE) at each sample.
+ * ATE represents the position error projected along the direction of the desired trajectory path.
+ * A negative value indicates lagging behind, and a positive value indicates leading ahead.
+ */
+export function computeATEList(tBuf: TPoint[]): number[] {
+  const n = tBuf.length
+  if (n === 0) return []
+  const ates = new Array(n)
+
+  for (let i = 0; i < n; i++) {
+    const p = tBuf[i]
+    const ex = p.xa - p.xi
+    const ey = p.ya - p.yi
+
+    // Get tangent direction of desired path at this point
+    let tx = 0
+    let ty = 0
+    if (i < n - 1) {
+      tx = tBuf[i + 1].xi - p.xi
+      ty = tBuf[i + 1].yi - p.yi
+    } else if (i > 0) {
+      tx = p.xi - tBuf[i - 1].xi
+      ty = p.yi - tBuf[i - 1].yi
+    }
+
+    const mag = Math.sqrt(tx * tx + ty * ty)
+    if (mag > 1e-6) {
+      tx /= mag
+      ty /= mag
+      ates[i] = ex * tx + ey * ty
+    } else {
+      ates[i] = 0
+    }
+  }
+
+  return ates;
+}
