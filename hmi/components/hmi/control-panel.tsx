@@ -220,8 +220,6 @@ export function ControlPanel() {
   const activeX = currentMove?.xf ?? bootPose?.x
   const activeY = currentMove?.yf ?? bootPose?.y
 
-  const sendBtnRef = useRef<HTMLButtonElement>(null)
-
   const [xf, setXf] = useState('')
   const [yf, setYf] = useState('')
 
@@ -390,7 +388,6 @@ export function ControlPanel() {
   }, [])
 
   // Status indicators for forms
-  const [moveStatus, setMoveStatus] = useState<'idle' | 'sending' | 'success'>('idle')
   const [j1Status, setJ1Status] = useState<'idle' | 'sending' | 'success'>('idle')
   const [j2Status, setJ2Status] = useState<'idle' | 'sending' | 'success'>('idle')
   const [ffStatus, setFfStatus] = useState<'idle' | 'sending' | 'success'>('idle')
@@ -406,20 +403,18 @@ export function ControlPanel() {
   useEffect(() => {
     if (state.pickedTarget) {
       const { x, y } = state.pickedTarget
-      
+
       // Update inputs (rounded to 1 decimal place)
       setXf(x.toFixed(1))
       setYf(y.toFixed(1))
-      
+
+      // Sync to context for Run button
+      dispatch({ type: 'SET_TARGET_INPUT', x, y })
+
       // Set statuses to dirty
       setXfStatus('dirty')
       setYfStatus('dirty')
-      
-      // Focus on the Send button so the user can hit Enter immediately
-      setTimeout(() => {
-        sendBtnRef.current?.focus()
-      }, 50)
-      
+
       // Clear picked target from global state so it's not applied repeatedly
       dispatch({ type: 'CLEAR_PICKED_TARGET' })
     }
@@ -443,8 +438,10 @@ export function ControlPanel() {
     const parsed = parseFloat(val)
     if (isNaN(parsed)) {
       setXfStatus('dirty')
+      dispatch({ type: 'SET_TARGET_INPUT', x: null, y: state.targetInputY })
       return
     }
+    dispatch({ type: 'SET_TARGET_INPUT', x: parsed, y: state.targetInputY })
     if (activeX !== undefined && Math.abs(activeX - parsed) < 0.0001) {
       setXfStatus('clean')
     } else {
@@ -462,8 +459,10 @@ export function ControlPanel() {
     const parsed = parseFloat(val)
     if (isNaN(parsed)) {
       setYfStatus('dirty')
+      dispatch({ type: 'SET_TARGET_INPUT', x: state.targetInputX, y: null })
       return
     }
+    dispatch({ type: 'SET_TARGET_INPUT', x: state.targetInputX, y: parsed })
     if (activeY !== undefined && Math.abs(activeY - parsed) < 0.0001) {
       setYfStatus('clean')
     } else {
@@ -496,7 +495,6 @@ export function ControlPanel() {
         return
       }
 
-      setMoveStatus('sending')
       if (xfStatus === 'dirty') setXfStatus('waiting')
       if (yfStatus === 'dirty') setYfStatus('waiting')
 
@@ -511,8 +509,6 @@ export function ControlPanel() {
       // Clear preview target on successful send
       dispatch({ type: 'SET_PREVIEW_TARGET', target: null })
       await send(`move,${x},${y}`)
-      setMoveStatus('success')
-      setTimeout(() => setMoveStatus('idle'), 1500)
     }
   }
 
@@ -810,8 +806,8 @@ export function ControlPanel() {
 
   return (
     <div className="border-t border-hmi-grid bg-hmi-panel px-3 py-1.5 flex flex-nowrap items-end gap-2 shrink-0 overflow-x-auto">
-      {/* Move target Form */}
-      <form onSubmit={e => { e.preventDefault(); handleMove(); }}>
+      {/* Move target Form — Send button moved to navbar Run button */}
+      <form onSubmit={e => e.preventDefault()}>
         <fieldset className="flex items-end gap-1.5 border-l-2 border-r-2 border-hmi-grid/40 px-2 py-1 rounded-md">
           <legend className="text-[10px] font-bold text-hmi-muted px-1.5">Move target</legend>
           
@@ -865,17 +861,6 @@ export function ControlPanel() {
             />
           </div>
 
-          <Button 
-            ref={sendBtnRef}
-            type="submit" 
-            size="sm" 
-            className={cn(
-              "h-7 text-xs transition-colors min-w-[70px]", 
-              moveStatus === 'success' ? "bg-hmi-ok hover:bg-hmi-ok text-white" : ""
-            )}
-          >
-            {moveStatus === 'sending' ? 'Sending...' : moveStatus === 'success' ? 'Sent ✓' : 'Send'}
-          </Button>
         </fieldset>
       </form>
 

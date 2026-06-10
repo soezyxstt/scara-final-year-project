@@ -21,8 +21,10 @@ export interface DSample {
   dth1d: number // desired velocity (was v1d)
   dth2d: number // desired velocity (was v2d)
   pwm1: number
-  th1raw: number // NEW — raw unfiltered
-  th2raw: number // NEW — raw unfiltered
+  th1raw: number
+  th2raw: number
+  vff1?: number
+  u1Total: number  // total J1 control effort before PWM mapping (same tick as pwm1)
   // computed by HMI (not from firmware):
   e1: number    // = th1d - th1
   e2: number    // = th2d - th2
@@ -67,6 +69,14 @@ export interface AdvParams {
   db2rel: number;
   errDz: number;
   integralFreezeThresh: number;
+  // New fields: kickstart and dynamic deadband moving options
+  fztKickPct?: number;        // fraction of `fzt` used during kickstart (0.1 = 10%)
+  kickstartEnabled?: boolean;
+  dbMovingEnabled?: boolean;
+  dbEngageScale?: number;
+  kvVel?: number;
+  vffMaxFrac?: number;
+  vffDvMax?: number;
 }
 
 export interface ZNSample {
@@ -146,6 +156,11 @@ export interface HMIState {
   bootPose: { x: number; y: number; th1: number; th2: number } | null
   pickedTarget: { x: number; y: number } | null
   estopped: boolean
+  /** Current target input values from control panel (kept in sync for Run button) */
+  targetInputX: number | null
+  targetInputY: number | null
+  /** Set before a run to trigger save-to-DB after move completes */
+  pendingSave: { name: string; startedAt: number } | null
 }
 
 export type HMIAction =
@@ -171,6 +186,9 @@ export type HMIAction =
   | { type: 'PICK_TARGET'; target: { x: number; y: number } }
   | { type: 'CLEAR_PICKED_TARGET' }
   | { type: 'SET_ESTOP'; payload: boolean }
+  | { type: 'SET_TARGET_INPUT'; x: number | null; y: number | null }
+  | { type: 'SET_PENDING_SAVE'; name: string; startedAt: number }
+  | { type: 'CLEAR_PENDING_SAVE' }
 
 export interface SerialController {
   connect: () => Promise<void>

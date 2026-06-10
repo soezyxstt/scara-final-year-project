@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, JSX } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -468,7 +468,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       await serial.sendCommand('getparams')
     }
     await serial.sendCommand('getgains')
-
+  }
   // Target command dispatcher
   const handleSendStep = async () => {
     const val = parseFloat(stepTarget)

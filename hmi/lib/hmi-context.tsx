@@ -40,6 +40,10 @@ export const defaultParams: AdvParams = {
   u1max: 255,
   fzt: 0.1,
   pwmDb: 0,
+  fztKickPct: 0.1,
+  kickstartEnabled: true,
+  dbMovingEnabled: true,
+  dbEngageScale: 0.75,
   td1r: 50.0,    // TD bandwidth J1 (rad/s) — Rev 15-TD
   td2r: 50.0,    // TD bandwidth J2 (rad/s)
   tdH: 0.015,   // TD step size h=3×DT @ 200Hz (read-only)
@@ -60,6 +64,9 @@ export const defaultParams: AdvParams = {
   db2rel: 0.005,
   errDz: 0.005,
   integralFreezeThresh: 0.015,
+  kvVel: 0.0,
+  vffMaxFrac: 0.3,
+  vffDvMax: 0.1,
 }
 
 // ─── localStorage persistence ────────────────────────────────────────────────
@@ -257,6 +264,9 @@ function buildInitialState(): HMIState {
     bootPose: null,
     pickedTarget: null,
     estopped: false,
+    targetInputX: null,
+    targetInputY: null,
+    pendingSave: null,
   }
 }
 
@@ -461,6 +471,22 @@ function reducer(state: HMIState, action: HMIAction): HMIState {
         ...state,
         estopped: action.payload,
       }
+    case 'SET_TARGET_INPUT':
+      return {
+        ...state,
+        targetInputX: action.x,
+        targetInputY: action.y,
+      }
+    case 'SET_PENDING_SAVE':
+      return {
+        ...state,
+        pendingSave: { name: action.name, startedAt: action.startedAt },
+      }
+    case 'CLEAR_PENDING_SAVE':
+      return {
+        ...state,
+        pendingSave: null,
+      }
     default:
       return state
   }
@@ -645,8 +671,10 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
           const dth1d = Number.isFinite(partsNum[8]) ? partsNum[8] : 0
           const dth2d = Number.isFinite(partsNum[9]) ? partsNum[9] : 0
           const pwm1 = Number.isFinite(partsNum[10]) ? partsNum[10] : 0
-          const th1raw = Number.isFinite(partsNum[11]) ? partsNum[11] : th1
-          const th2raw = Number.isFinite(partsNum[12]) ? partsNum[12] : th2
+          const vff1 = Number.isFinite(partsNum[11]) ? partsNum[11] : 0
+          const th1raw = Number.isFinite(partsNum[12]) ? partsNum[12] : th1
+          const th2raw = Number.isFinite(partsNum[13]) ? partsNum[13] : th2
+          const u1Total = Number.isFinite(partsNum[14]) ? partsNum[14] : 0
 
           const RAD2DEG = 180 / Math.PI
 
@@ -690,6 +718,8 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
               pwm1,
               th1raw,
               th2raw,
+              vff1,
+              u1Total,
               idx:      sampleIdxRef.current,
               e1,
               e2,
@@ -750,14 +780,18 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
           break
         }
         case 'K': {
-          const [, vmax, amax, cfreq, u1max, fzt, pwm_db, td1r, td2r, td_h, ddth, dben, dbrel, dbvel, hskp, hskd, idecay, taunom, m22ref, alpha_tilt_deg, td_enabled, trap_enabled, ki2_gate_rad, db2en, db2rel, err_dz, integral_freeze_thresh] = parts.map(Number)
+          const [, vmax, amax, cfreq, u1max, fzt, fztk, kspen, pwm_db, dbmen, dbens, td1r, td2r, td_h, ddth, dben, dbrel, dbvel, hskp, hskd, idecay, taunom, m22ref, alpha_tilt_deg, td_enabled, trap_enabled, ki2_gate_rad, db2en, db2rel, err_dz, integral_freeze_thresh, kv_vel, vff_max_frac, vff_dv_max] = parts.map(Number)
           const params: AdvParams = {
             vmax: vmax ?? 0,
             amax: amax ?? 0,
             cfreq: cfreq ?? 200,
             u1max: u1max ?? 255,
             fzt: fzt ?? 0,
+            fztKickPct: fztk ?? 0.1,
+            kickstartEnabled: (kspen === 1),
             pwmDb: pwm_db ?? 0,
+            dbMovingEnabled: (dbmen === 1),
+            dbEngageScale: dbens ?? 0.75,
             td1r: td1r ?? 50,
             td2r: td2r ?? 50,
             tdH: td_h ?? 0.015,
@@ -778,6 +812,9 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
             db2rel: db2rel ?? 0.005,
             errDz: err_dz ?? 0.005,
             integralFreezeThresh: integral_freeze_thresh ?? 0.015,
+            kvVel: Number(kv_vel ?? 0),
+            vffMaxFrac: Number(vff_max_frac ?? 0),
+            vffDvMax: Number(vff_dv_max ?? 0),
           }
           dispatch({ type: 'PARAMS', params })
           break
@@ -945,11 +982,26 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
   }, [dispatch])
 
   const sendCommand = useCallback(async (cmd: string) => {
-    if (!writerRef.current) return
-    const enc = new TextEncoder()
-    await writerRef.current.write(enc.encode(cmd + '\n'))
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('hmi_tx', { detail: cmd }))
+    try {
+      // diagnostic: log writer presence
+      // eslint-disable-next-line no-console
+      console.debug('sendCommand', { cmd, writerPresent: !!writerRef.current })
+      if (!writerRef.current) throw new Error('serial not connected')
+      const enc = new TextEncoder()
+      try {
+        await writerRef.current.write(enc.encode(cmd + '\n'))
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('sendCommand write failed', e)
+        throw e
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('hmi_tx', { detail: cmd }))
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('sendCommand error', e)
+      throw e
     }
   }, [])
 

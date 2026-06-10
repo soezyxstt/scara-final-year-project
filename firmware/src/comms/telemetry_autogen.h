@@ -7,11 +7,12 @@
 
 #include <Arduino.h>
 
-// Telemetry tag 'D': DSample
-#define TELEMETRY_D_FORMAT "D,%lu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f\n"
+// Telemetry tag 'D': DSample (extended with vff1_out)
+#define TELEMETRY_D_FORMAT "D,%lu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.4f\n"
 
-inline int formatDSamplePacket(char* buf, size_t size, uint32_t t, float th1, float th2, float th1d, float th2d, float v1, float v2, float v1d, float v2d, int pwm1, float th1_raw, float th2_raw) {
-  return snprintf(buf, size, TELEMETRY_D_FORMAT, t, th1, th2, th1d, th2d, v1, v2, v1d, v2d, pwm1, th1_raw, th2_raw);
+inline int formatDSamplePacket(char *buf, size_t size, uint32_t t, float th1, float th2, float th1d, float th2d, float v1, float v2, float v1d, float v2d, int pwm1, float vff1, float th1_raw, float th2_raw, float u1_total)
+{
+  return snprintf(buf, size, TELEMETRY_D_FORMAT, t, th1, th2, th1d, th2d, v1, v2, v1d, v2d, pwm1, vff1, th1_raw, th2_raw, u1_total);
 }
 
 // Telemetry tag 'G': Gains
@@ -22,9 +23,10 @@ inline int formatGainsPacket(char* buf, size_t size, float kp1, float ki1, float
 }
 
 // Telemetry tag 'K': AdvParams
-#define TELEMETRY_K_FORMAT "K,%.3f,%.3f,%d,%.2f,%.3f,%d,%.2f,%.2f,%.4f,%.1f,%.3f,%.3f,%.3f,%.2f,%.2f,%.4f,%.5f,%.8f,%.3f,%d,%d,%.3f,%.3f,%.3f,%.4f,%.4f\n"
+// Telemetry tag 'K': AdvParams (extended with KV and VFF safety params)
+#define TELEMETRY_K_FORMAT "K,%.3f,%.3f,%d,%.2f,%.4f,%.4f,%d,%d,%d,%.3f,%.2f,%.2f,%.4f,%.1f,%.3f,%.3f,%.3f,%.2f,%.2f,%.4f,%.5f,%.8f,%.3f,%d,%d,%.3f,%.3f,%.3f,%.4f,%.4f,%.6f,%.4f,%.4f\n"
 
-inline int formatAdvParamsPacket(char* buf, size_t size, float vmax, float amax, int cfreq, float u1max, float fzt, int pwm_db, float td1r, float td2r, float td1h, float ddth, float dben, float dbrel, float dbvel, float hskp, float hskd, float idecay, float taunom, float m22ref, float alpha_tilt, int td_enabled, int trap_enabled, float ki2_gate, float db2en, float db2rel, float err_dz, float integral_freeze_thresh) {
-  return snprintf(buf, size, TELEMETRY_K_FORMAT, vmax, amax, cfreq, u1max, fzt, pwm_db, td1r, td2r, td1h, ddth, dben, dbrel, dbvel, hskp, hskd, idecay, taunom, m22ref, alpha_tilt, td_enabled, trap_enabled, ki2_gate, db2en, db2rel, err_dz, integral_freeze_thresh);
+inline int formatAdvParamsPacket(char *buf, size_t size, float vmax, float amax, int cfreq, float u1max, float fzt, float fztk, int kspen, int pwm_db, int dbmen, float dbens, float td1r, float td2r, float td1h, float ddth, float dben, float dbrel, float dbvel, float hskp, float hskd, float idecay, float taunom, float m22ref, float alpha_tilt, int td_enabled, int trap_enabled, float ki2_gate, float db2en, float db2rel, float err_dz, float integral_freeze_thresh, float kv_vel, float vff_max_frac, float vff_dv_max)
+{
+  return snprintf(buf, size, TELEMETRY_K_FORMAT, vmax, amax, cfreq, u1max, fzt, fztk, kspen, pwm_db, dbmen, dbens, td1r, td2r, td1h, ddth, dben, dbrel, dbvel, hskp, hskd, idecay, taunom, m22ref, alpha_tilt, td_enabled, trap_enabled, ki2_gate, db2en, db2rel, err_dz, integral_freeze_thresh, kv_vel, vff_max_frac, vff_dv_max);
 }
-

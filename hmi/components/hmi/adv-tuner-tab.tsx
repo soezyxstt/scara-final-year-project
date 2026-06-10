@@ -469,6 +469,42 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
+                label="KV Velocity FF (kv1)"
+                name="kv1"
+                hwValue={currentParams.kvVel}
+                tooltip="Velocity feedforward gain (fraction per rad/s). Applies vff = kv1 * desired_velocity (dTheta1_d)."
+                cmd="kv1"
+                min={-1}
+                max={1}
+                step={0.0001}
+                onSend={handleSendParam}
+                disabled={!isTestPage || serialStatus !== 'connected'}
+              />
+              <ParamField
+                label="VFF Max Fraction (vffmax)"
+                name="vffmax"
+                hwValue={currentParams.vffMaxFrac}
+                tooltip="Maximum absolute fraction for velocity feedforward (fraction of U1_MAX)."
+                cmd="vffmax"
+                min={0}
+                max={1}
+                step={0.001}
+                onSend={handleSendParam}
+                disabled={!isTestPage || serialStatus !== 'connected'}
+              />
+              <ParamField
+                label="VFF Delta Max (vffdv)"
+                name="vffdv"
+                hwValue={currentParams.vffDvMax}
+                tooltip="Maximum per-tick change for vff (fraction of U1_MAX)."
+                cmd="vffdv"
+                min={0}
+                max={1}
+                step={0.001}
+                onSend={handleSendParam}
+                disabled={!isTestPage || serialStatus !== 'connected'}
+              />
+              <ParamField
                 label="J1 Nominal FF Torque"
                 name="taunom"
                 hwValue={currentParams.taunom}
@@ -592,16 +628,55 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="Blending Threshold (fzt)"
+                label="Frac Zero Threshold (fzt)"
                 name="fzt"
                 hwValue={currentParams.fzt}
-                tooltip="Blending slope coefficient near zero velocity for deadband transition smoothing (0.0 to 1.0)."
+                tooltip="Fractional zero threshold: control effort below this fraction of U1_MAX is treated as zero → PWM output = 0. Prevents motor chatter from noise-floor signals."
                 cmd="fzt"
                 min={0}
-                max={1}
-                step={0.001}
+                max={0.5}
+                step={0.0001}
                 onSend={handleSendParam}
-                disabled={serialStatus !== 'connected'}
+                disabled={!isTestPage || serialStatus !== 'connected'}
+              />
+              <ParamField
+                label="Frac Kickstart (pct of fzt)"
+                name="fztk"
+                hwValue={currentParams.fztKickPct}
+                tooltip="Kickstart fractional threshold expressed as a fraction of `fzt` (e.g., 0.10 = 10%). Applied while trajectory acceleration if enabled."
+                cmd="fztk"
+                min={0.01}
+                max={1}
+                step={0.01}
+                onSend={handleSendParam}
+                disabled={!isTestPage || serialStatus !== 'connected'}
+              />
+              <ToggleField
+                label="Enable Kickstart Reduction (kspen)"
+                value={currentParams.kickstartEnabled ?? false}
+                tooltip="Toggle reduced fractional threshold during trajectory acceleration."
+                onToggle={async () => { await handleSendParam('kspen', currentParams.kickstartEnabled ? '0' : '1') }}
+                disabled={!isTestPage || serialStatus !== 'connected'}
+              />
+
+              <ToggleField
+                label="Enable DB Moving Scale (dbmen)"
+                value={currentParams.dbMovingEnabled ?? false}
+                tooltip="When enabled, PWM deadband amplitude is scaled while moving (dbEngageScale)."
+                onToggle={async () => { await handleSendParam('dbmen', currentParams.dbMovingEnabled ? '0' : '1') }}
+                disabled={!isTestPage || serialStatus !== 'connected'}
+              />
+              <ParamField
+                label="Deadband Engage Scale (dbens)"
+                name="dbens"
+                hwValue={currentParams.dbEngageScale}
+                tooltip="Scale applied to the computed PWM deadband during movement (0.1 - 1.0)."
+                cmd="dbens"
+                min={0.1}
+                max={1}
+                step={0.01}
+                onSend={handleSendParam}
+                disabled={!isTestPage || serialStatus !== 'connected'}
               />
             </CardContent>
           </Card>

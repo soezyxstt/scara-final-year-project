@@ -59,6 +59,8 @@ namespace RobotState {
   float         omega2_prev    = 0.0f;
   bool          stepper2_active = true;
 
+  float vff1_prev = 0.0f;
+
   unsigned long last_serial_rx_ms = 0;
   unsigned long last_telemetry_ms = 0;
 
@@ -123,6 +125,8 @@ namespace CtcState {
   float omega2_raw_out    = 0.0f;
   float delta_omega_ff_out = 0.0f;
 
+  float vff1_out = 0.0f;
+
 }  // namespace CtcState
 
 // ============================================================
@@ -132,39 +136,58 @@ namespace CtcState {
 namespace Params {
 
   float Kp1 = 0.3f;
-  float Ki1 = 0.03f;
-  float Kd1 = 0.01f;
-  float Kp2 = 4.0f;
-  float Ki2 = 0.03f;
-  float Kd2 = 0.01f;
+  float Ki1 = 0.01f;
+  float Kd1 = 0.008f;
+  float Kp2 = 5.5f;
+  float Ki2 = 0.01f;
+  float Kd2 = 0.02f;
 
   float FF_INERTIA  = 0.0f;
   float FF_CORIOLIS = 0.0f;
   float FF_GRAVITY  = 0.0f;
 
-  float V_MAX       = 0.05f;
+  float V_MAX = 0.04f;
   float A_MAX       = 0.08f;
   bool  TRAP_ENABLED = true;
 
   float U1_MAX           = 1.0f;
   float FRAC_ZERO_THRESH = 0.01f;
-  int   PWM_DEADBAND     = 70;
+  int PWM_DEADBAND = 68;
+  // Kickstart: reduce fractional threshold during trajectory acceleration
+  // Expressed as a percentage of `FRAC_ZERO_THRESH` (0.1 = 10%)
+  bool KICKSTART_ENABLED = true;
+  float FRAC_ZERO_KICK_PCT = 0.30f; // 10% of normal by default
+
+  // Velocity feedforward parameter (normalized): units = fraction per rad/s
+  // vff_contribution = KV_VEL * dTheta1_d * U1_MAX
+  float KV_VEL = 0.015f;
+  // Safety: maximum absolute fraction for vff (fraction of U1_MAX)
+  float VFF_MAX_FRAC = 0.3f;
+  // Safety: maximum per-tick change in vff (fraction of U1_MAX)
+  float VFF_DV_MAX = 0.1f;
 
   float DB_ENGAGE       = 0.008f;
   float DB_RELEASE      = 0.004f;
   float DB_VEL          = 0.15f;
+  // Dynamic deadband scaling while moving: apply this scale to the
+  // computed PWM deadband when `TrajState::is_moving` is true.
+  bool DB_MOVING_ENABLED = true;
+  float DB_ENGAGE_MOVING_SCALE = 0.9f;
   int   MOTOR1_MIN_TICKS = 5;
   float DTERM_MAX        = 0.8f;
 
   float KP_HOLD_SCALE = 0.60f;
-  float KD_HOLD_SCALE = 1.80f;
+  float KD_HOLD_SCALE = 2.00f;
 
   float INTEGRAL_DECAY = 0.004f;
 
   float DDTH_MAX = 2.0f;
 
-  float TAU_NOM_J1 = 0.03f;
-  float M22_REF    = 2.464e-6f;
+  // Nominal torque used to normalise feedforward → fraction of `U1_MAX`.
+  // Default to the computed stall torque as a safer physical reference.
+  float TAU_NOM_J1 = TAU_STALL_J1 * 2.0f; // ≈ 0.32 Nm
+  // Nominal M22 reference: link mass contribution + reflected inertia
+  float M22_REF = m2 * d2 * d2 + Izz2;
 
   float ERR_DZ               = 0.005f;  // rad — error below this treated as zero
   float INTEGRAL_FREEZE_THRESH = 0.015f; // rad — integrator decays instead of accumulating
@@ -174,8 +197,8 @@ namespace Params {
   float DB2_ENGAGE = 0.008f;
   float DB2_RELEASE = 0.005f;
 
-  float TD1_R = 20.0f;
-  float TD2_R = 20.0f;
+  float TD1_R = 25.0f;
+  float TD2_R = 25.0f;
   bool  TD_ENABLED = true;
 
   float alpha_tilt = 0.0f;

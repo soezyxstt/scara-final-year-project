@@ -88,6 +88,21 @@ void controlJoint1() {
 
   float u1_total = p1_out + d1_out + i1_out + ff_contribution;
 
+  // ---- Velocity feedforward (safe, normalized) ----
+  // KV_VEL units = fraction per rad/s. vff_frac is fraction of U1_MAX.
+  float vff_frac = KV_VEL * dTheta1_d;
+  // Clamp fraction to safe bounds, then convert to same units as u1_total (U1_MAX scale)
+  float vff = constrain(vff_frac, -VFF_MAX_FRAC, VFF_MAX_FRAC) * U1_MAX;
+  // Rate limit the vff contribution to avoid sudden kicks
+  float dv_max = VFF_DV_MAX * U1_MAX;
+  vff = constrain(vff, vff1_prev - dv_max, vff1_prev + dv_max);
+  vff1_prev = vff;
+  // Expose for telemetry/debug
+  vff1_out = vff;
+
+  // Inject vff into the total control effort
+  u1_total += vff;
+
   // ---- Anti-windup ----
   if (fabsf(u1_total) >= U1_MAX && (e1 * integral1) > 0.0f) {
     integral1 -= e1 * DT;
@@ -103,15 +118,36 @@ void controlJoint1() {
   float frac_abs   = fabsf(total_frac);
   int   pwm_out    = 0;
 
-  if (frac_abs >= FRAC_ZERO_THRESH) {
-    float frac_eff = (frac_abs - FRAC_ZERO_THRESH) / (1.0f - FRAC_ZERO_THRESH);
+  // Select active fractional threshold: reduced only during the accel ramp
+  // (t_traj <= traj_ta). When TRAP_ENABLED=false, traj_ta=0 so this is never
+  // triggered — kickstart is a trapezoid-only feature.
+  float active_frac_thresh = FRAC_ZERO_THRESH;
+  if (KICKSTART_ENABLED && is_moving && t_traj <= traj_ta)
+  {
+    active_frac_thresh = FRAC_ZERO_THRESH * FRAC_ZERO_KICK_PCT;
+  }
+
+  if (frac_abs >= active_frac_thresh)
+  {
+    float frac_eff = (frac_abs - active_frac_thresh) / (1.0f - active_frac_thresh);
     frac_eff = constrain(frac_eff, 0.0f, 1.0f);
 
     // Dynamic deadband: base + 18*sin²(θ1) to compensate gravity load variation
-    float db_amp = 18.0f * ((float)PWM_DEADBAND / 70.0f);
+    float db_amp = 21.0f * ((float)PWM_DEADBAND / 68.0f);
     float s = sinf(theta1);
-    int dynamic_db = PWM_DEADBAND + (int)roundf(db_amp * s * s);
-    dynamic_db = constrain(dynamic_db, 0, PWM_MAX);
+    int dynamic_db_hold = PWM_DEADBAND + (int)roundf(db_amp * s * s);
+    dynamic_db_hold = constrain(dynamic_db_hold, 0, PWM_MAX);
+
+    // Apply moving-scale to dynamic deadband when enabled and the robot is moving
+    int dynamic_db = dynamic_db_hold;
+    // Apply moving-scale only during cruise + decel (t_traj > traj_ta).
+    // During accel the kickstart (lower fzt) handles the initial push;
+    // the deadband stays at hold value to avoid fighting it.
+    if (DB_MOVING_ENABLED && is_moving && t_traj > traj_ta)
+    {
+      dynamic_db = (int)roundf((float)dynamic_db_hold * DB_ENGAGE_MOVING_SCALE);
+      dynamic_db = constrain(dynamic_db, 0, PWM_MAX);
+    }
 
     int mag = dynamic_db + (int)(frac_eff * (float)(PWM_MAX - dynamic_db));
     mag     = constrain(mag, dynamic_db, PWM_MAX);

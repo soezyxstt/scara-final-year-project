@@ -16,6 +16,7 @@ import { CaptureMenu } from './capture-menu'
 import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { ModeBadge } from '@/components/mode-badge'
 import { SerialMonitorButton, SerialTerminalSheet } from './serial-terminal'
+import { RunButton } from './run-button'
 
 
 type TopTab = 'monitor' | 'analysis' | 'rest' | 'readme'
@@ -87,7 +88,9 @@ function HMIShell() {
 
       {/* ── Header bar ── */}
       <header className="sticky top-0 z-50 bg-hmi-panel border-b border-hmi-grid px-4 h-12 flex items-center gap-4 shrink-0">
-        <span className="text-sm font-bold text-hmi-text shrink-0 tracking-wide uppercase">Home</span>
+        <Link href="/dashboard" className="text-sm font-bold text-hmi-text shrink-0 tracking-wide uppercase hover:text-hmi-ideal transition-colors">
+          Home
+        </Link>
 
         {/* Sub-tabs for current page */}
         <nav className="flex h-12 shrink-0 border-l border-hmi-grid/50 pl-2">
@@ -119,6 +122,8 @@ function HMIShell() {
               </Button>
             </Tooltip>
           )}
+
+          <RunButton />
 
           <SerialMonitorButton
             open={serialLogOpen}

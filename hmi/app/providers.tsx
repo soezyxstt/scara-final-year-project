@@ -1,5 +1,6 @@
 'use client'
 
+import { SessionProvider } from 'next-auth/react'
 import { HMIProvider } from '@/lib/hmi-context'
 import { ModeRouter } from '@/components/hmi/mode-router'
 import { KeybindingsHandler } from '@/components/hmi/keybindings-handler'
@@ -13,11 +14,13 @@ import type { ReactNode } from 'react'
  */
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <HMIProvider>
-      <ModeRouter />
-      <KeybindingsHandler />
-      <CaptureChartsHost />
-      {children}
-    </HMIProvider>
+    <SessionProvider>
+      <HMIProvider>
+        <ModeRouter />
+        <KeybindingsHandler />
+        <CaptureChartsHost />
+        {children}
+      </HMIProvider>
+    </SessionProvider>
   )
 }

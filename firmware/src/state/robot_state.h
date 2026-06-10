@@ -85,6 +85,9 @@ namespace RobotState {
   extern float         omega2_prev;
   extern bool          stepper2_active;
 
+  // Previous velocity feedforward (J1) — used for simple rate limiting
+  extern float vff1_prev;
+
   // Serial watchdog
   extern unsigned long last_serial_rx_ms;
   extern unsigned long last_telemetry_ms;
@@ -156,6 +159,9 @@ namespace CtcState {
   extern float omega2_raw_out;
   extern float delta_omega_ff_out;
 
+  // Velocity feedforward (J1) — telemetry/debug
+  extern float vff1_out;
+
 }  // namespace CtcState
 
 // ============================================================
@@ -183,11 +189,22 @@ namespace Params {
   extern float U1_MAX;
   extern float FRAC_ZERO_THRESH;
   extern int   PWM_DEADBAND;
+  // Kickstart: lower fractional threshold while moving to reduce static friction
+  extern bool  KICKSTART_ENABLED;
+  extern float FRAC_ZERO_KICK_PCT;
+
+  // Velocity feedforward parameters
+  extern float KV_VEL;       // normalized fraction per rad/s
+  extern float VFF_MAX_FRAC; // max absolute fraction for vff (of U1_MAX)
+  extern float VFF_DV_MAX;   // max per-tick change (fraction of U1_MAX)
 
   // Deadband hold J1
   extern float DB_ENGAGE;
   extern float DB_RELEASE;
   extern float DB_VEL;
+  // Dynamic tracking deadband: smaller deadband while the robot is moving
+  extern bool  DB_MOVING_ENABLED;
+  extern float DB_ENGAGE_MOVING_SCALE;
   extern int   MOTOR1_MIN_TICKS;
   extern float DTERM_MAX;
 

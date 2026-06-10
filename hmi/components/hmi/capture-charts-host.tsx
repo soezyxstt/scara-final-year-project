@@ -36,7 +36,7 @@ const HiddenCaptureCharts = memo(function HiddenCaptureCharts({ scope }: { scope
   const frozenD = state.frozenD
   const frozenT = state.frozenT
   const keys = scope === 'all' ? ALL_CAPTURE_CHART_KEYS : scope
-  const show = (key: string) => keys.includes(key)
+  const show = (key: string) => (keys as readonly string[]).includes(key)
 
   return (
     <div

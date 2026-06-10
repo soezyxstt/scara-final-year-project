@@ -27,6 +27,8 @@ export interface DSample {
   v2d: number
   /** Joint 1 applied control effort/PWM (-255..255) */
   pwm1: number
+  /** Velocity feedforward contribution for J1 (fraction of U1_MAX) */
+  vff1: number
   /** Joint 1 raw ADC position before filter (rad) */
   th1_raw: number
   /** Joint 2 raw ADC position before filter (rad) */
@@ -45,8 +47,9 @@ export function parseDSample(parts: (string | number)[]): DSample {
     v1d: Number(parts[8] ?? 0) as number,
     v2d: Number(parts[9] ?? 0) as number,
     pwm1: Number(parts[10] ?? 0) as number,
-    th1_raw: Number(parts[11] ?? 0) as number,
-    th2_raw: Number(parts[12] ?? 0) as number,
+    vff1: Number(parts[11] ?? 0) as number,
+    th1_raw: Number(parts[12] ?? 0) as number,
+    th2_raw: Number(parts[13] ?? 0) as number,
   }
 }
 
@@ -137,12 +140,30 @@ export interface AdvParams {
   td_enabled: number
   /** Is trapezoidal trajectory profiling enabled */
   trap_enabled: number
+  /** Fractional kickstart threshold (pct of fzt) */
+  fztk?: number
+  /** Kickstart reduction enabled */
+  kspen?: number
+  /** Dynamic deadband moving enabled */
+  dbmen?: number
+  /** Deadband engage scale when moving (0.1-1.0) */
+  dbens?: number
   /** Joint 2 Ki activation gate (rad) */
   ki2_gate: number
   /** Joint 2 deadband engage limit (rad) */
   db2en: number
   /** Joint 2 deadband release limit (rad) */
   db2rel: number
+  /** Error deadzone radius (rad) — errors below this are treated as zero in hold mode */
+  err_dz: number
+  /** Integrator freeze threshold (rad) — integrator decays instead of accumulating below this */
+  integral_freeze_thresh: number
+  /** KV velocity feedforward (fraction per rad/s) */
+  kvVel?: number;
+  /** Max absolute vff fraction (of U1_MAX) */
+  vffMaxFrac?: number;
+  /** Max per-tick change for vff (fraction of U1_MAX) */
+  vffDvMax?: number;
 }
 
 export function parseAdvParams(parts: (string | number)[]): AdvParams {
@@ -152,25 +173,34 @@ export function parseAdvParams(parts: (string | number)[]): AdvParams {
     cfreq: Number(parts[3] ?? 0) as number,
     u1max: Number(parts[4] ?? 0) as number,
     fzt: Number(parts[5] ?? 0) as number,
-    pwm_db: Number(parts[6] ?? 0) as number,
-    td1r: Number(parts[7] ?? 0) as number,
-    td2r: Number(parts[8] ?? 0) as number,
-    td1h: Number(parts[9] ?? 0) as number,
-    ddth: Number(parts[10] ?? 0) as number,
-    dben: Number(parts[11] ?? 0) as number,
-    dbrel: Number(parts[12] ?? 0) as number,
-    dbvel: Number(parts[13] ?? 0) as number,
-    hskp: Number(parts[14] ?? 0) as number,
-    hskd: Number(parts[15] ?? 0) as number,
-    idecay: Number(parts[16] ?? 0) as number,
-    taunom: Number(parts[17] ?? 0) as number,
-    m22ref: Number(parts[18] ?? 0) as number,
-    alpha_tilt: Number(parts[19] ?? 0) as number,
-    td_enabled: Number(parts[20] ?? 0) as number,
-    trap_enabled: Number(parts[21] ?? 0) as number,
-    ki2_gate: Number(parts[22] ?? 0) as number,
-    db2en: Number(parts[23] ?? 0) as number,
-    db2rel: Number(parts[24] ?? 0) as number,
+    fztk: Number(parts[6] ?? 0) as number,
+    kspen: Number(parts[7] ?? 0) as number,
+    pwm_db: Number(parts[8] ?? 0) as number,
+    dbmen: Number(parts[9] ?? 0) as number,
+    dbens: Number(parts[10] ?? 0) as number,
+    td1r: Number(parts[11] ?? 0) as number,
+    td2r: Number(parts[12] ?? 0) as number,
+    td1h: Number(parts[13] ?? 0) as number,
+    ddth: Number(parts[14] ?? 0) as number,
+    dben: Number(parts[15] ?? 0) as number,
+    dbrel: Number(parts[16] ?? 0) as number,
+    dbvel: Number(parts[17] ?? 0) as number,
+    hskp: Number(parts[18] ?? 0) as number,
+    hskd: Number(parts[19] ?? 0) as number,
+    idecay: Number(parts[20] ?? 0) as number,
+    taunom: Number(parts[21] ?? 0) as number,
+    m22ref: Number(parts[22] ?? 0) as number,
+    alpha_tilt: Number(parts[23] ?? 0) as number,
+    td_enabled: Number(parts[24] ?? 0) as number,
+    trap_enabled: Number(parts[25] ?? 0) as number,
+    ki2_gate: Number(parts[26] ?? 0) as number,
+    db2en: Number(parts[27] ?? 0) as number,
+    db2rel: Number(parts[28] ?? 0) as number,
+    err_dz: Number(parts[29] ?? 0) as number,
+    integral_freeze_thresh: Number(parts[30] ?? 0) as number,
+    kvVel: Number(parts[31] ?? 0) as number,
+    vffMaxFrac: Number(parts[32] ?? 0) as number,
+    vffDvMax: Number(parts[33] ?? 0) as number,
   }
 }
 

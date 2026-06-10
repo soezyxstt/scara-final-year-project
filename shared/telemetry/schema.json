@@ -17,8 +17,10 @@
         { "name": "v1d", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 1 desired velocity (rad/s)" },
         { "name": "v2d", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 desired velocity (rad/s)" },
         { "name": "pwm1", "type": "int", "tsType": "number", "precision": 0, "description": "Joint 1 applied control effort/PWM (-255..255)" },
+        { "name": "vff1", "type": "float", "tsType": "number", "precision": 3, "description": "Velocity feedforward contribution for J1 (fraction of U1_MAX)" },
         { "name": "th1_raw", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 1 raw ADC position before filter (rad)" },
-        { "name": "th2_raw", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 raw ADC position before filter (rad)" }
+        { "name": "th2_raw", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 raw ADC position before filter (rad)" },
+        { "name": "u1_total", "type": "float", "tsType": "number", "precision": 4, "description": "Total J1 control effort before PWM mapping (same units as U1_MAX)" }
       ]
     },
     "G": {
@@ -45,8 +47,12 @@
         { "name": "amax", "type": "float", "tsType": "number", "precision": 3, "description": "Maximum acceleration (rad/s^2)" },
         { "name": "cfreq", "type": "int", "tsType": "number", "precision": 0, "description": "Control loop run frequency (Hz)" },
         { "name": "u1max", "type": "float", "tsType": "number", "precision": 2, "description": "Maximum torque limit" },
-        { "name": "fzt", "type": "float", "tsType": "number", "precision": 3, "description": "Fractional zero threshold" },
+        { "name": "fzt", "type": "float", "tsType": "number", "precision": 4, "description": "Fractional zero threshold" },
+        { "name": "fztk", "type": "float", "tsType": "number", "precision": 4, "description": "Fractional zero threshold during kickstart (pct of fzt)" },
+        { "name": "kspen", "type": "int", "tsType": "number", "precision": 0, "description": "Kickstart reduction enabled" },
         { "name": "pwm_db", "type": "int", "tsType": "number", "precision": 0, "description": "PWM deadband offset" },
+        { "name": "dbmen", "type": "int", "tsType": "number", "precision": 0, "description": "Dynamic deadband moving enabled" },
+        { "name": "dbens", "type": "float", "tsType": "number", "precision": 3, "description": "Deadband engage scale when moving (0.1-1.0)" },
         { "name": "td1r", "type": "float", "tsType": "number", "precision": 2, "description": "Tracking Differentiator J1 Bandwidth r" },
         { "name": "td2r", "type": "float", "tsType": "number", "precision": 2, "description": "Tracking Differentiator J2 Bandwidth r" },
         { "name": "td1h", "type": "float", "tsType": "number", "precision": 4, "description": "Tracking Differentiator Step Size h" },

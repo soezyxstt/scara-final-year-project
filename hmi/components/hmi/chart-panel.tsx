@@ -19,6 +19,7 @@ import {
   ReferenceLine, ResponsiveContainer, AreaChart, Area, LineChart, Line, ReferenceArea,
 } from 'recharts'
 import type { DSample, TPoint } from '@/lib/hmi-types'
+import localLoess from '@/lib/localMean'
 
 const GRID = 'rgba(255, 255, 255, 0.05)'
 const AT = {
@@ -82,7 +83,7 @@ function computeEEFVelocityJacobian(dBuf: DSample[], max = 500) {
     const vy_i = ( L1 * c1d + L2 * c12d) * d.dth1d + ( L2 * c12d) * d.dth2d
     const v_ideal = Math.sqrt(vx_i ** 2 + vy_i ** 2)
 
-    return { t, v_actual, v_ideal }
+    return { t, v_actual, v_ideal, v_actual_smoothed: 0 }
   })
 }
 
@@ -129,27 +130,76 @@ export function PIDChart() {
 
 export function J1CtrlChart() {
   const { state } = useHMISlow()
+  const u1max = state.params?.u1max ?? 1
+  const pwmDb = state.params?.pwmDb ?? 68
   const data = useMemo(() => {
-    if (!state.frozenF || state.frozenF.length === 0) return []
-    const firstT = state.frozenF[0].t
-    return downsample(state.frozenF.map(f => ({
-      t: (f.t - firstT) / 1000,
-      u1_total: f.u1Total,
-      ff1_contrib: f.ff1Contrib,
-    })), 500)
-  }, [state.frozenF])
+    const frozenD = state.frozenD
+    const frozenF = state.frozenF
+    if (!frozenD || frozenD.length === 0) return []
+    const firstT = frozenD[0].t
 
-  if (data.length === 0) return <ChartEmpty msg="No J1 control telemetry — run a move to capture data" />
+    // Build primary data from D-packet: u1Total and pwm1 are the SAME 500 Hz tick.
+    const ds = downsample(frozenD.map(d => {
+      // Normalize PWM: remove static deadband floor, no fzt, no dynDb.
+      // Threshold = pwmDb (static) so box count matches raw PWM chart.
+      const mag    = Math.abs(d.pwm1)
+      const pwm1_adj = mag > pwmDb
+        ? Math.sign(d.pwm1) * (mag - pwmDb) / (255 - pwmDb)
+        : 0
+
+      const u1_total = d.u1Total / u1max
+
+      // Match to nearest F-sample for FF contribution (unique to F-packet)
+      let ff1_contrib = 0
+      if (frozenF && frozenF.length > 0) {
+        let bestF = frozenF[0], minDiff = Infinity
+        for (const f of frozenF) {
+          const diff = Math.abs(f.t - d.t)
+          if (diff < minDiff) { minDiff = diff; bestF = f } else break
+        }
+        ff1_contrib = bestF.ff1Contrib / u1max
+      }
+
+      return {
+        t: (d.t - firstT) / 1000,
+        u1_total,
+        ff1_contrib,
+        pwm1_adj,
+        u1_total_smoothed: 0,
+      }
+    }), 500)
+
+    // Smooth u1_total
+    try {
+      const xs = ds.map(d => d.t)
+      const ys = ds.map(d => d.u1_total)
+      const sm = localLoess(ys, xs, 0.08, 1)
+      for (let i = 0; i < ds.length; i++) ds[i].u1_total_smoothed = sm[i]
+    } catch (e) {
+      console.warn('localLoess smoothing failed', e)
+    }
+
+    return ds
+  }, [state.frozenD, state.frozenF, u1max, pwmDb])
+
+  if (data.length === 0) return <ChartEmpty msg="No J1 control telemetry — run a move to capture data (requires updated firmware)" />
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data} margin={MARGIN}>
         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
         <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={v => typeof v === 'number' ? v.toFixed(2) : v} />
-        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Control effort')} width={56} />
-        <Tooltip contentStyle={TS} formatter={v => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l} allowEscapeViewBox={{ x: false, y: false }} />
+        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Fraction of max')} width={56} />
+        <Tooltip
+          contentStyle={TS}
+          formatter={v => typeof v === 'number' ? v.toFixed(4) : v}
+          labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l}
+          allowEscapeViewBox={{ x: false, y: false }}
+        />
         <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px' }} />
-        <Line type="linear" dataKey="u1_total"    stroke="#4CAF50" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total PID Effort" />
-        <Line type="linear" dataKey="ff1_contrib" stroke="#9C27B0" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="FF Contribution" strokeDasharray="3 3" />
+        <Line type="linear" dataKey="u1_total"          stroke="#4CAF50" strokeWidth={1.25} dot={false} isAnimationActive={false} name="u1_total / u1max" />
+        <Line type="linear" dataKey="u1_total_smoothed" stroke="#4CAF50" strokeWidth={1.75} dot={false} isAnimationActive={false} name="u1_total / u1max (smoothed)" strokeDasharray="6 4" />
+        <Line type="linear" dataKey="ff1_contrib"       stroke="#9C27B0" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="FF Contribution" strokeDasharray="3 3" />
+        <Line type="linear" dataKey="pwm1_adj"          stroke="#06B6D4" strokeWidth={1.25} dot={false} isAnimationActive={false} name="PWM / 255" connectNulls={false} opacity={0.75} />
       </LineChart>
     </ResponsiveContainer>
   )
@@ -324,16 +374,12 @@ export function MetricsPanel() {
       value: <span className="text-violet-400">{fmt(computed?.jitter, 2)}</span>,
       tooltip: 'Actuator Jitter Proxy (mean |ΔPWM| per step): indicator of chattering. Lower is smoother.',
     },
-    {
-      label: 'Settle',
-      value: <span className="text-amber-400">{computed ? (computed.settleTime > 0 ? `${computed.settleTime.toFixed(3)} s` : '< 20 ms') : dash}</span>,
-      tooltip: 'EEF Settling Time: time elapsed before end-effector stays permanently within 2.0 mm of the target.',
-    },
+
   ]
 
   const handleDownloadMetrics = async () => {
     try {
-      await downloadSingleGraph('metrics', 'Run Metrics Report', state)
+      await downloadSingleGraph('metrics', 'Run Metrics Report', state as import('@/lib/hmi-types').HMIState)
     } catch (err: any) {
       toast.error(err.message || 'Export failed')
     }
@@ -604,7 +650,18 @@ export function EEFVelocityChart({
   }
 
   // Jacobian-based velocity: desired is jitter-free trapezoid from v1d/v2d
-  const data = useMemo(() => computeEEFVelocityJacobian(dBuf), [dBuf])
+  const data = useMemo(() => {
+    const base = computeEEFVelocityJacobian(dBuf)
+    try {
+      const xs = base.map(d => d.t)
+      const ys = base.map(d => d.v_actual)
+      const sm = localLoess(ys, xs, 0.08, 1)
+      for (let i = 0; i < base.length; i++) base[i].v_actual_smoothed = sm[i]
+    } catch (e) {
+      console.warn('localLoess smoothing failed for EEF velocity', e)
+    }
+    return base
+  }, [dBuf])
   const chart = (
     <LineChart data={data} margin={MARGIN} width={width} height={height}>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
@@ -614,6 +671,9 @@ export function EEFVelocityChart({
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.v_actual && (
         <Line dataKey="v_actual" stroke="#C084FC" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Actual" />
+      )}
+      {!hidden.v_actual_smoothed && (
+        <Line dataKey="v_actual_smoothed" stroke="#4CAF50" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Actual (smoothed)" strokeDasharray="6 4" />
       )}
       {!hidden.v_ideal && (
         <Line dataKey="v_ideal" stroke="#06B6D4" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="Ideal (trapezoid)" />

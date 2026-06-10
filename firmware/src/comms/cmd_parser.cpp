@@ -177,10 +177,68 @@ void processSerialCommand(const char *cmd_raw) {
       Serial.print("INFO: U1_MAX="); Serial.println(U1_MAX, 2);
       emitParams(); return;
     }
+    if (input.startsWith("kv1,"))
+    {
+      KV_VEL = input.substring(4).toFloat();
+      Serial.print("INFO: KV_VEL=");
+      Serial.println(KV_VEL, 6);
+      emitParams();
+      return;
+    }
     if (input.startsWith("db,")) {
       PWM_DEADBAND = input.substring(3).toInt();
       Serial.print("INFO: PWM_DEADBAND="); Serial.println(PWM_DEADBAND);
       emitParams(); return;
+    }
+    if (input.startsWith("fzt,"))
+    {
+      FRAC_ZERO_THRESH = constrain(input.substring(4).toFloat(), 0.0f, 0.5f);
+      Serial.print("INFO: FRAC_ZERO_THRESH=");
+      Serial.println(FRAC_ZERO_THRESH, 4);
+      emitParams();
+      return;
+    }
+    if (input.startsWith("fztk,"))
+    {
+      if (is_moving)
+      {
+        Serial.println("ERR: fztk tidak bisa diubah saat bergerak.");
+        return;
+      }
+      FRAC_ZERO_KICK_PCT = constrain(input.substring(5).toFloat(), 0.01f, 1.0f);
+      Serial.print("INFO: FRAC_ZERO_KICK_PCT=");
+      Serial.println(FRAC_ZERO_KICK_PCT, 4);
+      emitParams();
+      return;
+    }
+    if (input.startsWith("kspen,"))
+    {
+      if (is_moving)
+      {
+        Serial.println("ERR: kspen tidak bisa diubah saat bergerak.");
+        return;
+      }
+      KICKSTART_ENABLED = (input.substring(6).toInt() != 0);
+      Serial.print("INFO: KICKSTART_ENABLED=");
+      Serial.println(KICKSTART_ENABLED ? 1 : 0);
+      emitParams();
+      return;
+    }
+    if (input.startsWith("vffmax,"))
+    {
+      VFF_MAX_FRAC = input.substring(7).toFloat();
+      Serial.print("INFO: VFF_MAX_FRAC=");
+      Serial.println(VFF_MAX_FRAC, 4);
+      emitParams();
+      return;
+    }
+    if (input.startsWith("vffdv,"))
+    {
+      VFF_DV_MAX = input.substring(6).toFloat();
+      Serial.print("INFO: VFF_DV_MAX=");
+      Serial.println(VFF_DV_MAX, 4);
+      emitParams();
+      return;
     }
     if (input.startsWith("td1r,")) {
       TD1_R = input.substring(5).toFloat();
@@ -203,6 +261,32 @@ void processSerialCommand(const char *cmd_raw) {
       DB_RELEASE = input.substring(6).toFloat();
       Serial.print("INFO: DB_RELEASE="); Serial.println(DB_RELEASE, 3);
       emitParams(); return;
+    }
+    if (input.startsWith("dbmen,"))
+    {
+      if (is_moving)
+      {
+        Serial.println("ERR: dbmen tidak bisa diubah saat bergerak.");
+        return;
+      }
+      DB_MOVING_ENABLED = (input.substring(6).toInt() != 0);
+      Serial.print("INFO: DB_MOVING_ENABLED=");
+      Serial.println(DB_MOVING_ENABLED ? 1 : 0);
+      emitParams();
+      return;
+    }
+    if (input.startsWith("dbens,"))
+    {
+      if (is_moving)
+      {
+        Serial.println("ERR: dbens tidak bisa diubah saat bergerak.");
+        return;
+      }
+      DB_ENGAGE_MOVING_SCALE = constrain(input.substring(6).toFloat(), 0.1f, 1.0f);
+      Serial.print("INFO: DB_ENGAGE_MOVING_SCALE=");
+      Serial.println(DB_ENGAGE_MOVING_SCALE, 3);
+      emitParams();
+      return;
     }
     if (input.startsWith("db2en,")) {
       DB2_ENGAGE = input.substring(6).toFloat();

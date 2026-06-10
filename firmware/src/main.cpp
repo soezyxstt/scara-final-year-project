@@ -170,12 +170,26 @@ void loop() {
     // [F] CTC components + integral2
     Serial.print("F,");
     Serial.print(now_ms);                          Serial.print(",");
-    Serial.print(ctc_inertia1,  5);                Serial.print(",");
-    Serial.print(ctc_coriolis1, 5);                Serial.print(",");
-    Serial.print(ctc_gravity1,  5);                Serial.print(",");
-    Serial.print(ctc_inertia2,  5);                Serial.print(",");
-    Serial.print(ctc_coriolis2, 5);                Serial.print(",");
-    Serial.print(ctc_gravity2,  5);                Serial.print(",");
+    const float BLEND_EPS = 1e-6f;
+    float ctc_inertia1_blend = (fabsf(FF_INERTIA) < BLEND_EPS) ? 0.0f : FF_INERTIA * ctc_inertia1;
+    float ctc_coriolis1_blend = (fabsf(FF_CORIOLIS) < BLEND_EPS) ? 0.0f : FF_CORIOLIS * ctc_coriolis1;
+    float ctc_gravity1_blend = (fabsf(FF_GRAVITY) < BLEND_EPS) ? 0.0f : FF_GRAVITY * ctc_gravity1;
+    float ctc_inertia2_blend = (fabsf(FF_INERTIA) < BLEND_EPS) ? 0.0f : FF_INERTIA * ctc_inertia2;
+    float ctc_coriolis2_blend = (fabsf(FF_CORIOLIS) < BLEND_EPS) ? 0.0f : FF_CORIOLIS * ctc_coriolis2;
+    float ctc_gravity2_blend = (fabsf(FF_GRAVITY) < BLEND_EPS) ? 0.0f : FF_GRAVITY * ctc_gravity2;
+
+    Serial.print(ctc_inertia1_blend, 5);
+    Serial.print(",");
+    Serial.print(ctc_coriolis1_blend, 5);
+    Serial.print(",");
+    Serial.print(ctc_gravity1_blend, 5);
+    Serial.print(",");
+    Serial.print(ctc_inertia2_blend, 5);
+    Serial.print(",");
+    Serial.print(ctc_coriolis2_blend, 5);
+    Serial.print(",");
+    Serial.print(ctc_gravity2_blend, 5);
+    Serial.print(",");
     Serial.print(ff1_contrib_out, 4);              Serial.print(",");
     Serial.print(u1_total_out,    4);              Serial.print(",");
     Serial.print(integral1,       4);              Serial.print(",");

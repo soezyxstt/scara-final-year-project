@@ -42,15 +42,16 @@ void writeDLineToBuffer() {
   DLineEntry &e = dline_buf[dline_head];
 
   e.len = (uint8_t)formatDSamplePacket(
-    e.str, DLINE_STR_LEN,
-    millis(),
-    theta1,    theta2,
-    theta1_d,  theta2_d,
-    dTheta1_f, dTheta2_f,
-    dTheta1_d, dTheta2_d,
-    last_pwm1,
-    theta1_raw, theta2_raw
-  );
+      e.str, DLINE_STR_LEN,
+      millis(),
+      theta1, theta2,
+      theta1_d, theta2_d,
+      dTheta1_f, dTheta2_f,
+      dTheta1_d, dTheta2_d,
+      last_pwm1,
+      vff1_out,
+      theta1_raw, theta2_raw,
+      u1_total_out);
 
   dline_head = next_head;
 }
@@ -86,13 +87,15 @@ void emitGains() {
 void emitParams() {
   char buf[256];
   formatAdvParamsPacket(
-    buf, sizeof(buf),
-    V_MAX, A_MAX, CONTROL_FREQ, U1_MAX, FRAC_ZERO_THRESH, PWM_DEADBAND,
-    TD1_R, TD2_R, td1.h, DDTH_MAX, DB_ENGAGE, DB_RELEASE, DB_VEL,
-    KP_HOLD_SCALE, KD_HOLD_SCALE, INTEGRAL_DECAY, TAU_NOM_J1, M22_REF,
-    alpha_tilt * (180.0f / PI), TD_ENABLED ? 1 : 0, TRAP_ENABLED ? 1 : 0, KI2_GATE_RAD,
-    DB2_ENGAGE, DB2_RELEASE, ERR_DZ, INTEGRAL_FREEZE_THRESH
-  );
+      buf, sizeof(buf),
+      V_MAX, A_MAX, CONTROL_FREQ, U1_MAX,
+      FRAC_ZERO_THRESH, FRAC_ZERO_KICK_PCT, KICKSTART_ENABLED ? 1 : 0,
+      PWM_DEADBAND, DB_MOVING_ENABLED ? 1 : 0, DB_ENGAGE_MOVING_SCALE,
+      TD1_R, TD2_R, td1.h, DDTH_MAX, DB_ENGAGE, DB_RELEASE, DB_VEL,
+      KP_HOLD_SCALE, KD_HOLD_SCALE, INTEGRAL_DECAY, TAU_NOM_J1, M22_REF,
+      alpha_tilt * (180.0f / PI), TD_ENABLED ? 1 : 0, TRAP_ENABLED ? 1 : 0, KI2_GATE_RAD,
+      DB2_ENGAGE, DB2_RELEASE, ERR_DZ, INTEGRAL_FREEZE_THRESH,
+      KV_VEL, VFF_MAX_FRAC, VFF_DV_MAX);
   Serial.print(buf);
 }
 
