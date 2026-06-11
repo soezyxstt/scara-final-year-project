@@ -21,20 +21,20 @@ import {
 import type { DSample, TPoint } from '@/lib/hmi-types'
 import localLoess from '@/lib/localMean'
 
-const GRID = 'rgba(255, 255, 255, 0.05)'
+const GRID = 'var(--color-hmi-grid-subtle)'
 const AT = {
-  fill: '#9CA3AF',
+  fill: 'var(--color-hmi-text-secondary)',
   fontSize: 11,
   fontFamily: 'var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif',
   fontWeight: 500,
 }
-const AL = { stroke: '#1F2937' } // Matches --color-hmi-grid
+const AL = { stroke: 'var(--color-hmi-grid)' } // Matches --color-hmi-grid
 const TS = {
-  backgroundColor: 'rgba(17, 24, 39, 0.9)',
+  backgroundColor: 'var(--color-hmi-elevated)',
   backdropFilter: 'blur(8px)',
-  border: '1px solid #1F2937',
+  border: '1px solid var(--color-hmi-grid)',
   borderRadius: '6px',
-  color: '#F3F4F6',
+  color: 'var(--color-hmi-text)',
   fontFamily: 'var(--font-geist-sans), sans-serif',
   fontSize: '12px',
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
@@ -120,9 +120,9 @@ export function PIDChart() {
         <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Output')} width={56} />
         <Tooltip contentStyle={TS} formatter={v => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l} allowEscapeViewBox={{ x: false, y: false }} />
         <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px' }} />
-        <Line type="linear" dataKey="p1_out" stroke="#3B82F6" strokeWidth={1.5} dot={false} isAnimationActive={false} name="P Out" />
-        <Line type="linear" dataKey="i1_out" stroke="#10B981" strokeWidth={1.5} dot={false} isAnimationActive={false} name="I Out" />
-        <Line type="linear" dataKey="d1_out" stroke="#EF4444" strokeWidth={1.5} dot={false} isAnimationActive={false} name="D Out" />
+        <Line type="linear" dataKey="p1_out" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="P Out" />
+        <Line type="linear" dataKey="i1_out" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="I Out" />
+        <Line type="linear" dataKey="d1_out" stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="D Out" />
       </LineChart>
     </ResponsiveContainer>
   )
@@ -196,10 +196,10 @@ export function J1CtrlChart() {
           allowEscapeViewBox={{ x: false, y: false }}
         />
         <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px' }} />
-        <Line type="linear" dataKey="u1_total"          stroke="#4CAF50" strokeWidth={1.25} dot={false} isAnimationActive={false} name="u1_total / u1max" />
-        <Line type="linear" dataKey="u1_total_smoothed" stroke="#4CAF50" strokeWidth={1.75} dot={false} isAnimationActive={false} name="u1_total / u1max (smoothed)" strokeDasharray="6 4" />
-        <Line type="linear" dataKey="ff1_contrib"       stroke="#9C27B0" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="FF Contribution" strokeDasharray="3 3" />
-        <Line type="linear" dataKey="pwm1_adj"          stroke="#06B6D4" strokeWidth={1.25} dot={false} isAnimationActive={false} name="PWM / 255" connectNulls={false} opacity={0.75} />
+        <Line type="linear" dataKey="u1_total"          stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="u1_total / u1max" />
+        <Line type="linear" dataKey="u1_total_smoothed" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="u1_total / u1max (smoothed)" strokeDasharray="6 4" />
+        <Line type="linear" dataKey="ff1_contrib"       stroke="var(--color-hmi-ideal)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="FF Contribution" strokeDasharray="3 3" />
+        <Line type="linear" dataKey="pwm1_adj"          stroke="var(--color-hmi-j1)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="PWM / 255" connectNulls={false} opacity={0.75} />
       </LineChart>
     </ResponsiveContainer>
   )
@@ -239,11 +239,11 @@ export function J2VelChart() {
         <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Velocity (rad/s)')} width={60} />
         <Tooltip contentStyle={TS} formatter={v => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l} allowEscapeViewBox={{ x: false, y: false }} />
         <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px' }} />
-        <Line type="linear" dataKey="omega2_raw"     stroke="#FF9800" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total ω2 Command" />
-        <Line type="linear" dataKey="p_out"          stroke="#2196F3" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 P Out" />
-        <Line type="linear" dataKey="d_out"          stroke="#EF4444" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 D Out" />
-        <Line type="linear" dataKey="integral2"      stroke="#FFEB3B" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 I Out" strokeDasharray="4 2" />
-        <Line type="linear" dataKey="delta_omega_ff" stroke="#9C27B0" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 FF Contrib" strokeDasharray="3 3" />
+        <Line type="linear" dataKey="omega2_raw"     stroke="var(--color-hmi-j2)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total ω2 Command" />
+        <Line type="linear" dataKey="p_out"          stroke="var(--color-hmi-j1)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 P Out" />
+        <Line type="linear" dataKey="d_out"          stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 D Out" />
+        <Line type="linear" dataKey="integral2"      stroke="var(--color-hmi-error)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 I Out" strokeDasharray="4 2" />
+        <Line type="linear" dataKey="delta_omega_ff" stroke="var(--color-hmi-ideal)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 FF Contrib" strokeDasharray="3 3" />
       </LineChart>
     </ResponsiveContainer>
   )
@@ -488,8 +488,8 @@ export function EEFErrChart({
     <AreaChart data={data} margin={MARGIN} width={width} height={height}>
       <defs>
         <linearGradient id={`${gradId}-errGradient`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="5%" stopColor="#C084FC" stopOpacity={0.25} />
-          <stop offset="95%" stopColor="#C084FC" stopOpacity={0.0} />
+          <stop offset="5%" stopColor="var(--color-hmi-error)" stopOpacity={0.25} />
+          <stop offset="95%" stopColor="var(--color-hmi-error)" stopOpacity={0.0} />
         </linearGradient>
       </defs>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
@@ -498,7 +498,7 @@ export function EEFErrChart({
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.err && (
-        <Area type="linear" dataKey="err" stroke="#C084FC" fill={`url(#${gradId}-errGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="EEF Error" />
+        <Area type="linear" dataKey="err" stroke="var(--color-hmi-error)" fill={`url(#${gradId}-errGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="EEF Error" />
       )}
     </AreaChart>
   )
@@ -548,8 +548,8 @@ export function CTEChart({
     <AreaChart data={data} margin={MARGIN} width={width} height={height}>
       <defs>
         <linearGradient id={`${gradId}-cteGradient`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="5%" stopColor="#F43F5E" stopOpacity={0.25} />
-          <stop offset="95%" stopColor="#F43F5E" stopOpacity={0.0} />
+          <stop offset="5%" stopColor="var(--color-hmi-actual)" stopOpacity={0.25} />
+          <stop offset="95%" stopColor="var(--color-hmi-actual)" stopOpacity={0.0} />
         </linearGradient>
       </defs>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
@@ -558,7 +558,7 @@ export function CTEChart({
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.cte && (
-        <Area type="linear" dataKey="cte" stroke="#F43F5E" fill={`url(#${gradId}-cteGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="Cross Tracking Error" />
+        <Area type="linear" dataKey="cte" stroke="var(--color-hmi-actual)" fill={`url(#${gradId}-cteGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="Cross Tracking Error" />
       )}
     </AreaChart>
   )
@@ -609,8 +609,8 @@ export function ATEChart({
     <AreaChart data={data} margin={MARGIN} width={width} height={height}>
       <defs>
         <linearGradient id={`${gradId}-ateGradient`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.25} />
-          <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.0} />
+          <stop offset="5%" stopColor="var(--color-hmi-warn)" stopOpacity={0.25} />
+          <stop offset="95%" stopColor="var(--color-hmi-warn)" stopOpacity={0.0} />
         </linearGradient>
       </defs>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
@@ -618,9 +618,9 @@ export function ATEChart({
       <YAxis domain={[minY, maxY]} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('ATE (mm)')} width={56} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
-      <ReferenceLine y={0} stroke="#4B5563" strokeDasharray="4 2" />
+      <ReferenceLine y={0} stroke="var(--color-hmi-grid)" strokeDasharray="4 2" />
       {!hidden.ate && (
-        <Area type="linear" dataKey="ate" stroke="#F59E0B" fill={`url(#${gradId}-ateGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="Along Tracking Error" />
+        <Area type="linear" dataKey="ate" stroke="var(--color-hmi-warn)" fill={`url(#${gradId}-ateGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="Along Tracking Error" />
       )}
     </AreaChart>
   )
@@ -670,13 +670,13 @@ export function EEFVelocityChart({
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.v_actual && (
-        <Line dataKey="v_actual" stroke="#C084FC" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Actual" />
+        <Line dataKey="v_actual" stroke="var(--color-hmi-actual)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Actual" />
       )}
       {!hidden.v_actual_smoothed && (
-        <Line dataKey="v_actual_smoothed" stroke="#4CAF50" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Actual (smoothed)" strokeDasharray="6 4" />
+        <Line dataKey="v_actual_smoothed" stroke="var(--color-hmi-ok)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Actual (smoothed)" strokeDasharray="6 4" />
       )}
       {!hidden.v_ideal && (
-        <Line dataKey="v_ideal" stroke="#06B6D4" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="Ideal (trapezoid)" />
+        <Line dataKey="v_ideal" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="Ideal (trapezoid)" />
       )}
     </LineChart>
   )
@@ -723,11 +723,11 @@ export function PWMChart({
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
       <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} />
       <YAxis domain={[-255, 255]} tick={AT} axisLine={AL} tickLine={false} label={YLABEL('PWM')} width={48} />
-      <ReferenceLine y={0} stroke="#4B5563" strokeDasharray="4 2" />
+      <ReferenceLine y={0} stroke="var(--color-hmi-grid)" strokeDasharray="4 2" />
       <Tooltip contentStyle={TS} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.pwm && (
-        <Area type="linear" dataKey="pwm" stroke="#10B981" fill={`url(#${gradId}-pwmGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="PWM Output" />
+        <Area type="linear" dataKey="pwm" stroke="var(--color-hmi-pwm-pos)" fill={`url(#${gradId}-pwmGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="PWM Output" />
       )}
     </AreaChart>
   )
@@ -783,16 +783,16 @@ export function PositionChart({
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.th1 && (
-        <Line dataKey="th1"  stroke="#2196F3" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ1 Actual (°)" : "θ1 Actual (rad)"} />
+        <Line dataKey="th1"  stroke="var(--color-hmi-j1)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ1 Actual (°)" : "θ1 Actual (rad)"} />
       )}
       {!hidden.th1d && (
-        <Line dataKey="th1d" stroke="#1E88E5" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ1 Desired (°)" : "θ1 Desired (rad)"} />
+        <Line dataKey="th1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ1 Desired (°)" : "θ1 Desired (rad)"} />
       )}
       {!hidden.th2 && (
-        <Line dataKey="th2"  stroke="#FF9800" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ2 Actual (°)" : "θ2 Actual (rad)"} />
+        <Line dataKey="th2"  stroke="var(--color-hmi-j2)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ2 Actual (°)" : "θ2 Actual (rad)"} />
       )}
       {!hidden.th2d && (
-        <Line dataKey="th2d" stroke="#F57C00" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ2 Desired (°)" : "θ2 Desired (rad)"} />
+        <Line dataKey="th2d" stroke="var(--color-hmi-j2-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ2 Desired (°)" : "θ2 Desired (rad)"} />
       )}
     </LineChart>
   )
@@ -848,16 +848,16 @@ export function VelocityChart({
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       {!hidden.v1 && (
-        <Line dataKey="v1"  stroke="#2196F3" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ̇1 Actual (°/s)" : "θ̇1 Actual (rad/s)"} />
+        <Line dataKey="v1"  stroke="var(--color-hmi-j1)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ̇1 Actual (°/s)" : "θ̇1 Actual (rad/s)"} />
       )}
       {!hidden.v1d && (
-        <Line dataKey="v1d" stroke="#1E88E5" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ̇1 Desired (°/s)" : "θ̇1 Desired (rad/s)"} />
+        <Line dataKey="v1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ̇1 Desired (°/s)" : "θ̇1 Desired (rad/s)"} />
       )}
       {!hidden.v2 && (
-        <Line dataKey="v2"  stroke="#FF9800" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ̇2 Actual (°/s)" : "θ̇2 Actual (rad/s)"} />
+        <Line dataKey="v2"  stroke="var(--color-hmi-j2)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ̇2 Actual (°/s)" : "θ̇2 Actual (rad/s)"} />
       )}
       {!hidden.v2d && (
-        <Line dataKey="v2d" stroke="#F57C00" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ̇2 Desired (°/s)" : "θ̇2 Desired (rad/s)"} />
+        <Line dataKey="v2d" stroke="var(--color-hmi-j2-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ̇2 Desired (°/s)" : "θ̇2 Desired (rad/s)"} />
       )}
     </LineChart>
   )
@@ -932,7 +932,7 @@ function prepareAnalyzerData(
         cte: ctes[i] ?? 0,
       }))
       const series = [
-        { key: 'cte', name: 'Cross Tracking Error', stroke: '#F43F5E', type: 'area' as const, fill: '#F43F5E' }
+        { key: 'cte', name: 'Cross Tracking Error', stroke: 'var(--color-hmi-actual)', type: 'area' as const, fill: 'var(--color-hmi-actual)' }
       ]
       return { rawData, series, yLabel: 'CTE (mm)', defaultYDomain: [0, 'auto'] as [any, any] }
     }
@@ -943,7 +943,7 @@ function prepareAnalyzerData(
         ate: ates[i] ?? 0,
       }))
       const series = [
-        { key: 'ate', name: 'Along Tracking Error', stroke: '#F59E0B', type: 'area' as const, fill: '#F59E0B' }
+        { key: 'ate', name: 'Along Tracking Error', stroke: 'var(--color-hmi-warn)', type: 'area' as const, fill: 'var(--color-hmi-warn)' }
       ]
       return { rawData, series, yLabel: 'ATE (mm)', defaultYDomain: ['auto', 'auto'] as [any, any] }
     }
@@ -957,10 +957,10 @@ function prepareAnalyzerData(
         th2d: d.th2d * scale,
       }))
       const series = [
-        { key: 'th1', name: 'θ1 Actual', stroke: '#2196F3', type: 'line' as const },
-        { key: 'th1d', name: 'θ1 Desired', stroke: '#1E88E5', type: 'line' as const, strokeDasharray: '4 2' },
-        { key: 'th2', name: 'θ2 Actual', stroke: '#FF9800', type: 'line' as const },
-        { key: 'th2d', name: 'θ2 Desired', stroke: '#F57C00', type: 'line' as const, strokeDasharray: '4 2' },
+        { key: 'th1', name: 'θ1 Actual', stroke: 'var(--color-hmi-j1)', type: 'line' as const },
+        { key: 'th1d', name: 'θ1 Desired', stroke: 'var(--color-hmi-j1-des)', type: 'line' as const, strokeDasharray: '4 2' },
+        { key: 'th2', name: 'θ2 Actual', stroke: 'var(--color-hmi-j2)', type: 'line' as const },
+        { key: 'th2d', name: 'θ2 Desired', stroke: 'var(--color-hmi-j2-des)', type: 'line' as const, strokeDasharray: '4 2' },
       ]
       const labelSuffix = angularUnit === 'degrees' ? '(°)' : '(rad)'
       return { rawData, series, yLabel: `Position ${labelSuffix}`, defaultYDomain: ['auto', 'auto'] as [any, any] }
@@ -975,10 +975,10 @@ function prepareAnalyzerData(
         v2d: d.dth2d * scale,
       }))
       const series = [
-        { key: 'v1', name: 'θ̇1 Actual', stroke: '#2196F3', type: 'line' as const },
-        { key: 'v1d', name: 'θ̇1 Desired', stroke: '#1E88E5', type: 'line' as const, strokeDasharray: '4 2' },
-        { key: 'v2', name: 'θ̇2 Actual', stroke: '#FF9800', type: 'line' as const },
-        { key: 'v2d', name: 'θ̇2 Desired', stroke: '#F57C00', type: 'line' as const, strokeDasharray: '4 2' },
+        { key: 'v1', name: 'θ̇1 Actual', stroke: 'var(--color-hmi-j1)', type: 'line' as const },
+        { key: 'v1d', name: 'θ̇1 Desired', stroke: 'var(--color-hmi-j1-des)', type: 'line' as const, strokeDasharray: '4 2' },
+        { key: 'v2', name: 'θ̇2 Actual', stroke: 'var(--color-hmi-j2)', type: 'line' as const },
+        { key: 'v2d', name: 'θ̇2 Desired', stroke: 'var(--color-hmi-j2-des)', type: 'line' as const, strokeDasharray: '4 2' },
       ]
       const labelSuffix = angularUnit === 'degrees' ? '(°/s)' : '(rad/s)'
       return { rawData, series, yLabel: `Velocity ${labelSuffix}`, defaultYDomain: ['auto', 'auto'] as [any, any] }

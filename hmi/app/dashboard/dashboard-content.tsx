@@ -12,6 +12,7 @@ import { AdvancedTab } from '@/components/dashboard/advanced-tab'
 import type { Run, Sample, TrajectoryPoint } from '@/lib/db/schema'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
 
 type TabId = 'trajectory' | 'velocity' | 'pid' | 'feedforward' | 'metrics' | 'advanced'
 
@@ -181,22 +182,25 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
           )}
 
           {/* Tab nav */}
-          <nav className="flex h-12 ml-auto">
-            {TABS.map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={cn(
-                  'h-12 px-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap',
-                  tab === t.id
-                    ? 'border-hmi-ideal text-hmi-text'
-                    : 'border-transparent text-hmi-muted hover:text-hmi-text'
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
+          <div className="ml-auto flex items-center gap-4 h-full">
+            <CommandPaletteTrigger />
+            <nav className="flex h-12">
+              {TABS.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={cn(
+                    'h-12 px-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap',
+                    tab === t.id
+                      ? 'border-hmi-ideal text-hmi-text'
+                      : 'border-transparent text-hmi-muted hover:text-hmi-text'
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+          </div>
         </header>
 
         {/* Tab content */}

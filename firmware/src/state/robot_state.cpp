@@ -166,15 +166,15 @@ namespace Params {
   // Safety: maximum per-tick change in vff (fraction of U1_MAX)
   float VFF_DV_MAX = 0.1f;
 
-  float DB_ENGAGE       = 0.008f;
-  float DB_RELEASE      = 0.004f;
+  float DB_ENGAGE       = 0.01f;
+  float DB_RELEASE      = 0.005f;
   float DB_VEL          = 0.15f;
   // Dynamic deadband scaling while moving: apply this scale to the
   // computed PWM deadband when `TrajState::is_moving` is true.
-  bool DB_MOVING_ENABLED = true;
+  bool DB_MOVING_ENABLED = false;
   float DB_ENGAGE_MOVING_SCALE = 0.9f;
   int   MOTOR1_MIN_TICKS = 5;
-  float DTERM_MAX        = 0.8f;
+  float DTERM_MAX        = 0.4f;
 
   float KP_HOLD_SCALE = 0.60f;
   float KD_HOLD_SCALE = 2.00f;
@@ -190,7 +190,7 @@ namespace Params {
   float M22_REF = m2 * d2 * d2 + Izz2;
 
   float ERR_DZ               = 0.005f;  // rad — error below this treated as zero
-  float INTEGRAL_FREEZE_THRESH = 0.015f; // rad — integrator decays instead of accumulating
+  float INTEGRAL_FREEZE_THRESH = 0.01f; // rad — integrator decays instead of accumulating
 
   float KI2_GATE_RAD = 0.05f;
 

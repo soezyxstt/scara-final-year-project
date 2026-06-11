@@ -34,8 +34,6 @@ import {
   TestTube,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import {
   downloadSingleGraph,
   downloadAllGraphs,
@@ -49,7 +47,6 @@ import {
 } from '@/lib/keybindings-store'
 export function CaptureMenu() {
   const { state } = useHMI()
-  const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const [isGraphsOpen, setIsGraphsOpen] = useState(false)
   const [exportState, setExportState] = useState<string | null>(null)
@@ -273,56 +270,6 @@ export function CaptureMenu() {
         )}
 
         <div className="flex-1 flex flex-col gap-6 py-2">
-          {/* ── Page Navigation Section ── */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              <Compass className="h-4 w-4 text-slate-400" />
-              Page Navigation
-            </div>
-
-            <div className="bg-slate-900/20 border border-slate-800 p-2.5 rounded-lg flex flex-col gap-1.5">
-              <Link
-                href="/"
-                onClick={() => setIsOpen(false)}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-semibold transition-all border",
-                  pathname === '/'
-                    ? "bg-hmi-ideal border-hmi-ideal text-white shadow-sm font-bold"
-                    : "bg-slate-950 border-slate-900 text-slate-400 hover:text-slate-200 hover:border-slate-800"
-                )}
-              >
-                <Activity className="h-4 w-4 text-emerald-500" />
-                <span>SCARA Dashboard</span>
-              </Link>
-              <Link
-                href="/zn"
-                onClick={() => setIsOpen(false)}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-semibold transition-all border",
-                  pathname === '/zn'
-                    ? "bg-hmi-ideal border-hmi-ideal text-white shadow-sm font-bold"
-                    : "bg-slate-950 border-slate-900 text-slate-400 hover:text-slate-200 hover:border-slate-800"
-                )}
-              >
-                <Gauge className="h-4 w-4 text-sky-400" />
-                <span>Ziegler-Nichols Tuner</span>
-              </Link>
-              <Link
-                href="/test"
-                onClick={() => setIsOpen(false)}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-semibold transition-all border",
-                  pathname === '/test'
-                    ? "bg-hmi-ideal border-hmi-ideal text-white shadow-sm font-bold"
-                    : "bg-slate-950 border-slate-900 text-slate-400 hover:text-slate-200 hover:border-slate-800"
-                )}
-              >
-                <TestTube className="h-4 w-4 text-amber-500" />
-                <span>Test Page</span>
-              </Link>
-            </div>
-          </div>
-
           {/* ── Dashboard Settings Section ── */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">

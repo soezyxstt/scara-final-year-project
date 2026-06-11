@@ -24,6 +24,21 @@ const LM = 55, RM = 10, TM = 30, BM = 42
 const YMIN = -55, YMAX = 205  // mm
 const TICK = 50                // mm per grid division
 
+const COLORS = {
+  bg: '#09090B',
+  panel: '#111113',
+  grid: '#27272A',
+  textSecondary: '#A1A1AA',
+  j1: '#60A5FA',
+  j1Des: '#93C5FD',
+  j2: '#FB923C',
+  j2Des: '#FDBA74',
+  actual: '#F87171',
+  ok: '#22C55E',
+  warn: '#F59E0B',
+  error: '#FBBF24',
+}
+
 function getRobotCoords(
   canvas: HTMLCanvasElement, 
   clientX: number, 
@@ -100,9 +115,9 @@ export function drawTrace(
   }
 
   // ── Background ──────────────────────────────────────────────────────────
-  ctx.fillStyle = '#121212' // Charcoal black matching --color-hmi-bg
+  ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, W, H)
-  ctx.fillStyle = '#1C1C1C' // Dark gray matching --color-hmi-panel
+  ctx.fillStyle = COLORS.panel
   ctx.fillRect(LM, TM, plotW, plotH)
 
   // ── Dynamic Grid Spacing & Ticks ────────────────────────────────────────
@@ -149,12 +164,12 @@ export function drawTrace(
   }
 
   // ── Plot Area Border Frame ──────────────────────────────────────────────
-  ctx.strokeStyle = '#3A3A3A' // Slightly brighter than --color-hmi-grid
+  ctx.strokeStyle = COLORS.grid
   ctx.lineWidth = 1.5
   ctx.strokeRect(LM, TM, plotW, plotH)
 
   // ── Tick Marks & Proportional Labels ────────────────────────────────────
-  ctx.fillStyle = '#9A9A9A' // Slate/Muted labels
+  ctx.fillStyle = COLORS.textSecondary
   ctx.font = '500 11px Geist, "Geist Sans", -apple-system, sans-serif'
 
   // Y-axis: right-aligned labels
@@ -165,7 +180,7 @@ export function drawTrace(
     if (py < TM - 4 || py > H - BM + 4) continue
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(LM - 4, py); ctx.lineTo(LM, py); ctx.stroke()
-    ctx.fillStyle = '#9A9A9A'
+    ctx.fillStyle = COLORS.textSecondary
     ctx.fillText(String(y), LM - 6, py)
   }
 
@@ -178,12 +193,12 @@ export function drawTrace(
     if (px < LM - 4 || px > W - RM + 4) continue
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(px, H - BM); ctx.lineTo(px, H - BM + 4); ctx.stroke()
-    ctx.fillStyle = '#9A9A9A'
+    ctx.fillStyle = COLORS.textSecondary
     ctx.fillText(String(x), px, H - BM + 5)
   }
 
   // Axis Titles
-  ctx.fillStyle = '#9A9A9A'
+  ctx.fillStyle = COLORS.textSecondary
   ctx.font = '600 12px Geist, "Geist Sans", -apple-system, sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'bottom'
@@ -209,11 +224,11 @@ export function drawTrace(
   ctx.clip()
 
   // Layer 1 — out-of-bounds zone (outside outer arc): barely-there warm tint
-  ctx.fillStyle = 'rgba(239, 83, 80, 0.04)'
+  ctx.fillStyle = 'rgba(248, 113, 113, 0.04)'
   ctx.fillRect(LM, TM, plotW, plotH)
 
   // Layer 2 — reachable annular sector: "clear" the flood fill from within
-  ctx.fillStyle = 'rgba(28, 28, 28, 0.55)'
+  ctx.fillStyle = 'rgba(9, 9, 11, 0.55)'
   ctx.beginPath()
   ctx.arc(originPx, originPy, outerR, 0, Math.PI, true)
   ctx.arc(originPx, originPy, innerR, Math.PI, 0, false)
@@ -322,14 +337,14 @@ export function drawTrace(
       ctx.setLineDash([4, 3])
       
       // Link 1 (Ideal J1) - Blue
-      ctx.strokeStyle = 'rgba(33, 150, 243, 0.45)'
+      ctx.strokeStyle = 'rgba(96, 165, 250, 0.45)'
       ctx.beginPath()
       ctx.moveTo(bPx[0], bPx[1])
       ctx.lineTo(iePx[0], iePx[1])
       ctx.stroke()
 
       // Link 2 (Ideal J2) - Orange
-      ctx.strokeStyle = 'rgba(255, 152, 0, 0.45)'
+      ctx.strokeStyle = 'rgba(251, 146, 60, 0.45)'
       ctx.beginPath()
       ctx.moveTo(iePx[0], iePx[1])
       ctx.lineTo(itPx[0], itPx[1])
@@ -392,8 +407,8 @@ export function drawTrace(
         aePx,
         12, // width
         'rgba(30, 30, 30, 0.75)', // body
-        'rgba(33, 150, 243, 0.3)', // border
-        'rgba(33, 150, 243, 0.85)', // core
+        'rgba(96, 165, 250, 0.3)', // border
+        'rgba(96, 165, 250, 0.85)', // core
         2.5 // coreWidth
       )
 
@@ -403,8 +418,8 @@ export function drawTrace(
         atPx,
         9, // width
         'rgba(30, 30, 30, 0.75)', // body
-        'rgba(255, 152, 0, 0.3)', // border
-        'rgba(255, 152, 0, 0.85)', // core
+        'rgba(251, 146, 60, 0.3)', // border
+        'rgba(251, 146, 60, 0.85)', // core
         1.8 // coreWidth
       )
 
@@ -413,7 +428,7 @@ export function drawTrace(
         ctx.save()
         ctx.beginPath()
         ctx.arc(p[0], p[1], r, 0, Math.PI * 2)
-        ctx.fillStyle = '#1C1C1C'
+        ctx.fillStyle = COLORS.panel
         ctx.fill()
         ctx.strokeStyle = color
         ctx.lineWidth = 1.5
@@ -427,9 +442,9 @@ export function drawTrace(
       }
 
       // Base joint (J1) - Blue
-      drawJoint(bPx, 6, '#2196F3')
+      drawJoint(bPx, 6, COLORS.j1)
       // Elbow joint (J2) - Orange
-      drawJoint(aePx, 4.5, '#FF9800')
+      drawJoint(aePx, 4.5, COLORS.j2)
     }
   }
 
@@ -459,24 +474,24 @@ export function drawTrace(
         ghostOpacity = parseFloat(val)
       }
     }
-    ctx.strokeStyle = '#2196F3'; ctx.lineWidth = 1; ctx.setLineDash([5, 3])
+    ctx.strokeStyle = COLORS.j1; ctx.lineWidth = 1; ctx.setLineDash([5, 3])
     drawPath(state.prevTBuffer, true, ghostOpacity)
-    ctx.strokeStyle = '#EF5350'; ctx.lineWidth = 1.5; ctx.setLineDash([])
+    ctx.strokeStyle = COLORS.actual; ctx.lineWidth = 1.5; ctx.setLineDash([])
     drawPath(state.prevTBuffer, false, ghostOpacity)
   }
 
   if (activeBuf.length >= 2) {
     // Ideal path — dashed blue
-    ctx.strokeStyle = '#2196F3'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3])
+    ctx.strokeStyle = COLORS.j1; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3])
     drawPath(activeBuf, true)
 
     // Actual path — solid red
-    ctx.strokeStyle = '#EF5350'; ctx.lineWidth = 2; ctx.setLineDash([])
+    ctx.strokeStyle = COLORS.actual; ctx.lineWidth = 2; ctx.setLineDash([])
     drawPath(activeBuf, false)
 
     // Start marker — hollow green circle
     const [sx, sy] = toPx(activeBuf[0].xi, activeBuf[0].yi)
-    ctx.strokeStyle = '#4CAF50'; ctx.lineWidth = 2
+    ctx.strokeStyle = COLORS.ok; ctx.lineWidth = 2
     ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.stroke()
 
     // Live tip dots (REC only)
@@ -484,8 +499,8 @@ export function drawTrace(
       const last = activeBuf[activeBuf.length - 1]
       const [ix, iy] = toPx(last.xi, last.yi)
       const [ax, ay] = toPx(last.xa, last.ya)
-      ctx.fillStyle = '#2196F3'; ctx.beginPath(); ctx.arc(ix, iy, 4, 0, Math.PI * 2); ctx.fill()
-      ctx.fillStyle = '#EF5350';  ctx.beginPath(); ctx.arc(ax, ay, 4, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = COLORS.j1; ctx.beginPath(); ctx.arc(ix, iy, 4, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = COLORS.actual;  ctx.beginPath(); ctx.arc(ax, ay, 4, 0, Math.PI * 2); ctx.fill()
     }
   }
 
@@ -495,7 +510,7 @@ export function drawTrace(
   if (targetX !== undefined && targetY !== undefined) {
     const [tx, ty] = toPx(targetX, targetY)
     ctx.setLineDash([])
-    ctx.fillStyle = '#FF9800'; ctx.strokeStyle = '#FF9800'; ctx.lineWidth = 1.5
+    ctx.fillStyle = COLORS.j2; ctx.strokeStyle = COLORS.j2; ctx.lineWidth = 1.5
     ctx.beginPath()
     ctx.moveTo(tx, ty)
     ctx.lineTo(tx, ty - 14)
@@ -517,7 +532,7 @@ export function drawTrace(
     ctx.save()
     ctx.setLineDash([4, 4])
     ctx.lineWidth = 1.8
-    ctx.strokeStyle = isPathSafe ? 'rgba(76, 175, 80, 0.65)' : 'rgba(239, 83, 80, 0.85)'
+    ctx.strokeStyle = isPathSafe ? 'rgba(34, 197, 94, 0.65)' : 'rgba(248, 113, 113, 0.85)'
     
     ctx.beginPath()
     ctx.moveTo(cpx, cpy)
@@ -539,7 +554,7 @@ export function drawTrace(
         // Draw red warning node at the closest point to origin
         ctx.beginPath()
         ctx.arc(vpx, vpy, 6, 0, Math.PI * 2)
-        ctx.fillStyle = '#EF5350'
+        ctx.fillStyle = COLORS.actual
         ctx.fill()
         ctx.strokeStyle = '#FFFFFF'
         ctx.lineWidth = 1.2
@@ -566,7 +581,7 @@ export function drawTrace(
     const r2 = x * x + y * y
     const safety = checkStraightLineTrajectory(currentPos, state.previewTarget, L_INNER, L_OUTER)
     const isReachable = r2 >= 45 * 45 && r2 <= 170 * 170 && y >= 0 && safety.isValid
-    const dotColor = isReachable ? '#4CAF50' : '#EF5350'
+    const dotColor = isReachable ? COLORS.ok : COLORS.actual
     
     ctx.save()
     ctx.setLineDash([])
@@ -605,8 +620,8 @@ export function drawTrace(
     const r2 = x * x + y * y
     const safety = checkStraightLineTrajectory(currentPos, hoverPoint, L_INNER, L_OUTER)
     const isPathSafe = r2 >= 45 * 45 && r2 <= 170 * 170 && y >= 0 && safety.isValid
-    const color = isPathSafe ? 'rgba(74, 175, 80, 0.7)' : 'rgba(239, 83, 80, 0.7)'
-    const textColor = isPathSafe ? '#4CAF50' : '#EF5350'
+    const color = isPathSafe ? 'rgba(34, 197, 94, 0.7)' : 'rgba(248, 113, 113, 0.7)'
+    const textColor = isPathSafe ? COLORS.ok : COLORS.actual
     
     ctx.save()
     ctx.setLineDash([3, 3])

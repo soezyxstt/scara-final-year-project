@@ -5,9 +5,10 @@ import { useHMI } from '@/lib/hmi-context';
 import type { ESPMode } from '@/lib/hmi-types';
 
 const EXPECTED_MODE_MAP: Record<string, ESPMode> = {
-  '/':     'SCARA',
-  '/zn':   'ZN',
-  '/test': 'TEST',
+  '/':           'SCARA',
+  '/zn':         'ZN',
+  '/test':       'TEST',
+  '/eksperimen': 'TEST',
 };
 
 export function ModeRouter() {

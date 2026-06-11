@@ -417,6 +417,14 @@ export function ControlPanel() {
 
       // Clear picked target from global state so it's not applied repeatedly
       dispatch({ type: 'CLEAR_PICKED_TARGET' })
+
+      // Automatically focus on the run / run + save button so the user can hit enter
+      setTimeout(() => {
+        const runBtn = document.getElementById('hmi-run-button')
+        if (runBtn) {
+          runBtn.focus()
+        }
+      }, 50)
     }
   }, [state.pickedTarget, dispatch])
 

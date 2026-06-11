@@ -10,6 +10,9 @@ How agents should behave
 	- Do not index, read, or analyze the generated integrated firmware file.
 	- Prefer individual source files under `firmware/include/` and `firmware/src/` for any code understanding, edits, or diffs.
 
+- Do not perform builds:
+	- Do not run build scripts (e.g. `npm run build`, firmware compile/build steps) after completing a task unless explicitly requested by the user.
+
 How to (re)generate the integrated file
 
 - From the `firmware` folder run:

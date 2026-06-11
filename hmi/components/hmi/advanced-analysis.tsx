@@ -12,20 +12,20 @@ import {
 } from 'recharts'
 import type { DSample, TPoint, ESample } from '@/lib/hmi-types'
 
-const GRID = 'rgba(255, 255, 255, 0.05)'
+const GRID = 'var(--color-hmi-grid-subtle)'
 const AT = {
-  fill: '#9CA3AF',
+  fill: 'var(--color-hmi-text-secondary)',
   fontSize: 9,
   fontFamily: 'var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif',
   fontWeight: 500,
 }
-const AL = { stroke: '#1F2937' } // Matches --color-hmi-grid
+const AL = { stroke: 'var(--color-hmi-grid)' } // Matches --color-hmi-grid
 const TS = {
-  backgroundColor: 'rgba(17, 24, 39, 0.9)',
+  backgroundColor: 'var(--color-hmi-elevated)',
   backdropFilter: 'blur(8px)',
-  border: '1px solid #1F2937',
+  border: '1px solid var(--color-hmi-grid)',
   borderRadius: '6px',
-  color: '#F3F4F6',
+  color: 'var(--color-hmi-text)',
   fontFamily: 'var(--font-geist-sans), sans-serif',
   fontSize: '11px',
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
@@ -98,7 +98,7 @@ export function FFTSection({
           value: 'freq bin', 
           position: 'insideBottom', 
           offset: -2, 
-          fill: '#9CA3AF', 
+          fill: 'var(--color-hmi-text-secondary)', 
           fontSize: 9,
           fontFamily: 'var(--font-geist-sans), sans-serif',
           fontWeight: 600
@@ -113,14 +113,14 @@ export function FFTSection({
           angle: -90, 
           position: 'insideLeft', 
           offset: 8,
-          fill: '#9CA3AF', 
+          fill: 'var(--color-hmi-text-secondary)', 
           fontSize: 9,
           fontFamily: 'var(--font-geist-sans), sans-serif',
           fontWeight: 600
         }} 
       />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
-      <Line type="linear" dataKey="mag" stroke={sig === 'th1' ? '#2196F3' : sig === 'th2' ? '#FF9800' : '#06B6D4'} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+      <Line type="linear" dataKey="mag" stroke={sig === 'th1' ? 'var(--color-hmi-j1)' : sig === 'th2' ? 'var(--color-hmi-j2)' : 'var(--color-hmi-ideal)'} strokeWidth={1.5} dot={false} isAnimationActive={false} />
     </LineChart>
   )
 
@@ -260,8 +260,8 @@ export function ControlEffortSection({
     <AreaChart data={data} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <defs>
         <linearGradient id={`${gradId}-effortGradient`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
-          <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
+          <stop offset="5%" stopColor="var(--color-hmi-pwm-pos)" stopOpacity={0.2} />
+          <stop offset="95%" stopColor="var(--color-hmi-pwm-pos)" stopOpacity={0.0} />
         </linearGradient>
       </defs>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
@@ -275,14 +275,14 @@ export function ControlEffortSection({
           angle: -90, 
           position: 'insideLeft', 
           offset: 8,
-          fill: '#9CA3AF', 
+          fill: 'var(--color-hmi-text-secondary)', 
           fontSize: 9,
           fontFamily: 'var(--font-geist-sans), sans-serif',
           fontWeight: 600
         }} 
       />
       <Tooltip contentStyle={TS} />
-      <Area type="linear" dataKey="effort" stroke="#10B981" fill={`url(#${gradId}-effortGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+      <Area type="linear" dataKey="effort" stroke="var(--color-hmi-pwm-pos)" fill={`url(#${gradId}-effortGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} />
     </AreaChart>
   )
 
@@ -411,18 +411,18 @@ export function CTCTorqueSection({
   const chart = (
     <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
-      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Torque (N·m)', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Torque (N·m)', angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
       <Legend verticalAlign="top" height={32} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px' }} />
       {/* Joint 1 Group */}
-      <Line type="linear" dataKey="inertia1" stroke="#2196F3" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J1 Inertia" />
-      <Line type="linear" dataKey="coriolis1" stroke="#00BCD4" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="J1 Coriolis" />
-      <Line type="linear" dataKey="gravity1" stroke="#3F51B5" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J1 Gravity" />
+      <Line type="linear" dataKey="inertia1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J1 Inertia" />
+      <Line type="linear" dataKey="coriolis1" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="J1 Coriolis" />
+      <Line type="linear" dataKey="gravity1" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J1 Gravity" />
       {/* Joint 2 Group */}
-      <Line type="linear" dataKey="inertia2" stroke="#FF9800" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 Inertia" />
-      <Line type="linear" dataKey="coriolis2" stroke="#FF5722" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="J2 Coriolis" />
-      <Line type="linear" dataKey="gravity2" stroke="#E91E63" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 Gravity" />
+      <Line type="linear" dataKey="inertia2" stroke="var(--color-hmi-j2)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 Inertia" />
+      <Line type="linear" dataKey="coriolis2" stroke="var(--color-hmi-j2-des)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="J2 Coriolis" />
+      <Line type="linear" dataKey="gravity2" stroke="var(--color-hmi-actual)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 Gravity" />
     </LineChart>
   )
 
@@ -531,12 +531,12 @@ export function ControlInternalSection({
   const chart = (
     <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
-      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Control effort', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Control effort', angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
       <Legend verticalAlign="top" height={20} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '2px' }} />
-      <Line type="linear" dataKey="u1_total" stroke="#4CAF50" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total PID Effort" />
-      <Line type="linear" dataKey="ff1_contrib" stroke="#9C27B0" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="FF Contribution" />
+      <Line type="linear" dataKey="u1_total" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total PID Effort" />
+      <Line type="linear" dataKey="ff1_contrib" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="FF Contribution" />
     </LineChart>
   )
 
@@ -669,15 +669,15 @@ export function StepperVelocitySection({
   const chart = (
     <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
-      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Velocity (rad/s)', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Velocity (rad/s)', angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
       <Legend verticalAlign="top" height={20} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '2px' }} />
-      <Line type="linear" dataKey="omega2_raw" stroke="#FF9800" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total omega2 Command" />
-      <Line type="linear" dataKey="p_out" stroke="#2196F3" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 P Out" />
-      <Line type="linear" dataKey="d_out" stroke="#EF4444" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 D Out" />
-      <Line type="linear" dataKey="integral2" stroke="#FFEB3B" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 I Out" />
-      <Line type="linear" dataKey="delta_omega_ff" stroke="#9C27B0" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="J2 FF Contribution" />
+      <Line type="linear" dataKey="omega2_raw" stroke="var(--color-hmi-j2)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total omega2 Command" />
+      <Line type="linear" dataKey="p_out" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 P Out" />
+      <Line type="linear" dataKey="d_out" stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 D Out" />
+      <Line type="linear" dataKey="integral2" stroke="var(--color-hmi-error)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 I Out" />
+      <Line type="linear" dataKey="delta_omega_ff" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="J2 FF Contribution" />
     </LineChart>
   )
 
@@ -787,13 +787,13 @@ export function PIDBreakdownSection({
   const chart = (
     <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
-      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Output Effort', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Output Effort', angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
       <Legend verticalAlign="top" height={20} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '2px' }} />
-      <Line type="linear" dataKey="p1_out" stroke="#3B82F6" strokeWidth={1.5} dot={false} name="P Out" isAnimationActive={false} />
-      <Line type="linear" dataKey="i1_out" stroke="#10B981" strokeWidth={1.5} dot={false} name="I Out" isAnimationActive={false} />
-      <Line type="linear" dataKey="d1_out" stroke="#EF4444" strokeWidth={1.5} dot={false} name="D Out" isAnimationActive={false} />
+      <Line type="linear" dataKey="p1_out" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} name="P Out" isAnimationActive={false} />
+      <Line type="linear" dataKey="i1_out" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.5} dot={false} name="I Out" isAnimationActive={false} />
+      <Line type="linear" dataKey="d1_out" stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5} dot={false} name="D Out" isAnimationActive={false} />
     </LineChart>
   )
 
@@ -903,15 +903,15 @@ export function LoopDurationSection({
     <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <defs>
         <linearGradient id={`${gradId}-colorLoop`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.2}/>
-          <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
+          <stop offset="5%" stopColor="var(--color-hmi-ideal)" stopOpacity={0.2}/>
+          <stop offset="95%" stopColor="var(--color-hmi-ideal)" stopOpacity={0}/>
         </linearGradient>
       </defs>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
-      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Duration (µs)', angle: -90, position: 'insideLeft', offset: 8, fill: '#9CA3AF', fontSize: 9, fontWeight: 600 }} />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Duration (µs)', angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(1) : v} />
-      <Area type="monotone" dataKey="loop_duration_us" stroke="#8B5CF6" strokeWidth={1.5} fillOpacity={1} fill={`url(#${gradId}-colorLoop)`} name="Loop Duration (µs)" isAnimationActive={false} />
+      <Area type="monotone" dataKey="loop_duration_us" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} fillOpacity={1} fill={`url(#${gradId}-colorLoop)`} name="Loop Duration (µs)" isAnimationActive={false} />
     </AreaChart>
   )
 

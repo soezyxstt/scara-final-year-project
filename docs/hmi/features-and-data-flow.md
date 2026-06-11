@@ -6,11 +6,15 @@ This document catalogs the operational features of the SCARA HMI dashboard and d
 
 ## 1. Application Routes & Modes
 
-| Route | Firmware mode | Tabs / Features |
-| :--- | :--- | :--- |
-| `/` | `SCARA` | Monitor, Analysis, Rest Analysis, README |
-| `/zn` | `ZN` | Ziegler-Nichols tuner workspace |
-| `/test` | `TEST` | Monitor, Analysis (+ Raw Signal), Rest Analysis, Params Tuner |
+| Route | Firmware mode | Tabs / Features | Access Control |
+| :--- | :--- | :--- | :--- |
+| `/` | `SCARA` | Monitor, Analysis, Rest Analysis, README | Public |
+| `/zn` | `ZN` | Ziegler-Nichols tuner workspace | Public |
+| `/test` | `TEST` | Monitor, Analysis (+ Raw Signal), Rest Analysis, Params Tuner | Public |
+| `/login` | — | Google Authentication Portal (NextAuth login page) | Public |
+| `/dashboard` | — | Saved Runs History: selector sidebar, multi-run comparison tabs | Protected |
+| `/eksperimen` | `TEST` | Automation suite: run automated tests, real-time log, local queue fallback | Protected |
+| `/hasil-eksperimen` | — | Completed experiment results table, metrics, comparative analytics | Public |
 
 The `ModeRouter` component automatically sends `mode,<name>` when the serial connection is active and the current firmware mode does not match the expected mode for the active route.
 
@@ -85,10 +89,62 @@ Adds engineering tools on top of the home feature set:
 
 ### F. Settings & Export (`CaptureMenu`)
 
-* Page navigation (Home / ZN / Test)
-* Angular unit toggle and ghost trail opacity
-* Keyboard shortcut configuration
-* Individual graph export and ZIP packaging (graphs + CSV + params SVG)
+* Page navigation (Home / ZN / Test / Login / Dashboard / Hasil Eksperimen)
+* Angular unit toggle (Radians vs Degrees) and ghost trail opacity slider
+* Custom keyboard shortcuts re-binding controls
+* DPI Export Resolution multipliers (1x, 2x, 3x) and custom filename prefix settings
+* Diagnostics package bundling (ZIP container with 20 charts + CSV data sheet + parameters SVG)
+
+### G. Login Page (`/login`)
+
+* NextAuth.js Google Authentication integration.
+* Google Account sign-in required to unlock telemetry database features (saving runs and opening history dashboard).
+
+### H. Saved Runs Dashboard (`/dashboard`)
+
+Accesses the historic workspace for comparative analysis. Features include:
+1. **Runs Selection Sidebar (`RunSelector`)**:
+   * Lists all saved runs for the authenticated user, sorted in reverse chronological order.
+   * Multi-run checkbox toggles to overlay up to 4 runs simultaneously.
+   * Single-click deletion clears the run and all aligned samples from database.
+2. **Dashboard XY Workspace Trace (`DashboardXYTrace`)**:
+   * HTML5 canvas workspace drawing ideal vs actual coordinate paths for all selected runs using distinct colors.
+3. **Telemetry Comparison Tabs**:
+   * **Trajectory Tab**: Displays the multi-run XY Trace canvas.
+   * **Velocity Tab**: Desired vs actual joint velocities.
+   * **PID Tab**: Joint 1 tracking errors and cross-track error comparison charts.
+   * **Feedforward Tab**: Comparative CTC feedforward torque components.
+   * **Metrics Tab**: Full comparative table of accuracy indices, settling times, RMS, and loop durations.
+   * **Advanced Tab**: Loop execution time plots and feedback effort curves.
+
+### I. Automated Experiments (`/eksperimen`)
+
+Provides an automated sequencer to test robot control characteristics across 6 experiments:
+* **EXP-1 (TD Filter)**: Joint 1/2 tracking differentiator filter toggling (`tden,1` vs `tden,0`).
+* **EXP-2 (Inertia Comp)**: Inertia torque feedforward toggling (`ffi,1.0` vs `ffi,0.0`).
+* **EXP-3 (Coriolis Comp)**: Coriolis force feedforward toggling (`ffc,1.0` vs `ffc,0.0`).
+* **EXP-4 (Gravity Comp)**: Gravity compensation testing across tilt angles (0°, 15°, 30°, 45°) with (`ffg,1.0` vs `ffg,0.0`).
+* **EXP-5 (Trap Profile)**: Trapezoidal speed profile toggling (`trapen,1` vs `trapen,0`).
+* **EXP-6 (PID Variation)**: Joint 1 PID gain variation (testing scaling levels 0.5x, 1.0x, 1.5x of baseline values).
+
+**Automation Sequence Workflow**:
+1. Select experiment, enter optional variables (tilt angle or baseline level).
+2. Press **Mulai Eksperimen**. The state machine handles positioning (Linear move from coordinate starting point), waits for echo confirmation, initiates the trajectory move, logs telemetry samples, and handles save actions.
+3. Integrates a **30s cooldown phase** between runs to allow DC motor armatures to rest and prevent overheating.
+4. Auto-saves completed run parameters, metrics, and aligned samples database tables.
+
+### J. Database Operations & Sync Lifecycle
+
+* **Offline Queue Fallback**: If internet connectivity is interrupted during automation sequences, the system registers runs to local backup and caches data payloads in an in-memory queue.
+* **Online Synchronization**: When the workstation connection is restored, a background listener captures the window `online` event, loops through queued items, and pushes them to Turso.
+* **Automated Retry Logic**: If writing to the remote database fails, the application prints `retrying` to the status logs and schedules up to 2 attempts spaced by 2 seconds before writing to a local backup file and resuming sequence.
+
+### K. Local JSONL Backup
+
+Every completed run is automatically saved to the Next.js server's filesystem under the `hmi/local-backup/` directory as a fire-and-forget fallback.
+* `runs.jsonl`: Appends meta-information, gains, and parameters JSON strings.
+* `metrics.jsonl`: Appends computed tracking errors and settle times.
+* `samples-{runId}.jsonl`: Appends the aligned 50 Hz telemetry samples list.
 
 ---
 

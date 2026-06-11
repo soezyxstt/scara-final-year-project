@@ -239,7 +239,7 @@ function buildInitialState(): HMIState {
   return {
     serialStatus: 'disconnected',
     portName: null,
-    online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    online: true,
     currentMode: null,
     recordingState: persisted.recordingState ?? 'WAITING',
     moveCount: persisted.moveCount ?? 0,
@@ -1091,6 +1091,10 @@ export function HMIProvider({ children }: { children: ReactNode }) {
 
   // ── Network online/offline ───────────────────────────────────────────────
   useEffect(() => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      dispatch({ type: 'ONLINE_STATUS', online: false })
+    }
+
     const onOnline = () => dispatch({ type: 'ONLINE_STATUS', online: true })
     const onOffline = () => dispatch({ type: 'ONLINE_STATUS', online: false })
     window.addEventListener('online', onOnline)

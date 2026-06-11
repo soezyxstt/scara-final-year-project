@@ -238,9 +238,11 @@ export function ReadmeTab() {
       title: 'Pages & navigation',
       icon: <Compass className="h-3.5 w-3.5" />,
       links: [
-        { href: '#pages-nav', label: 'Home, ZN & Test Pages' },
+        { href: '#pages-nav', label: 'App Routes & Navigation' },
         { href: '#zn-page', label: 'ZN Tuner Page (/zn)' },
         { href: '#test-page', label: 'Test Page (/test)' },
+        { href: '#dashboard-page', label: 'Saved Runs Dashboard (/dashboard)' },
+        { href: '#experiment-page', label: 'Automation & Results' },
       ],
     },
     {
@@ -312,7 +314,7 @@ export function ReadmeTab() {
   // Determine active category based on active scroll ID
   const getActiveCategory = (id: string) => {
     if (['overview', 'connect', 'move', 'modes'].includes(id)) return 'connect'
-    if (['pages-nav', 'zn-page', 'test-page'].includes(id)) return 'pages'
+    if (['pages-nav', 'zn-page', 'test-page', 'dashboard-page', 'experiment-page'].includes(id)) return 'pages'
     if (['xy-trace', 'charts', 'metrics', 'control-panel'].includes(id)) return 'xy-trace'
     if (['advanced', 'comparison-table'].includes(id)) return 'performance'
     if (['rest-about', 'rest-interface', 'rest-calipers'].includes(id)) return 'rest-analysis'
@@ -640,16 +642,20 @@ export function ReadmeTab() {
           {/* 💡 SECTION: PAGES NAV */}
           <section id="pages-nav" className="scroll-mt-16 mb-12">
             <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
-              <span>Home, ZN &amp; Test Pages</span>
+              <span>App Routes &amp; Navigation</span>
               <a href="#pages-nav" onClick={(e) => { e.preventDefault(); handleScrollTo('#pages-nav') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              The HMI has three routes that share one serial connection. Switch between them using the <strong className="text-zinc-300">Page Navigation</strong> section in the ☰ settings menu.
+              The HMI features multiple routes sharing a single Web Serial connection and state context. Navigate using the settings sidebar (☰) or search the Command Palette (<InlineCode>Ctrl + K</InlineCode> or <InlineCode>Cmd + K</InlineCode>).
             </p>
             <PropertyList>
               <Property name="/  (Home)" type="SCARA MODE" description="Monitor, Analysis, Rest Analysis, and README tabs. Primary dashboard for Cartesian moves and post-run diagnostics." />
               <Property name="/zn" type="ZN MODE" description="Dedicated Ziegler-Nichols tuning page with per-joint step commands and caliper analyzer." />
               <Property name="/test" type="TEST MODE" description="Engineering test bench with Monitor, Analysis (+ raw signals), Rest Analysis, and Params Tuner tabs." />
+              <Property name="/login" type="PUBLIC ROUTE" description="Authentication portal using NextAuth.js to sign in via Google. Unlocks database saving and dashboard histories." />
+              <Property name="/dashboard" type="PROTECTED ROUTE" description="Saved runs history comparison dashboard. Select multiple runs to compare trajectories, velocities, feedforward values, and performance metrics." />
+              <Property name="/eksperimen" type="PROTECTED ROUTE" description="Automation suite page running automated experimentation sequences (EXP-1 to EXP-6) with motor rest cooldown timers." />
+              <Property name="/hasil-eksperimen" type="PUBLIC ROUTE" description="Comparative analytics table and charts visualization for completed automated experiments." />
             </PropertyList>
           </section>
 
@@ -675,10 +681,47 @@ export function ReadmeTab() {
               The Test page adds engineering tools on top of the home feature set:
             </p>
             <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400 leading-relaxed">
-              <li><strong>Params Tuner</strong> — adjust all 26 runtime constants (velocity limits, filter bandwidths, deadbands, trajectory flags) with sync status LEDs.</li>
+              <li><strong>Params Tuner</strong> — adjust all 26 runtime constants (velocity limits, filter bandwidths, deadbands, trajectory flags) live with sync status LEDs.</li>
               <li><strong>Raw Signal Section</strong> — overlay unfiltered ADC readings on top of filtered position data to diagnose sensor noise.</li>
               <li>Same Monitor, Analysis, and Rest Analysis tabs as the home page.</li>
             </ul>
+          </section>
+
+          <section id="dashboard-page" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>Saved Runs Dashboard (/dashboard)</span>
+              <a href="#dashboard-page" onClick={(e) => { e.preventDefault(); handleScrollTo('#dashboard-page') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              After signing in via Google, users can view their runs history. When you send a move using the <strong>Run + Save</strong> mode on the Home page, the full trajectory, feedback sample logs, gains, and parameter states are stored in the Turso database.
+            </p>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              In the history dashboard, you can:
+            </p>
+            <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400 leading-relaxed">
+              <li><strong>Select Runs</strong> — choose up to 4 runs on the sidebar to compare.</li>
+              <li><strong>Compare Trajectories</strong> — overlay multiple actual trajectories on the XY canvas with distinct colors.</li>
+              <li><strong>Analyze Control Response</strong> — compare joint speeds, feedback effort, tracking errors, and feedforward forces using specialized tabs (Trajectory, Velocity, PID, Feedforward, Metrics, Advanced).</li>
+              <li><strong>Delete Runs</strong> — click the delete button in the sidebar list to clear runs from the cloud database.</li>
+            </ul>
+          </section>
+
+          <section id="experiment-page" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>Automation &amp; Experiment Results</span>
+              <a href="#experiment-page" onClick={(e) => { e.preventDefault(); handleScrollTo('#experiment-page') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              To evaluate controller algorithms systematically, the <strong>Otomasi Eksperimen</strong> route (/eksperimen) runs pre-coded testing sequences automatically:
+            </p>
+            <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400 leading-relaxed mb-4">
+              <li><strong>EXP-1 to EXP-6</strong> — tests tracking differentiator (TD) filters, inertia/Coriolis/gravity feedforward compensations, trapezoidal trajectory profiles, and PID variations.</li>
+              <li><strong>State-Machine Execution</strong> — moves the SCARA arm to starting coordinates, synchronizes gains/parameters, triggers the move, logs 50 Hz telemetry, saves data, and schedules a <strong>30s motor cooldown phase</strong> between runs to protect the hardware.</li>
+              <li><strong>Offline Queue Fallback</strong> — caches runs locally on the browser client if internet is disconnected, syncing them automatically once the network returns online.</li>
+            </ul>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Open the <strong>Visualisasi Hasil Eksperimen</strong> route (/hasil-eksperimen) to view comparison charts, error metrics tables, settling times, and filter/compile metrics across completed automated sequences.
+            </p>
           </section>
 
           {/* 💡 SECTION: XY TRACE */}

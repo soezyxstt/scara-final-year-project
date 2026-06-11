@@ -17,6 +17,8 @@ import Link from 'next/link'
 import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { ModeBadge } from '@/components/mode-badge'
 import { SerialMonitorButton, SerialTerminalSheet } from '@/components/hmi/serial-terminal'
+import { RunButton } from '@/components/hmi/run-button'
+import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
 
 type TestTab = 'monitor' | 'analysis' | 'rest' | 'params'
 
@@ -131,7 +133,7 @@ function TestTunerShell() {
         </nav>
 
         <div className="flex items-center gap-2 ml-auto">
-
+          <CommandPaletteTrigger />
           <ModeBadge />
           <Tooltip content="Network Status: Indicates if the web page is currently connected to the network." align="right">
             <Badge className={cn("cursor-help font-bold", online ? 'bg-hmi-ok text-white' : 'bg-hmi-off text-hmi-muted')}>
@@ -152,6 +154,8 @@ function TestTunerShell() {
               </Button>
             </Tooltip>
           )}
+
+          <RunButton />
 
           <SerialMonitorButton
             open={serialLogOpen}

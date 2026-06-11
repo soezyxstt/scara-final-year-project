@@ -598,3 +598,105 @@ Every straight-line trajectory planned from the robot's current Cartesian positi
 ### Frontend Integration & Previews
 *   **Coordinate Move Input Fields**: In `ControlPanel`, when typing or updating $X_f$ or $Y_f$, the validation function `checkStraightLineTrajectory` runs reactively. If invalid, the "Send Move" button is disabled and a warning card displays the violation details.
 *   **Canvas Hover Previews**: In `XYTrace`, when hovering or clicking to select a target on the workspace plot, the safety path is calculated. If a violation is found, the planned path line glows bright red and a safety indicator flag warning is drawn onto the HTML5 Canvas context.
+
+---
+
+## 9. Database, Authentication & Server-Side Integration
+
+While the core HMI telemetry runs fully client-side in the browser to maintain the hard realtime serial read loops, saving runs, viewing comparison histories, and automating experimentation sequences uses server-side components.
+
+### Google OAuth Authentication (NextAuth.js)
+The HMI restricts database write permissions and the history workspace dashboard to authenticated users via NextAuth.js.
+*   **Authentication Portal**: Located on `/login`.
+*   **Provider**: Google Client OAuth provider configured in `hmi/lib/auth.ts`.
+*   **Session Extension**: The default NextAuth token type is extended to store the user's `googleId` and custom `id` UUID across sessions:
+    ```typescript
+    interface Session {
+      user: {
+        id: string
+        googleId: string
+        name?: string | null
+        email?: string | null
+        image?: string | null
+      }
+    }
+    ```
+*   **Middleware**: Protection matcher located in `hmi/middleware.ts` intercepting `/dashboard/:path*` and `/api/runs/:path*` to verify active JWT sessions.
+
+### Database Schema (Turso / LibSQL SQLite)
+The application defines two database schemas mapped using Drizzle ORM: the core runs schema (`schema.ts`) and the automated experiments schema (`schema/experiment.ts`).
+
+#### 1. Core Runs Schema (`lib/db/schema.ts`)
+*   **`users`**: Stores user profiles created on their initial Google sign-in.
+    *   `id` (Text Primary Key UUID)
+    *   `googleId` (Text unique)
+    *   `email` (Text), `name` (Text), `picture` (Text)
+    *   `createdAt` (Integer timestamp)
+*   **`runs`**: Stores individual trajectory records saved via the HMI's **Run + Save** button.
+    *   `id` (Text Primary Key UUID)
+    *   `userId` (Text foreign key referencing `users.id`)
+    *   `name` (Text)
+    *   `startedAt` (Integer), `endedAt` (Integer)
+    *   `x0`, `y0`, `xf`, `yf` (Real coordinates)
+    *   `accuracyIdx`, `maxErr`, `meanErr`, `finalErr`, `mate`, `mcte`, `rmsAte`, `errorRatio` (Real metrics)
+    *   `pwmMax`, `elapsedTime`, `rmseJ1`, `rmseJ2`, `rmseEef` (Real performance)
+    *   `gainsJson`, `paramsJson` (Text strings of Gains & Parameters reports)
+    *   `sampleCount` (Integer)
+*   **`samples`**: Stores the high-frequency joint telemetry samples aligned for each run.
+    *   `id` (Integer Auto-Increment Primary Key)
+    *   `runId` (Text foreign key referencing `runs.id`)
+    *   `t` (Integer timestamp ms)
+    *   `th1`, `th2`, `th1d`, `th2d`, `dth1`, `dth2`, `dth1d`, `dth2d` (Real joint angles and speeds)
+    *   `pwm1` (Integer control signal), `u1Total` (Real total J1 effort)
+    *   `th1Raw`, `th2Raw` (Real unfiltered ADC signals)
+    *   `p1Out`, `i1Out`, `d1Out` (Real feedback splits)
+    *   `inertia1`, `coriolis1`, `gravity1`, `inertia2`, `coriolis2`, `gravity2` (Real CTC components)
+*   **`trajectory_points`**: Stores the spatial path coordinates plotted on the workspace trace.
+    *   `id` (Integer Auto-Increment Primary Key)
+    *   `runId` (Text foreign key referencing `runs.id`)
+    *   `seq` (Integer sequence order index)
+    *   `xi`, `yi` (Real desired coordinate point)
+    *   `xa`, `ya` (Real actual coordinate point)
+
+#### 2. Experiment Automation Schema (`lib/db/schema/experiment.ts`)
+*   **`experiment_runs`**: Logs automation sequence conditions.
+    *   `id` (Text Primary Key generated via custom NanoID builder)
+    *   `experimentId` (Text, e.g. `EXP-1` or `EXP-6`)
+    *   `experimentName` (Text, e.g. `TD Filter` or `PID Variation`)
+    *   `runNumber` (Integer index)
+    *   `direction` (Text: `forward` or `return`)
+    *   `alphaDeg` (Real tilt angle)
+    *   `ffgEnabled`, `ffiEnabled`, `ffcEnabled`, `tdEnabled`, `trapEnabled` (Integer booleans: `0` or `1`)
+    *   `kp1`, `ki1`, `kd1`, `kp2`, `ki2`, `kd2` (Real joint gains applied for the run)
+    *   `p0X`, `p0Y`, `pfX`, `pfY` (Real start/end coordinates)
+    *   `status` (Text: `ok`, `retrying`, or `failed`)
+*   **`experiment_metrics`**: Logs summary error statistics computed on sequence end.
+    *   `id` (Text Primary Key)
+    *   `runId` (Text foreign key referencing `experiment_runs.id`)
+    *   `mateMean`, `mateMax`, `mateRms`, `mcteMean`, `mcteMax`, `mcteRms` (Real path errors)
+    *   `eefErrorMean`, `eefErrorMax`, `eefErrorRms` (Real end-effector errors)
+    *   `joint1ErrorMax`, `joint1ErrorRms`, `joint2ErrorMax`, `joint2ErrorRms` (Real joint-level errors)
+    *   `settleTimeMs` (Real settling duration)
+    *   `finalEefError` (Real steady state error offset)
+*   **`experiment_samples`**: Logs high-frequency aligned sequence samples.
+    *   `id` (Integer Auto-Increment Primary Key)
+    *   `runId` (Text foreign key referencing `experiment_runs.id`)
+    *   `tMs` (Real timestamp)
+    *   `theta1`, `theta2`, `theta1D`, `theta2D` (Real joint angles)
+    *   `dtheta1`, `dtheta2`, `dtheta1D`, `dtheta2D` (Real joint velocities)
+    *   `xActual`, `yActual`, `xDesired`, `yDesired` (Real spatial coordinates)
+    *   `u1Total`, `ff1Contrib`, `p1Out`, `i1Out`, `d1Out` (Real control effort splits)
+    *   `ctcInertia1`, `ctcCoriolis1`, `ctcGravity1`, `ctcInertia2`, `ctcCoriolis2`, `ctcGravity2` (Real CTC forces)
+
+### Local JSONL Backups
+Every save run is written to local filesystem files in `hmi/local-backup/` to ensure offline durability.
+*   Runs are written line-by-line using `appendFile` to `runs.jsonl`.
+*   Metrics are written line-by-line to `metrics.jsonl`.
+*   Samples are written to individual run files: `samples-{runId}.jsonl`.
+
+### Drizzle CLI Schema Synchronization
+To apply updates or create local database tables, run drizzle push:
+```bash
+npm run db:push
+```
+This commands runs `drizzle-kit push` which compares schema files with the Turso DB state and performs SQL schema updates automatically. Use `npm run db:studio` to query raw tables in Drizzle Studio.

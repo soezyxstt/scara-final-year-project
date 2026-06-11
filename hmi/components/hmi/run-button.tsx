@@ -158,12 +158,13 @@ export function RunButton() {
       <div ref={dropdownRef} className="relative flex items-center">
         {/* Main run button */}
         <Button
+          id="hmi-run-button"
           size="sm"
           variant="outline"
           onClick={handleRun}
           disabled={!isConnected || !hasTarget}
           className={cn(
-            'h-7 text-xs rounded-r-none border-r-0 min-w-[88px] transition-colors',
+            'h-7 text-xs rounded-r-none border-r-0 min-w-[88px] transition-colors focus:ring-2 focus:ring-hmi-ideal/80 focus:border-hmi-ideal/80 focus:outline-none',
             mode === 'run-save'
               ? 'border-hmi-ideal/60 text-hmi-ideal hover:bg-hmi-ideal/10'
               : ''

@@ -17,6 +17,7 @@ import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { ModeBadge } from '@/components/mode-badge'
 import { SerialMonitorButton, SerialTerminalSheet } from './serial-terminal'
 import { RunButton } from './run-button'
+import { CommandPaletteTrigger } from './command-palette'
 
 
 type TopTab = 'monitor' | 'analysis' | 'rest' | 'readme'
@@ -88,12 +89,12 @@ function HMIShell() {
 
       {/* ── Header bar ── */}
       <header className="sticky top-0 z-50 bg-hmi-panel border-b border-hmi-grid px-4 h-12 flex items-center gap-4 shrink-0">
-        <Link href="/dashboard" className="text-sm font-bold text-hmi-text shrink-0 tracking-wide uppercase hover:text-hmi-ideal transition-colors">
-          Home
-        </Link>
+        <span className="text-sm font-bold text-hmi-text shrink-0 tracking-wide uppercase">
+          SCARA HMI
+        </span>
 
         {/* Sub-tabs for current page */}
-        <nav className="flex h-12 shrink-0 border-l border-hmi-grid/50 pl-2">
+        <nav className="flex h-12 shrink-0 border-l border-hmi-grid/50 pl-4 ml-2">
           <TabLink label="Monitor" active={tab === 'monitor'} href="/?tab=monitor" />
           <TabLink label="Analysis" active={tab === 'analysis'} href="/?tab=analysis" />
           <TabLink label="Rest Analysis" active={tab === 'rest'} href="/?tab=rest" />
@@ -101,7 +102,7 @@ function HMIShell() {
         </nav>
 
         <div className="flex items-center gap-2 ml-auto">
-
+          <CommandPaletteTrigger />
           <ModeBadge />
           <Tooltip content="Network Status: Indicates if the web page is currently connected to the network." align="right">
             <Badge className={cn("cursor-help font-bold", online ? 'bg-hmi-ok text-white' : 'bg-hmi-off text-hmi-muted')}>
