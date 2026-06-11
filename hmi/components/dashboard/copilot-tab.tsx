@@ -241,105 +241,103 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto flex flex-col gap-6">
-      <Card className="border border-hmi-ideal/40 bg-hmi-panel/40 backdrop-blur shadow-md">
-        <CardHeader className="p-4 pb-2 border-b border-hmi-grid/35 flex flex-row items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-hmi-ideal/15 rounded-lg text-hmi-ideal border border-hmi-ideal/30">
-              <Bot className="h-5 w-5" />
-            </div>
-            <div>
-              <CardTitle className="text-sm font-bold text-hmi-text flex items-center gap-1.5">
-                AI Copilot for {primary.runName}
-                {modelUsed && (
-                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-hmi-grid/70 text-hmi-muted border border-hmi-grid">
-                    via {modelUsed}
-                  </span>
-                )}
-              </CardTitle>
-              <p className="text-[10px] text-hmi-muted">Senior Control Systems Engineer Persona</p>
-            </div>
+    <div className="flex flex-col gap-4 p-4">
+      {/* Header toolbar */}
+      <div className="bg-hmi-panel border border-hmi-grid p-4 rounded-lg flex flex-row items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-1.5 bg-hmi-ideal/15 rounded-lg text-hmi-ideal border border-hmi-ideal/30">
+            <Bot className="h-5 w-5" />
           </div>
-
-          {/* Mode Selector */}
-          <div className="flex items-center bg-hmi-bg/85 border border-hmi-grid p-1 rounded-lg">
-            {(['explain', 'diagnose', 'recommend'] as const).map(m => (
-              <button
-                key={m}
-                disabled={loading}
-                onClick={() => setMode(m)}
-                className={cn(
-                  "px-2.5 py-1 text-[10px] font-bold rounded-md uppercase tracking-wider transition-all cursor-pointer",
-                  mode === m
-                    ? "bg-hmi-ideal text-white shadow-sm"
-                    : "text-hmi-muted hover:text-hmi-text"
-                )}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-4 flex flex-col gap-4">
-          {output ? (
-            <div className="flex flex-col gap-3">
-              <div className="bg-hmi-bg/60 border border-hmi-grid/40 p-5 rounded-xl max-h-[500px] overflow-y-auto font-sans leading-relaxed">
-                <MarkdownRenderer text={output} />
-              </div>
-
-              {/* One-Click Apply Action Box */}
-              {tuningParams && Object.keys(tuningParams).length > 0 && (
-                <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in shadow-sm">
-                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping shrink-0" />
-                      Tuning Recommendations Detected
-                    </span>
-                    <span className="text-[10px] text-hmi-muted font-mono leading-tight truncate">
-                      {Object.entries(tuningParams).map(([cmd, val]) => `${cmd}: ${val}`).join(', ')}
-                    </span>
-                  </div>
-                  <Button
-                    size="sm"
-                    disabled={!isSerialConnected || loading}
-                    onClick={() => handleApplyTuning(tuningParams)}
-                    className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-[10px] uppercase tracking-wider py-1.5 px-3 h-8 shadow shrink-0 cursor-pointer transition-transform hover:scale-[1.02]"
-                  >
-                    {isSerialConnected ? '✓ Apply to Hardware' : '⚠ Connect Serial to Apply'}
-                  </Button>
-                </div>
+          <div>
+            <h3 className="text-xs font-bold text-hmi-text flex items-center gap-1.5">
+              AI Copilot for {primary.runName}
+              {modelUsed && (
+                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-hmi-grid/70 text-hmi-muted border border-hmi-grid">
+                  via {modelUsed}
+                </span>
               )}
+            </h3>
+            <p className="text-[10px] text-hmi-muted">Senior Control Systems Engineer Persona</p>
+          </div>
+        </div>
+
+        {/* Mode Selector */}
+        <div className="flex items-center bg-hmi-bg/85 border border-hmi-grid p-1 rounded-lg">
+          {(['explain', 'diagnose', 'recommend'] as const).map(m => (
+            <button
+              key={m}
+              disabled={loading}
+              onClick={() => setMode(m)}
+              className={cn(
+                "px-2.5 py-1 text-[10px] font-bold rounded-md uppercase tracking-wider transition-all cursor-pointer",
+                mode === m
+                  ? "bg-hmi-ideal text-white shadow-sm"
+                  : "text-hmi-muted hover:text-hmi-text"
+              )}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      {output ? (
+        <div className="flex flex-col gap-4">
+          <div className="bg-hmi-panel border border-hmi-grid p-6 rounded-lg font-sans leading-relaxed">
+            <MarkdownRenderer text={output} />
+          </div>
+
+          {/* One-Click Apply Action Box */}
+          {tuningParams && Object.keys(tuningParams).length > 0 && (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in shadow-sm">
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping shrink-0" />
+                  Tuning Recommendations Detected
+                </span>
+                <span className="text-[10px] text-hmi-muted font-mono leading-tight truncate">
+                  {Object.entries(tuningParams).map(([cmd, val]) => `${cmd}: ${val}`).join(', ')}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                disabled={!isSerialConnected || loading}
+                onClick={() => handleApplyTuning(tuningParams)}
+                className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-[10px] uppercase tracking-wider py-1.5 px-3 h-8 shadow shrink-0 cursor-pointer transition-transform hover:scale-[1.02]"
+              >
+                {isSerialConnected ? '✓ Apply to Hardware' : '⚠ Connect Serial to Apply'}
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-hmi-panel border border-dashed border-hmi-grid/50 p-12 rounded-lg flex flex-col items-center justify-center text-center">
+          {loading ? (
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 text-hmi-ideal animate-spin" />
+              <p className="text-xs text-hmi-text-secondary font-medium animate-pulse">Consulting the control engineer copilot...</p>
+              <p className="text-[10px] text-hmi-muted italic">Analyzing parameters, downsampling telemetry, and querying history...</p>
             </div>
           ) : (
-            <div className="bg-hmi-bg/30 border border-dashed border-hmi-grid/50 p-12 rounded-xl flex flex-col items-center justify-center text-center">
-              {loading ? (
-                <div className="flex flex-col items-center gap-3">
-                  <Loader2 className="h-8 w-8 text-hmi-ideal animate-spin" />
-                  <p className="text-xs text-hmi-text-secondary font-medium animate-pulse">Consulting the control engineer copilot...</p>
-                  <p className="text-[10px] text-hmi-muted italic">Analyzing parameters, downsampling telemetry, and querying history...</p>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 max-w-sm">
-                  <Sparkles className="h-8 w-8 text-hmi-ideal/65 animate-pulse" />
-                  <p className="text-xs font-semibold text-hmi-text">No cached analysis for this run</p>
-                  <p className="text-[10px] text-hmi-muted">Click the button below to perform an AI Copilot consultation for this historical run telemetry.</p>
-                </div>
-              )}
+            <div className="flex flex-col items-center gap-2 max-w-sm">
+              <Sparkles className="h-8 w-8 text-hmi-ideal/65 animate-pulse" />
+              <p className="text-xs font-semibold text-hmi-text">No cached analysis for this run</p>
+              <p className="text-[10px] text-hmi-muted">Click the button below to perform an AI Copilot consultation for this historical run telemetry.</p>
             </div>
           )}
+        </div>
+      )}
 
-          {!loading && (
-            <Button
-              onClick={handleConsult}
-              className="w-full bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-bold text-xs uppercase tracking-widest gap-2 py-2 h-9 shadow-md transition-all hover:scale-[1.01] cursor-pointer"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              {output ? 'Re-Generate Advice' : 'Generate AI Advice'} ({mode})
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+      {!loading && (
+        <Button
+          onClick={handleConsult}
+          className="w-full bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-bold text-xs uppercase tracking-widest gap-2 py-2 h-9 shadow-md transition-all hover:scale-[1.01] cursor-pointer shrink-0"
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          {output ? 'Re-Generate Advice' : 'Generate AI Advice'} ({mode})
+        </Button>
+      )}
     </div>
   )
 }
