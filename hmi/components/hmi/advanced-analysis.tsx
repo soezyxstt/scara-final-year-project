@@ -11,6 +11,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend,
 } from 'recharts'
 import type { DSample, TPoint, ESample } from '@/lib/hmi-types'
+import { ChartContainer } from './chart-panel'
 
 const GRID = 'var(--color-hmi-grid-subtle)'
 const AT = {
@@ -153,14 +154,14 @@ export function FFTSection({
       <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+            <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
               Frequency Content (FFT)
             </CardTitle>
             {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
           </div>
           <div className="flex items-center gap-2">
             <Select value={sig} onValueChange={v => setSig(v as FFTSignal)}>
-              <SelectTrigger className="w-28 h-6 text-xs bg-slate-900 border-slate-800 text-slate-300">
+              <SelectTrigger className="w-28 h-6 text-xs bg-hmi-btn border-hmi-grid text-hmi-text-secondary">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -174,7 +175,7 @@ export function FFTSection({
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+                className="flex items-center gap-1 bg-hmi-btn/40 hover:bg-hmi-btn-hover/80 border-hmi-grid/60 text-hmi-text-secondary h-8"
                 onClick={(e) => {
                   e.stopPropagation()
                   setIsFocused(false)
@@ -191,7 +192,7 @@ export function FFTSection({
       {/* Maximize button overlay (visible on hover) */}
       {!isFocused && (
         <button
-          className="absolute top-2 right-32 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          className="absolute top-2 right-32 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-hmi-btn/80 border border-hmi-grid hover:bg-hmi-btn-hover hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation()
             setIsFocused(true)
@@ -203,21 +204,17 @@ export function FFTSection({
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        {state.frozenD.length === 0 ? (
-          <p className="text-xs text-hmi-muted">No data.</p>
-        ) : (
-          <>
-            <p className="text-[11px] text-hmi-muted mb-2 font-medium shrink-0">
-              Peaks above ~10 Hz are typically potentiometer noise, not structural dynamics.
-              (X axis is frequency bin — scale by tick rate when known.)
-            </p>
-            <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
-              <ResponsiveContainer width="100%" height="100%">
-                {chart}
-              </ResponsiveContainer>
-            </div>
-          </>
-        )}
+        <p className="text-[11px] text-hmi-muted mb-2 font-medium shrink-0">
+          Peaks above ~10 Hz are typically potentiometer noise, not structural dynamics.
+          (X axis is frequency bin — scale by tick rate when known.)
+        </p>
+        <ChartContainer isEmpty={state.frozenD.length === 0} msg="No telemetry — run a move to capture data">
+          <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
+            <ResponsiveContainer width="100%" height="100%">
+              {chart}
+            </ResponsiveContainer>
+          </div>
+        </ChartContainer>
       </CardContent>
     </Card>
   )
@@ -315,7 +312,7 @@ export function ControlEffortSection({
       <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+            <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
               Control Effort Proxy (∫|PWM| dt)
             </CardTitle>
             {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
@@ -324,7 +321,7 @@ export function ControlEffortSection({
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              className="flex items-center gap-1 bg-hmi-btn/40 hover:bg-hmi-btn-hover/80 border-hmi-grid/60 text-hmi-text-secondary h-8"
               onClick={(e) => {
                 e.stopPropagation()
                 setIsFocused(false)
@@ -340,7 +337,7 @@ export function ControlEffortSection({
       {/* Maximize button overlay (visible on hover) */}
       {!isFocused && (
         <button
-          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-hmi-btn/80 border border-hmi-grid hover:bg-hmi-btn-hover hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation()
             setIsFocused(true)
@@ -352,15 +349,13 @@ export function ControlEffortSection({
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        {data.length === 0 ? (
-          <p className="text-xs text-hmi-muted">No data.</p>
-        ) : (
+        <ChartContainer isEmpty={data.length === 0} msg="No control effort telemetry — run a move to capture data">
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>
           </div>
-        )}
+        </ChartContainer>
       </CardContent>
     </Card>
   )
@@ -446,7 +441,7 @@ export function CTCTorqueSection({
       <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+            <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
               CTC Feedforward Torques
             </CardTitle>
             {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
@@ -455,7 +450,7 @@ export function CTCTorqueSection({
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              className="flex items-center gap-1 bg-hmi-btn/40 hover:bg-hmi-btn-hover/80 border-hmi-grid/60 text-hmi-text-secondary h-8"
               onClick={(e) => {
                 e.stopPropagation()
                 setIsFocused(false)
@@ -470,7 +465,7 @@ export function CTCTorqueSection({
 
       {!isFocused && (
         <button
-          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-hmi-btn/80 border border-hmi-grid hover:bg-hmi-btn-hover hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation()
             setIsFocused(true)
@@ -482,15 +477,13 @@ export function CTCTorqueSection({
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        {chartData.length === 0 ? (
-          <p className="text-xs text-hmi-muted italic">No CTC torque logging. Run a move to capture telemetry.</p>
-        ) : (
+        <ChartContainer isEmpty={chartData.length === 0} msg="No CTC torque logging — run a move to capture data">
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>
           </div>
-        )}
+        </ChartContainer>
       </CardContent>
     </Card>
   )
@@ -560,7 +553,7 @@ export function ControlInternalSection({
       <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+            <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
               J1 Internal Control Signals
             </CardTitle>
             {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
@@ -569,7 +562,7 @@ export function ControlInternalSection({
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              className="flex items-center gap-1 bg-hmi-btn/40 hover:bg-hmi-btn-hover/80 border-hmi-grid/60 text-hmi-text-secondary h-8"
               onClick={(e) => {
                 e.stopPropagation()
                 setIsFocused(false)
@@ -584,7 +577,7 @@ export function ControlInternalSection({
 
       {!isFocused && (
         <button
-          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-hmi-btn/80 border border-hmi-grid hover:bg-hmi-btn-hover hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation()
             setIsFocused(true)
@@ -596,15 +589,13 @@ export function ControlInternalSection({
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        {chartData.length === 0 ? (
-          <p className="text-xs text-hmi-muted italic">No internal control logging. Run a move to capture telemetry.</p>
-        ) : (
+        <ChartContainer isEmpty={chartData.length === 0} msg="No internal control logging — run a move to capture data">
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>
           </div>
-        )}
+        </ChartContainer>
       </CardContent>
     </Card>
   )
@@ -701,7 +692,7 @@ export function StepperVelocitySection({
       <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+            <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
               J2 Stepper Velocity Commands
             </CardTitle>
             {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
@@ -710,7 +701,7 @@ export function StepperVelocitySection({
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              className="flex items-center gap-1 bg-hmi-btn/40 hover:bg-hmi-btn-hover/80 border-hmi-grid/60 text-hmi-text-secondary h-8"
               onClick={(e) => {
                 e.stopPropagation()
                 setIsFocused(false)
@@ -725,7 +716,7 @@ export function StepperVelocitySection({
 
       {!isFocused && (
         <button
-          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-hmi-btn/80 border border-hmi-grid hover:bg-hmi-btn-hover hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation()
             setIsFocused(true)
@@ -737,15 +728,13 @@ export function StepperVelocitySection({
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        {chartData.length === 0 ? (
-          <p className="text-xs text-hmi-muted italic">No stepper command logging. Run a move to capture telemetry.</p>
-        ) : (
+        <ChartContainer isEmpty={chartData.length === 0} msg="No stepper command logging — run a move to capture data">
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>
           </div>
-        )}
+        </ChartContainer>
       </CardContent>
     </Card>
   )
@@ -817,7 +806,7 @@ export function PIDBreakdownSection({
       <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+            <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
               J1 PID Control Effort Breakdown
             </CardTitle>
             {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
@@ -826,7 +815,7 @@ export function PIDBreakdownSection({
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              className="flex items-center gap-1 bg-hmi-btn/40 hover:bg-hmi-btn-hover/80 border-hmi-grid/60 text-hmi-text-secondary h-8"
               onClick={(e) => {
                 e.stopPropagation()
                 setIsFocused(false)
@@ -841,7 +830,7 @@ export function PIDBreakdownSection({
 
       {!isFocused && (
         <button
-          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-hmi-btn/80 border border-hmi-grid hover:bg-hmi-btn-hover hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation()
             setIsFocused(true)
@@ -853,15 +842,13 @@ export function PIDBreakdownSection({
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        {chartData.length === 0 ? (
-          <p className="text-xs text-hmi-muted italic">No PID telemetry. Run a move to capture telemetry.</p>
-        ) : (
+        <ChartContainer isEmpty={chartData.length === 0} msg="No PID telemetry — run a move to capture data">
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>
           </div>
-        )}
+        </ChartContainer>
       </CardContent>
     </Card>
   )
@@ -935,7 +922,7 @@ export function LoopDurationSection({
       <CardHeader className={cn(isFocused && "px-0 pt-0 pb-4 shrink-0")}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className={cn(isFocused ? "text-lg font-bold text-hmi-text" : "text-sm font-semibold text-slate-200")}>
+            <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
               Microcontroller Loop Execution Time
             </CardTitle>
             {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
@@ -944,7 +931,7 @@ export function LoopDurationSection({
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              className="flex items-center gap-1 bg-hmi-btn/40 hover:bg-hmi-btn-hover/80 border-hmi-grid/60 text-hmi-text-secondary h-8"
               onClick={(e) => {
                 e.stopPropagation()
                 setIsFocused(false)
@@ -959,7 +946,7 @@ export function LoopDurationSection({
 
       {!isFocused && (
         <button
-          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-hmi-btn/80 border border-hmi-grid hover:bg-hmi-btn-hover hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation()
             setIsFocused(true)
@@ -971,15 +958,13 @@ export function LoopDurationSection({
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        {chartData.length === 0 ? (
-          <p className="text-xs text-hmi-muted italic">No loop duration telemetry. Run a move to capture telemetry.</p>
-        ) : (
+        <ChartContainer isEmpty={chartData.length === 0} msg="No loop duration telemetry — run a move to capture data">
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
             </ResponsiveContainer>
           </div>
-        )}
+        </ChartContainer>
       </CardContent>
     </Card>
   )

@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import type { Sample, TrajectoryPoint } from '@/lib/db/schema'
 
 export const L_OUTER = 170   // mm
-export const L_INNER = 45    // mm
+export const L_INNER = 70.7  // mm
 
 // Canvas margins
 const LM = 55, RM = 10, TM = 30, BM = 42
@@ -100,6 +100,50 @@ export function DashboardXYTrace({ runs }: Props) {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.scale(dpr, dpr)
 
+    const isLight = typeof document !== 'undefined' && document.documentElement.classList.contains('light')
+
+    const getCSSColor = (varName: string, fallback: string): string => {
+      if (typeof window === 'undefined') return fallback
+      const val = window.getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
+      return val || fallback
+    }
+
+    const hexToRgba = (colorStr: string, alpha: number): string => {
+      if (colorStr.startsWith('rgba') || colorStr.startsWith('rgb')) {
+        const match = colorStr.match(/\d+/g)
+        if (match && match.length >= 3) {
+          return `rgba(${match[0]}, ${match[1]}, ${match[2]}, ${alpha})`
+        }
+      }
+      const cleanHex = colorStr.replace('#', '')
+      let r = 0, g = 0, b = 0
+      if (cleanHex.length === 3) {
+        r = parseInt(cleanHex[0] + cleanHex[0], 16)
+        g = parseInt(cleanHex[1] + cleanHex[1], 16)
+        b = parseInt(cleanHex[2] + cleanHex[2], 16)
+      } else if (cleanHex.length === 6) {
+        r = parseInt(cleanHex.substring(0, 2), 16)
+        g = parseInt(cleanHex.substring(2, 4), 16)
+        b = parseInt(cleanHex.substring(4, 6), 16)
+      }
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`
+    }
+
+    const colors = {
+      bg: getCSSColor('--hmi-bg', isLight ? '#FAFAFA' : '#141517'),
+      panel: getCSSColor('--hmi-panel', isLight ? '#FFFFFF' : '#1F2023'),
+      grid: getCSSColor('--hmi-grid', isLight ? '#E4E4E7' : '#323439'),
+      textSecondary: getCSSColor('--hmi-text-secondary', isLight ? '#71717A' : '#9F9F9F'),
+      j1: getCSSColor('--hmi-j1', isLight ? '#2563EB' : '#60A5FA'),
+      j1Des: getCSSColor('--hmi-j1-des', isLight ? '#3B82F6' : '#93C5FD'),
+      j2: getCSSColor('--hmi-j2', isLight ? '#EA580C' : '#FB923C'),
+      j2Des: getCSSColor('--hmi-j2-des', isLight ? '#F97316' : '#FDBA74'),
+      actual: getCSSColor('--hmi-actual', isLight ? '#DC2626' : '#F87171'),
+      ok: getCSSColor('--hmi-ok', isLight ? '#16A34A' : '#22C55E'),
+      warn: getCSSColor('--hmi-warn', isLight ? '#D97706' : '#F59E0B'),
+      error: getCSSColor('--hmi-error', isLight ? '#D97706' : '#FBBF24'),
+    }
+
     const scaleY = plotH / (YMAX - YMIN)
     const scaleX = plotW / (2 * (L_OUTER + 25))
     const baseScale = Math.min(scaleY, scaleX)
@@ -116,10 +160,47 @@ export function DashboardXYTrace({ runs }: Props) {
     }
 
     // Background
-    ctx.fillStyle = '#121212'
+    ctx.fillStyle = colors.bg
     ctx.fillRect(0, 0, W, H)
-    ctx.fillStyle = '#1C1C1C'
+    ctx.fillStyle = colors.panel
     ctx.fillRect(LM, TM, plotW, plotH)
+
+    // Workspace: Annular Sector
+    const outerR = L_OUTER * scale
+    const innerR = L_INNER * scale
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(LM, TM, plotW, plotH)
+    ctx.clip()
+
+    // OOB Zone tint
+    ctx.fillStyle = isLight ? '#FAF0F0' : '#251919'
+    ctx.fillRect(LM, TM, plotW, plotH)
+
+    // Reachable Workspace fill
+    ctx.fillStyle = colors.panel
+    ctx.beginPath()
+    ctx.arc(originPx, originPy, outerR, 0, Math.PI, true)
+    ctx.arc(originPx, originPy, innerR, Math.PI, 0, false)
+    ctx.closePath()
+    ctx.fill()
+
+    // Outer & Inner arcs
+    ctx.setLineDash([5, 4])
+    ctx.strokeStyle = isLight ? 'rgba(6, 182, 212, 0.45)' : 'rgba(100, 210, 220, 0.35)'
+    ctx.lineWidth = 1
+    ctx.beginPath(); ctx.arc(originPx, originPy, outerR, 0, Math.PI, true); ctx.stroke()
+    ctx.beginPath(); ctx.arc(originPx, originPy, innerR, 0, Math.PI, true); ctx.stroke()
+
+    // Radial boundaries
+    ctx.beginPath()
+    ctx.moveTo(originPx + innerR, originPy); ctx.lineTo(originPx + outerR, originPy)
+    ctx.moveTo(originPx - innerR, originPy); ctx.lineTo(originPx - outerR, originPy)
+    ctx.stroke()
+
+    ctx.setLineDash([])
+    ctx.restore() // end workspace clip
 
     // Dynamic grid spacing
     let activeTick = TICK
@@ -128,7 +209,7 @@ export function DashboardXYTrace({ runs }: Props) {
     else if (zoom <= 0.5) activeTick = 100
 
     // Dotted Grid
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'
+    ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)'
     ctx.lineWidth = 1
     ctx.setLineDash([2, 2])
 
@@ -149,7 +230,7 @@ export function DashboardXYTrace({ runs }: Props) {
     }
 
     // Axis Zero Lines
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)'
+    ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.22)'
     ctx.lineWidth = 1.5
     ctx.setLineDash([])
     if (originPx >= LM && originPx <= W - RM) {
@@ -161,12 +242,12 @@ export function DashboardXYTrace({ runs }: Props) {
     }
 
     // Border Frame
-    ctx.strokeStyle = '#3A3A3A'
+    ctx.strokeStyle = colors.grid
     ctx.lineWidth = 1.5
     ctx.strokeRect(LM, TM, plotW, plotH)
 
     // Tick Marks & Labels
-    ctx.fillStyle = '#9A9A9A'
+    ctx.fillStyle = colors.textSecondary
     ctx.font = '500 11px Geist, "Geist Sans", sans-serif'
 
     // Y-axis labels
@@ -175,7 +256,7 @@ export function DashboardXYTrace({ runs }: Props) {
     for (let y = yStart; y <= yEnd; y += activeTick) {
       const py = toPx(0, y)[1]
       if (py < TM - 4 || py > H - BM + 4) continue
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
+      ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
       ctx.beginPath(); ctx.moveTo(LM - 4, py); ctx.lineTo(LM, py); ctx.stroke()
       ctx.fillText(String(y), LM - 6, py)
     }
@@ -187,7 +268,7 @@ export function DashboardXYTrace({ runs }: Props) {
       if (x === 0) continue
       const px = toPx(x, 0)[0]
       if (px < LM - 4 || px > W - RM + 4) continue
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
+      ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
       ctx.beginPath(); ctx.moveTo(px, H - BM); ctx.lineTo(px, H - BM + 4); ctx.stroke()
       ctx.fillText(String(x), px, H - BM + 5)
     }
@@ -202,45 +283,10 @@ export function DashboardXYTrace({ runs }: Props) {
     ctx.fillText('Y (mm)', 0, 0)
     ctx.restore()
 
-    // Workspace: Annular Sector
-    const outerR = L_OUTER * scale
-    const innerR = L_INNER * scale
-
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(LM, TM, plotW, plotH)
-    ctx.clip()
-
-    // OOB Zone tint
-    ctx.fillStyle = 'rgba(239, 83, 80, 0.04)'
-    ctx.fillRect(LM, TM, plotW, plotH)
-
-    // Reachable Workspace fill
-    ctx.fillStyle = 'rgba(28, 28, 28, 0.55)'
-    ctx.beginPath()
-    ctx.arc(originPx, originPy, outerR, 0, Math.PI, true)
-    ctx.arc(originPx, originPy, innerR, Math.PI, 0, false)
-    ctx.closePath()
-    ctx.fill()
-
-    // Outer & Inner arcs
-    ctx.setLineDash([5, 4])
-    ctx.strokeStyle = 'rgba(100, 210, 220, 0.35)'
-    ctx.lineWidth = 1
-    ctx.beginPath(); ctx.arc(originPx, originPy, outerR, 0, Math.PI, true); ctx.stroke()
-    ctx.beginPath(); ctx.arc(originPx, originPy, innerR, 0, Math.PI, true); ctx.stroke()
-
-    // Radial boundaries
-    ctx.beginPath()
-    ctx.moveTo(originPx + innerR, originPy); ctx.lineTo(originPx + outerR, originPy)
-    ctx.moveTo(originPx - innerR, originPy); ctx.lineTo(originPx - outerR, originPy)
-    ctx.stroke()
-
-    ctx.setLineDash([])
-    ctx.restore() // end workspace clip
+    // Workspace drawing relocated before grid lines
 
     // OriginMarker Crosshair
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
+    ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)'
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.moveTo(originPx - 7, originPy); ctx.lineTo(originPx + 7, originPy)
@@ -254,7 +300,7 @@ export function DashboardXYTrace({ runs }: Props) {
 
       // Ideal path (dashed, run color at lower opacity or cyan)
       ctx.save()
-      ctx.strokeStyle = '#2196F3'
+      ctx.strokeStyle = colors.j1
       ctx.lineWidth = 1.2
       ctx.setLineDash([4, 4])
       ctx.beginPath()
@@ -268,7 +314,7 @@ export function DashboardXYTrace({ runs }: Props) {
 
       // Actual path (solid, run-specific color)
       ctx.save()
-      ctx.strokeStyle = r.color || '#EF5350'
+      ctx.strokeStyle = r.color || colors.actual
       ctx.lineWidth = 2.0
       ctx.beginPath()
       points.forEach((p, idx) => {
@@ -280,7 +326,7 @@ export function DashboardXYTrace({ runs }: Props) {
 
       // Start circle
       const [sx, sy] = toPx(points[0].xi ?? 0, points[0].yi ?? 0)
-      ctx.strokeStyle = '#4CAF50'
+      ctx.strokeStyle = colors.ok
       ctx.lineWidth = 1.5
       ctx.beginPath(); ctx.arc(sx, sy, 4.5, 0, Math.PI * 2); ctx.stroke()
 
@@ -288,7 +334,7 @@ export function DashboardXYTrace({ runs }: Props) {
       const lastPoint = points[points.length - 1]
       if (lastPoint) {
         const [tx, ty] = toPx(lastPoint.xi ?? 0, lastPoint.yi ?? 0)
-        ctx.fillStyle = '#FF9800'; ctx.strokeStyle = '#FF9800'; ctx.lineWidth = 1.2
+        ctx.fillStyle = colors.j2; ctx.strokeStyle = colors.j2; ctx.lineWidth = 1.2
         ctx.beginPath()
         ctx.moveTo(tx, ty)
         ctx.lineTo(tx, ty - 12)
@@ -310,8 +356,8 @@ export function DashboardXYTrace({ runs }: Props) {
 
       let actualElbow: [number, number] | null = null
       let idealElbow: [number, number] | null = null
-      let actualTip: [number, number] | null = [latestPoint.xa ?? 0, latestPoint.ya ?? 0]
-      let idealTip: [number, number] | null = [latestPoint.xi ?? 0, latestPoint.yi ?? 0]
+      const actualTip: [number, number] | null = [latestPoint.xa ?? 0, latestPoint.ya ?? 0]
+      const idealTip: [number, number] | null = [latestPoint.xi ?? 0, latestPoint.yi ?? 0]
 
       const l1 = 100
       if (latestSample && latestSample.th1 !== null && latestSample.th2 !== null) {
@@ -339,23 +385,61 @@ export function DashboardXYTrace({ runs }: Props) {
         idealElbow = getIKElbow(idealTip[0], idealTip[1])
       }
 
-      // Draw Ideal Arm dashed skeleton
+      // Draw Ideal Arm dashed skeleton (Holographic translucent phantom capsules)
       if (idealElbow && idealTip) {
         const bPx = toPx(0, 0)
         const iePx = toPx(idealElbow[0], idealElbow[1])
         const itPx = toPx(idealTip[0], idealTip[1])
 
-        ctx.save()
-        ctx.lineWidth = 1.5
-        ctx.setLineDash([4, 3])
-        ctx.strokeStyle = 'rgba(33, 150, 243, 0.45)'
-        ctx.beginPath(); ctx.moveTo(bPx[0], bPx[1]); ctx.lineTo(iePx[0], iePx[1]); ctx.stroke()
-        ctx.strokeStyle = 'rgba(255, 152, 0, 0.45)'
-        ctx.beginPath(); ctx.moveTo(iePx[0], iePx[1]); ctx.lineTo(itPx[0], itPx[1]); ctx.stroke()
-        ctx.restore()
+        const drawPhantomCapsule = (
+          p1: [number, number],
+          p2: [number, number],
+          width: number,
+          fillCol: string,
+          borderCol: string
+        ) => {
+          ctx.save()
+          const dx = p2[0] - p1[0]
+          const dy = p2[1] - p1[1]
+          const len = Math.sqrt(dx * dx + dy * dy)
+          if (len > 0) {
+            const angle = Math.atan2(dy, dx)
+            
+            ctx.beginPath()
+            ctx.arc(p1[0], p1[1], width / 2, angle + Math.PI / 2, angle - Math.PI / 2)
+            ctx.arc(p2[0], p2[1], width / 2, angle - Math.PI / 2, angle + Math.PI / 2)
+            ctx.closePath()
+            
+            ctx.fillStyle = fillCol
+            ctx.fill()
+            ctx.strokeStyle = borderCol
+            ctx.lineWidth = 1.0
+            ctx.setLineDash([3, 3])
+            ctx.stroke()
+          }
+          ctx.restore()
+        }
+
+        // Link 1 (Ideal J1) - Holo Blue
+        drawPhantomCapsule(
+          bPx,
+          iePx,
+          14, // width
+          isLight ? 'rgba(37, 99, 235, 0.04)' : 'rgba(96, 165, 250, 0.08)',
+          isLight ? 'rgba(37, 99, 235, 0.35)' : 'rgba(96, 165, 250, 0.45)'
+        )
+
+        // Link 2 (Ideal J2) - Holo Orange
+        drawPhantomCapsule(
+          iePx,
+          itPx,
+          10, // width
+          isLight ? 'rgba(234, 88, 12, 0.04)' : 'rgba(251, 146, 60, 0.08)',
+          isLight ? 'rgba(234, 88, 12, 0.35)' : 'rgba(251, 146, 60, 0.45)'
+        )
       }
 
-      // Draw Actual Arm physical capsule bars
+      // Draw Actual Arm physical capsule bars (Sleek 3D-shaded metallic/carbon-style solid capsules)
       if (actualElbow && actualTip) {
         const bPx = toPx(0, 0)
         const aePx = toPx(actualElbow[0], actualElbow[1])
@@ -375,12 +459,15 @@ export function DashboardXYTrace({ runs }: Props) {
           const dy = p2[1] - p1[1]
           const len = Math.sqrt(dx * dx + dy * dy)
           if (len > 0) {
+            const ux = dx / len
+            const uy = dy / len
             const angle = Math.atan2(dy, dx)
+            
             ctx.beginPath()
             ctx.arc(p1[0], p1[1], width / 2, angle + Math.PI / 2, angle - Math.PI / 2)
             ctx.arc(p2[0], p2[1], width / 2, angle - Math.PI / 2, angle + Math.PI / 2)
             ctx.closePath()
-
+            
             ctx.fillStyle = bodyCol
             ctx.fill()
             ctx.strokeStyle = borderCol
@@ -389,7 +476,8 @@ export function DashboardXYTrace({ runs }: Props) {
 
             if (coreCol && coreWidth) {
               ctx.beginPath()
-              ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1])
+              ctx.moveTo(p1[0], p1[1])
+              ctx.lineTo(p2[0], p2[1])
               ctx.strokeStyle = coreCol
               ctx.lineWidth = coreWidth
               ctx.lineCap = 'round'
@@ -399,21 +487,52 @@ export function DashboardXYTrace({ runs }: Props) {
           ctx.restore()
         }
 
-        // Link 1 (inner arm, J1)
-        drawCapsule(bPx, aePx, 12, 'rgba(30, 30, 30, 0.75)', 'rgba(33, 150, 243, 0.3)', 'rgba(33, 150, 243, 0.85)', 2.5)
-        // Link 2 (outer arm, J2)
-        drawCapsule(aePx, atPx, 9, 'rgba(30, 30, 30, 0.75)', 'rgba(255, 152, 0, 0.3)', 'rgba(255, 152, 0, 0.85)', 1.8)
+        // Link 1 (inner arm, J1): l1 = 100mm, colored blue
+        drawCapsule(
+          bPx,
+          aePx,
+          12, // width
+          isLight ? 'rgba(240, 240, 240, 0.75)' : 'rgba(30, 30, 30, 0.75)', // body
+          hexToRgba(colors.j1, 0.3), // border
+          hexToRgba(colors.j1, 0.85), // core
+          2.5 // coreWidth
+        )
 
-        // Joint pivots
+        // Link 2 (outer arm, J2): l2 = 70mm, colored orange
+        drawCapsule(
+          aePx,
+          atPx,
+          9, // width
+          isLight ? 'rgba(240, 240, 240, 0.75)' : 'rgba(30, 30, 30, 0.75)', // body
+          hexToRgba(colors.j2, 0.3), // border
+          hexToRgba(colors.j2, 0.85), // core
+          1.8 // coreWidth
+        )
+
+        // Joint pivots (Clean concentric circles with colored outlines and centers)
         const drawJoint = (p: [number, number], r: number, color: string) => {
           ctx.save()
-          ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fillStyle = '#1C1C1C'; ctx.fill()
-          ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke()
-          ctx.beginPath(); ctx.arc(p[0], p[1], r * 0.4, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill()
+          ctx.beginPath()
+          ctx.arc(p[0], p[1], r, 0, Math.PI * 2)
+          ctx.fillStyle = colors.panel
+          ctx.fill()
+          ctx.strokeStyle = color
+          ctx.lineWidth = 1.5
+          ctx.stroke()
+          
+          ctx.beginPath()
+          ctx.arc(p[0], p[1], r * 0.4, 0, Math.PI * 2)
+          ctx.fillStyle = color
+          ctx.fill()
           ctx.restore()
         }
-        drawJoint(bPx, 6, '#2196F3')
-        drawJoint(aePx, 4.5, '#FF9800')
+
+        // Base joint (J1) - Blue
+        drawJoint(bPx, 6, colors.j1)
+        // Elbow joint (J2) - Orange
+        drawJoint(aePx, 4.5, colors.j2)
+        // End effector joint indicator (J3 / Tip) - Red/Actual
+        drawJoint(atPx, 3.5, colors.actual)
       }
     }
 
@@ -512,7 +631,7 @@ export function DashboardXYTrace({ runs }: Props) {
   return (
     <div
       className={cn(
-        "bg-hmi-panel border rounded-lg overflow-hidden flex flex-col transition-all duration-300 relative border-slate-700/60 shadow-[0_2px_12px_rgba(0,0,0,0.4)]",
+        "bg-hmi-panel border rounded-lg overflow-hidden flex flex-col transition-all duration-300 relative border-hmi-grid shadow-lg",
         isFocused ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" : "h-[320px] w-full"
       )}
     >
@@ -529,19 +648,19 @@ export function DashboardXYTrace({ runs }: Props) {
             size="sm"
             onClick={() => setShowArm(prev => !prev)}
             className={cn(
-              "h-5 px-1.5 text-[10px] border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80",
-              showArm && "bg-slate-800 text-hmi-actual border-hmi-actual/30 hover:bg-slate-800/90"
+              "h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text",
+              showArm && "bg-hmi-actual/10 text-hmi-actual border-hmi-actual/30 hover:bg-hmi-actual/15"
             )}
           >
             Arms {showArm ? 'on' : 'off'}
           </Button>
 
-          <div className="flex items-center gap-1 border-l border-slate-700/6 pl-1.5">
+          <div className="flex items-center gap-1 border-l border-hmi-grid/60 pl-1.5">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setZoom(z => Math.min(15.0, z * 1.25))}
-              className="h-5 w-5 p-0 border-slate-700/60 text-slate-300 bg-slate-900/60"
+              className="h-5 w-5 p-0 border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
             >
               <ZoomIn className="h-3 w-3" />
             </Button>
@@ -549,7 +668,7 @@ export function DashboardXYTrace({ runs }: Props) {
               variant="outline"
               size="sm"
               onClick={() => setZoom(z => Math.max(0.5, z / 1.25))}
-              className="h-5 w-5 p-0 border-slate-700/60 text-slate-300 bg-slate-900/60"
+              className="h-5 w-5 p-0 border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
             >
               <ZoomOut className="h-3 w-3" />
             </Button>
@@ -557,7 +676,7 @@ export function DashboardXYTrace({ runs }: Props) {
               variant="outline"
               size="sm"
               onClick={handleDoubleClick}
-              className="h-5 px-1.5 text-[10px] border-slate-700/60 text-slate-300 bg-slate-900/60"
+              className="h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
             >
               <RefreshCw className="h-2.5 w-2.5 mr-1" />
               Reset
@@ -568,7 +687,7 @@ export function DashboardXYTrace({ runs }: Props) {
             variant="outline"
             size="sm"
             onClick={() => setIsFocused(!isFocused)}
-            className="h-5 px-1.5 text-[10px] border-slate-700/60 text-slate-300 bg-slate-900/60"
+            className="h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
           >
             {isFocused ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
           </Button>
@@ -578,7 +697,7 @@ export function DashboardXYTrace({ runs }: Props) {
       {/* Canvas view */}
       <div className="relative flex-1 min-h-0 w-full">
         {zoom !== 1.0 && (
-          <div className="absolute top-2 left-2 bg-slate-900/80 backdrop-blur-md border border-slate-800/80 px-2 py-0.5 rounded text-[9px] font-mono text-amber-400 z-10">
+          <div className="absolute top-2 left-2 bg-hmi-panel/85 backdrop-blur-md border border-hmi-grid px-2 py-0.5 rounded text-[9px] font-mono text-hmi-text-warning z-10 shadow-md">
             {Math.round(zoom * 100)}%
           </div>
         )}
@@ -598,30 +717,30 @@ export function DashboardXYTrace({ runs }: Props) {
         />
 
         {/* Legend */}
-        <div className="absolute top-2 right-2 bg-slate-900/80 backdrop-blur-md border border-slate-800/85 p-1.5 rounded-lg shadow-lg flex flex-col gap-0.5 pointer-events-none select-none z-10">
+        <div className="absolute top-2 right-2 bg-hmi-panel/85 backdrop-blur-md border border-hmi-grid p-1.5 rounded-lg shadow-lg flex flex-col gap-0.5 pointer-events-none select-none z-10">
           <div className="flex items-center gap-1.5 text-[10px]">
             <span className="w-2.5 h-0.5 border-t border-dashed border-hmi-ideal" />
-            <span className="text-slate-300">Ideal Path</span>
+            <span className="text-hmi-text-secondary">Ideal Path</span>
           </div>
           <div className="flex items-center gap-1.5 text-[10px]">
             <span className="w-2.5 h-0.5 bg-hmi-actual" />
-            <span className="text-slate-300">Actual Path</span>
+            <span className="text-hmi-text-secondary">Actual Path</span>
           </div>
           <div className="flex items-center gap-1.5 text-[10px]">
             <span className="w-2.5 h-2.5 rounded-full border border-hmi-start flex items-center justify-center bg-transparent scale-75" />
-            <span className="text-slate-300">Start Point</span>
+            <span className="text-hmi-text-secondary">Start Point</span>
           </div>
         </div>
 
         {/* Telemetry data overlay */}
         {lastPoint && (
-          <div className="absolute bottom-2 left-2 bg-slate-900/90 border border-slate-800/80 backdrop-blur-md px-2.5 py-1 rounded-md shadow-md flex flex-col gap-0.5 pointer-events-none select-none z-10">
+          <div className="absolute bottom-2 left-2 bg-hmi-panel/90 border border-hmi-grid/80 backdrop-blur-md px-2.5 py-1 rounded-md shadow-md flex flex-col gap-0.5 pointer-events-none select-none z-10">
             <div className="grid grid-cols-2 gap-x-2 text-[10px] font-mono">
-              <span className="text-slate-500 font-sans">Ideal Endpoint:</span>
+              <span className="text-hmi-muted font-sans">Ideal Endpoint:</span>
               <span className="text-hmi-ideal text-right">{(lastPoint.xi ?? 0).toFixed(1)}, {(lastPoint.yi ?? 0).toFixed(1)}</span>
-              <span className="text-slate-500 font-sans">Actual Endpoint:</span>
+              <span className="text-hmi-muted font-sans">Actual Endpoint:</span>
               <span className="text-hmi-pwm-pos text-right">{(lastPoint.xa ?? 0).toFixed(1)}, {(lastPoint.ya ?? 0).toFixed(1)}</span>
-              <span className="text-slate-500 font-sans">End Error:</span>
+              <span className="text-hmi-muted font-sans">End Error:</span>
               <span className="text-hmi-error text-right font-semibold">{errMm ? `${errMm.toFixed(2)} mm` : '--'}</span>
             </div>
           </div>

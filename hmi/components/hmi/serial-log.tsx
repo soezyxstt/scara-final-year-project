@@ -20,7 +20,7 @@ function tagBadge(line: string) {
   if (tag === 'M') return <Badge className="bg-hmi-ideal text-white text-[9px] mr-1">MOVE</Badge>
   if (tag === 'S') return <Badge className="bg-hmi-ok text-white text-[9px] mr-1">DONE</Badge>
   if (tag === 'G') return <Badge className="bg-hmi-muted text-black text-[9px] mr-1">GAINS</Badge>
-  if (tag === 'X') return <Badge className="bg-slate-600 text-slate-200 text-[9px] mr-1">MODE</Badge>
+  if (tag === 'X') return <Badge className="bg-hmi-btn text-hmi-text-secondary text-[9px] mr-1">MODE</Badge>
   return null
 }
 
@@ -53,13 +53,13 @@ export function SerialLog() {
       isFocused ? "fixed inset-0 z-[100] m-0 rounded-none bg-hmi-bg" : "relative"
     )}>
       {/* Toolbar */}
-      <div className="flex items-center gap-1.5 px-2 py-1 border-b border-hmi-grid shrink-0 bg-slate-900/60">
+      <div className="flex items-center gap-1.5 px-2 py-1 border-b border-hmi-grid shrink-0 bg-hmi-elevated/60">
         {/* Terminal-style title */}
-        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none mr-1">
+        <span className="text-[11px] font-bold text-hmi-text-secondary uppercase tracking-wider select-none mr-1">
           Serial Monitor
         </span>
         {isFocused && (
-          <span className="text-[10px] text-slate-600 font-normal">ESC to exit</span>
+          <span className="text-[10px] text-hmi-muted font-normal">ESC to exit</span>
         )}
 
         <div className="ml-auto flex items-center gap-1.5">
@@ -114,7 +114,7 @@ export function SerialLog() {
               variant="outline"
               size="sm"
               onClick={(e) => { e.stopPropagation(); setIsFocused(f => !f) }}
-              className="h-5 px-1.5 text-[10px] text-slate-300 border-slate-700/60 hover:bg-slate-800/80"
+              className="h-5 px-1.5 text-[10px] text-hmi-text-secondary border-hmi-grid/60 hover:bg-hmi-btn"
             >
               {isFocused ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
             </Button>
@@ -125,7 +125,7 @@ export function SerialLog() {
       {/* Log lines */}
       <div className="flex-1 overflow-y-auto px-2 py-1 font-mono text-xs">
         {visibleLines.length === 0 ? (
-          <span className="text-slate-600 italic text-[11px]">
+          <span className="text-hmi-muted italic text-[11px]">
             {filtered ? 'No non-telemetry messages yet.' : 'No serial data received yet.'}
           </span>
         ) : (
@@ -134,7 +134,7 @@ export function SerialLog() {
               {tagBadge(line)}
               <span className={cn(
                 "truncate",
-                isTelemetry(line) ? "text-slate-500" : "text-[#86efac]"
+                isTelemetry(line) ? "text-hmi-muted" : "text-hmi-text-success"
               )}>
                 {line}
               </span>

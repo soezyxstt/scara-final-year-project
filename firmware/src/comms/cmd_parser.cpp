@@ -392,8 +392,8 @@ void processSerialCommand(const char *cmd_raw) {
       // Workspace check [m]
       float r2    = new_x * new_x + new_y * new_y;
       float max_r = L1 + L2;
-      float min_r = fabsf(L1 - L2);
-      if (r2 > max_r * max_r || r2 < min_r * min_r) {
+      float min_r = L_INNER;
+      if (r2 > max_r * max_r || r2 < min_r * min_r || new_y < 0.0f) {
         Serial.print("ERR: Di luar workspace. R valid: ");
         Serial.print(min_r * 1000.0f, 1); Serial.print(" – ");
         Serial.println(max_r * 1000.0f, 1);

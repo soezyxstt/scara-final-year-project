@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { SaveRunDialog } from './save-run-dialog'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { checkStraightLineTrajectory, getCurrentPosition } from '@/lib/trajectory-safety'
+import { checkStraightLineTrajectory, getCurrentPosition, calculateIntermediatePoint } from '@/lib/trajectory-safety'
+import { L_INNER, L_OUTER } from './xy-trace'
 import { ChevronDown } from 'lucide-react'
 
 type RunMode = 'run' | 'run-save'
@@ -75,7 +76,9 @@ export function RunButton() {
         body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error((await res.json()).error ?? 'Save failed')
+      const { id } = await res.json()
       toast.success(`Run "${pendingSave.name}" saved to database`, { id: toastId })
+      dispatch({ type: 'SET_LAST_SAVED_RUN_ID', runId: id })
     } catch (err) {
       toast.error(`Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`, { id: toastId })
     } finally {
@@ -104,22 +107,24 @@ export function RunButton() {
   async function executeRun(x: number, y: number) {
     // Workspace validation
     const r2 = x * x + y * y
-    if (r2 < 45 * 45 || r2 > 170 * 170 || y < 0) {
+    if (r2 < L_INNER * L_INNER || r2 > L_OUTER * L_OUTER || y < 0) {
       toast.error(`Target (${x}, ${y}) is outside the reachable workspace.`)
       return
     }
     const currentPos = getCurrentPosition(state)
-    const safety = checkStraightLineTrajectory(currentPos, { x, y }, 45, 170)
+    const safety = checkStraightLineTrajectory(currentPos, { x, y }, L_INNER, L_OUTER)
     if (!safety.isValid) {
       if (safety.reason === 'inner_violation') {
-        const minD = safety.minDistance?.toFixed(1) ?? 'unknown'
-        toast.error(`Path passes through inner dead zone (min ${minD} mm, required ≥ 45 mm).`)
+        const pInt = calculateIntermediatePoint(currentPos, { x, y }, L_INNER, L_OUTER)
+        toast.info(`Path split into L-shape via intermediate point (${pInt.x.toFixed(1)}, ${pInt.y.toFixed(1)}).`)
+        await serial.sendCommand(`move,${pInt.x.toFixed(3)},${pInt.y.toFixed(3)}`)
+        await serial.sendCommand(`move,${x.toFixed(3)},${y.toFixed(3)}`)
       } else {
         toast.error('Trajectory path is unsafe or out of bounds.')
       }
       return
     }
-    await serial.sendCommand(`move,${x},${y}`)
+    await serial.sendCommand(`move,${x.toFixed(3)},${y.toFixed(3)}`)
   }
 
   async function handleRun() {

@@ -37,6 +37,7 @@ export const runs = sqliteTable('runs', {
   gainsJson: text('gains_json'),
   paramsJson: text('params_json'),
   sampleCount: integer('sample_count'),
+  aiSuggestion: text('ai_suggestion'),
 })
 
 export const samples = sqliteTable('samples', {

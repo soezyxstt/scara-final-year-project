@@ -139,3 +139,7 @@ export async function deleteRun(id: string, userId: string) {
   await db.delete(runs).where(eq(runs.id, id))
   return true
 }
+
+export async function updateRunAiSuggestion(runId: string, aiSuggestion: string) {
+  await db.update(runs).set({ aiSuggestion }).where(eq(runs.id, runId))
+}

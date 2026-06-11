@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { checkStraightLineTrajectory, getCurrentPosition } from '@/lib/trajectory-safety'
+import { checkStraightLineTrajectory, getCurrentPosition, calculateIntermediatePoint } from '@/lib/trajectory-safety'
+import { L_INNER, L_OUTER } from './xy-trace'
 import { usePathname } from 'next/navigation'
+import { toast } from 'sonner'
 
 function StatusLED({ status }: { status: 'clean' | 'dirty' | 'waiting' | 'timeout' }) {
   let ledClass = ''
@@ -176,13 +178,13 @@ function GainField({
 
   const textClass = 
     status === 'dirty'
-      ? 'text-amber-400 font-semibold'
+      ? 'text-hmi-text-warning font-semibold'
       : status === 'waiting'
-        ? 'text-blue-400 font-semibold animate-pulse'
+        ? 'text-hmi-j1 font-semibold animate-pulse'
         : ''
 
   return (
-    <div className="flex flex-col gap-0.5 min-w-[64px]">
+    <div className="flex flex-col gap-0.5 min-w-[80px]">
       <div className="flex items-center justify-between gap-1">
         <Tooltip content={tooltip}>
           <label className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
@@ -202,7 +204,7 @@ function GainField({
         onFocus={() => setIsFocused(true)}
         onBlur={handleBlur}
         className={cn(
-          "w-16 h-7 text-xs transition-all duration-200 bg-hmi-bg",
+          "w-20 h-7 text-xs transition-all duration-200 bg-hmi-bg",
           borderClass,
           glowClass,
           textClass,
@@ -486,20 +488,17 @@ export function ControlPanel() {
     const x = parseFloat(xf), y = parseFloat(yf)
     if (!isNaN(x) && !isNaN(y)) {
       const r2 = x * x + y * y
-      if (r2 < 45 * 45 || r2 > 170 * 170 || y < 0) {
-        alert(`Move Target Rejected: Target (${x}, ${y}) is outside the reachable workspace (45 to 170 mm, Y >= 0).`)
+      if (r2 < L_INNER * L_INNER || r2 > L_OUTER * L_OUTER || y < 0) {
+        alert(`Move Target Rejected: Target (${x}, ${y}) is outside the reachable workspace (${L_INNER} to ${L_OUTER} mm, Y >= 0).`)
         return
       }
 
       const currentPos = getCurrentPosition(state)
-      const safety = checkStraightLineTrajectory(currentPos, { x, y }, 45, 170)
-      if (!safety.isValid) {
-        if (safety.reason === 'inner_violation') {
-          const minD = safety.minDistance ? safety.minDistance.toFixed(1) : 'unknown'
-          alert(`Move Target Rejected: The straight-line path passes through the inner dead zone (passes at ${minD} mm, minimum is 45.0 mm).`)
-        } else {
-          alert(`Move Target Rejected: Trajectory path is unsafe or goes out of bounds.`)
-        }
+      const safety = checkStraightLineTrajectory(currentPos, { x, y }, L_INNER, L_OUTER)
+      
+      const isAutoRoute = !safety.isValid && safety.reason === 'inner_violation'
+      if (!safety.isValid && !isAutoRoute) {
+        alert(`Move Target Rejected: Trajectory path is unsafe or goes out of bounds.`)
         return
       }
 
@@ -516,7 +515,15 @@ export function ControlPanel() {
 
       // Clear preview target on successful send
       dispatch({ type: 'SET_PREVIEW_TARGET', target: null })
-      await send(`move,${x},${y}`)
+
+      if (isAutoRoute) {
+        const pInt = calculateIntermediatePoint(currentPos, { x, y }, L_INNER, L_OUTER)
+        toast.info(`Path split into L-shape via intermediate point (${pInt.x.toFixed(1)}, ${pInt.y.toFixed(1)}).`)
+        await send(`move,${pInt.x.toFixed(3)},${pInt.y.toFixed(3)}`)
+        await send(`move,${x.toFixed(3)},${y.toFixed(3)}`)
+      } else {
+        await send(`move,${x.toFixed(3)},${y.toFixed(3)}`)
+      }
     }
   }
 
@@ -689,9 +696,9 @@ export function ControlPanel() {
 
   const xTextClass = 
     xfStatus === 'dirty'
-      ? 'text-amber-400 font-semibold'
+      ? 'text-hmi-text-warning font-semibold'
       : xfStatus === 'waiting'
-        ? 'text-blue-400 font-semibold animate-pulse'
+        ? 'text-hmi-j1 font-semibold animate-pulse'
         : ''
 
   const yBorderClass =
@@ -714,9 +721,9 @@ export function ControlPanel() {
 
   const yTextClass = 
     yfStatus === 'dirty'
-      ? 'text-amber-400 font-semibold'
+      ? 'text-hmi-text-warning font-semibold'
       : yfStatus === 'waiting'
-        ? 'text-blue-400 font-semibold animate-pulse'
+        ? 'text-hmi-j1 font-semibold animate-pulse'
         : ''
 
   const ffInertiaContainerClass = cn(
@@ -732,12 +739,12 @@ export function ControlPanel() {
 
   const ffInertiaAccentClass =
     ffInertiaStatus === 'dirty'
-      ? 'accent-amber-500'
+      ? 'accent-hmi-warn'
       : ffInertiaStatus === 'waiting'
-        ? 'accent-blue-500 animate-pulse'
+        ? 'accent-hmi-j1 animate-pulse'
         : ffInertiaStatus === 'timeout'
-          ? 'accent-red-500'
-          : 'accent-purple-500'
+          ? 'accent-hmi-estop'
+          : 'accent-hmi-text-purple'
 
   const ffCoriolisContainerClass = cn(
     "flex flex-col gap-0.5 w-24 p-1 rounded-md transition-all duration-200 border",
@@ -752,12 +759,12 @@ export function ControlPanel() {
 
   const ffCoriolisAccentClass =
     ffCoriolisStatus === 'dirty'
-      ? 'accent-amber-500'
+      ? 'accent-hmi-warn'
       : ffCoriolisStatus === 'waiting'
-        ? 'accent-blue-500 animate-pulse'
+        ? 'accent-hmi-j1 animate-pulse'
         : ffCoriolisStatus === 'timeout'
-          ? 'accent-red-500'
-          : 'accent-purple-500'
+          ? 'accent-hmi-estop'
+          : 'accent-hmi-text-purple'
 
   const ffGravityContainerClass = cn(
     "flex flex-col gap-0.5 w-24 p-1 rounded-md transition-all duration-200 border",
@@ -772,12 +779,12 @@ export function ControlPanel() {
 
   const ffGravityAccentClass =
     ffGravityStatus === 'dirty'
-      ? 'accent-amber-500'
+      ? 'accent-hmi-warn'
       : ffGravityStatus === 'waiting'
-        ? 'accent-blue-500 animate-pulse'
+        ? 'accent-hmi-j1 animate-pulse'
         : ffGravityStatus === 'timeout'
-          ? 'accent-red-500'
-          : 'accent-purple-500'
+          ? 'accent-hmi-estop'
+          : 'accent-hmi-text-purple'
 
   const mstepBorderClass =
     mstepStatus === 'timeout'
@@ -799,9 +806,9 @@ export function ControlPanel() {
 
   const mstepTextClass = 
     mstepStatus === 'dirty'
-      ? 'text-amber-400 font-semibold'
+      ? 'text-hmi-text-warning font-semibold'
       : mstepStatus === 'waiting'
-        ? 'text-blue-400 font-semibold animate-pulse'
+        ? 'text-hmi-j1 font-semibold animate-pulse'
         : ''
 
   const kpTooltip = "Proportional Gain: Determines responsiveness to current position error. Higher values speed up response but can cause overshoot."
@@ -813,13 +820,13 @@ export function ControlPanel() {
   const ffGravityTooltip = "FF Gravity Blend: Coefficient for Computed Torque Control Gravity feedforward term (0.0 to 1.0)."
 
   return (
-    <div className="border-t border-hmi-grid bg-hmi-panel px-3 py-1.5 flex flex-nowrap items-end gap-2 shrink-0 overflow-x-auto">
+    <div id="hmi-control-panel" className="border-t border-hmi-grid bg-hmi-panel px-3 py-1.5 flex flex-nowrap items-end gap-2 shrink-0 overflow-x-auto">
       {/* Move target Form — Send button moved to navbar Run button */}
       <form onSubmit={e => e.preventDefault()}>
         <fieldset className="flex items-end gap-1.5 border-l-2 border-r-2 border-hmi-grid/40 px-2 py-1 rounded-md">
           <legend className="text-[10px] font-bold text-hmi-muted px-1.5">Move target</legend>
           
-          <div className="flex flex-col gap-0.5 min-w-[64px]">
+          <div className="flex flex-col gap-0.5 min-w-[80px]">
             <div className="flex items-center justify-between gap-1">
               <Tooltip content="Target X coordinate of the end-effector (mm)">
                 <label className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
@@ -836,7 +843,7 @@ export function ControlPanel() {
               onFocus={() => setIsXFocused(true)}
               onBlur={handleXBlur}
               className={cn(
-                "w-16 h-7 text-xs transition-all duration-200 bg-hmi-bg",
+                "w-20 h-7 text-xs transition-all duration-200 bg-hmi-bg",
                 xBorderClass,
                 xGlowClass,
                 xTextClass
@@ -844,7 +851,7 @@ export function ControlPanel() {
             />
           </div>
 
-          <div className="flex flex-col gap-0.5 min-w-[64px]">
+          <div className="flex flex-col gap-0.5 min-w-[80px]">
             <div className="flex items-center justify-between gap-1">
               <Tooltip content="Target Y coordinate of the end-effector (mm)">
                 <label className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
@@ -861,7 +868,7 @@ export function ControlPanel() {
               onFocus={() => setIsYFocused(true)}
               onBlur={handleYBlur}
               className={cn(
-                "w-16 h-7 text-xs transition-all duration-200 bg-hmi-bg",
+                "w-20 h-7 text-xs transition-all duration-200 bg-hmi-bg",
                 yBorderClass,
                 yGlowClass,
                 yTextClass
@@ -914,8 +921,8 @@ export function ControlPanel() {
 
       {/* CTC Feedforward Blend Form */}
       <form onSubmit={e => { e.preventDefault(); submitFF(); }}>
-        <fieldset className="flex items-end gap-1.5 border-l-2 border-r-2 border-purple-500/30 px-2.5 py-1 rounded-md bg-purple-500/[0.02]">
-          <legend className="text-[10px] font-bold text-purple-400 px-1.5">CTC Blend</legend>
+        <fieldset className="flex items-end gap-1.5 border-l-2 border-hmi-text-purple/30 px-2.5 py-1 rounded-md bg-hmi-text-purple/[0.02]">
+          <legend className="text-[10px] font-bold text-hmi-text-purple px-1.5">CTC Blend</legend>
           
           <div className={ffInertiaContainerClass}>
             <div className="flex items-center justify-between gap-1 w-full border-b border-dotted border-hmi-muted/30">
@@ -924,7 +931,7 @@ export function ControlPanel() {
                   <span className="whitespace-nowrap">FF Inertia</span>
                   <span className={cn(
                     "font-mono font-bold ml-1 transition-colors",
-                    ffInertiaStatus === 'dirty' ? 'text-amber-400' : ffInertiaStatus === 'waiting' ? 'text-blue-400 animate-pulse' : 'text-purple-400'
+                    ffInertiaStatus === 'dirty' ? 'text-hmi-text-warning' : ffInertiaStatus === 'waiting' ? 'text-hmi-j1 animate-pulse' : 'text-hmi-text-purple'
                   )}>{parseFloat(ffInertia).toFixed(3)}</span>
                 </div>
               </Tooltip>
@@ -948,7 +955,7 @@ export function ControlPanel() {
                   <span className="whitespace-nowrap">FF Coriolis</span>
                   <span className={cn(
                     "font-mono font-bold ml-1 transition-colors",
-                    ffCoriolisStatus === 'dirty' ? 'text-amber-400' : ffCoriolisStatus === 'waiting' ? 'text-blue-400 animate-pulse' : 'text-purple-400'
+                    ffCoriolisStatus === 'dirty' ? 'text-hmi-text-warning' : ffCoriolisStatus === 'waiting' ? 'text-hmi-j1 animate-pulse' : 'text-hmi-text-purple'
                   )}>{parseFloat(ffCoriolis).toFixed(3)}</span>
                 </div>
               </Tooltip>
@@ -972,7 +979,7 @@ export function ControlPanel() {
                   <span className="whitespace-nowrap">FF Gravity</span>
                   <span className={cn(
                     "font-mono font-bold ml-1 transition-colors",
-                    ffGravityStatus === 'dirty' ? 'text-amber-400' : ffGravityStatus === 'waiting' ? 'text-blue-400 animate-pulse' : 'text-purple-400'
+                    ffGravityStatus === 'dirty' ? 'text-hmi-text-warning' : ffGravityStatus === 'waiting' ? 'text-hmi-j1 animate-pulse' : 'text-hmi-text-purple'
                   )}>{parseFloat(ffGravity).toFixed(3)}</span>
                 </div>
               </Tooltip>

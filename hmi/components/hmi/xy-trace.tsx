@@ -11,6 +11,7 @@ import type { TPoint, HMIState } from '@/lib/hmi-types'
 import { checkStraightLineTrajectory, getCurrentPosition } from '@/lib/trajectory-safety'
 import { toast } from 'sonner'
 import { downloadSingleGraph } from '@/lib/capture-utils'
+import { useTheme } from '@/components/hmi/theme-provider'
 
 export const L_OUTER = 170   // mm — outer workspace radius
 export const L_INNER = 45    // mm — inner workspace radius (dead zone)
@@ -24,20 +25,7 @@ const LM = 55, RM = 10, TM = 30, BM = 42
 const YMIN = -55, YMAX = 205  // mm
 const TICK = 50                // mm per grid division
 
-const COLORS = {
-  bg: '#09090B',
-  panel: '#111113',
-  grid: '#27272A',
-  textSecondary: '#A1A1AA',
-  j1: '#60A5FA',
-  j1Des: '#93C5FD',
-  j2: '#FB923C',
-  j2Des: '#FDBA74',
-  actual: '#F87171',
-  ok: '#22C55E',
-  warn: '#F59E0B',
-  error: '#FBBF24',
-}
+// Colors are dynamically set per theme inside drawTrace
 
 function getRobotCoords(
   canvas: HTMLCanvasElement, 
@@ -82,6 +70,50 @@ export function drawTrace(
   if (!ctx) return
   
   const currentPos = getCurrentPosition(state)
+
+  const isLight = typeof document !== 'undefined' && document.documentElement.classList.contains('light')
+
+  const getCSSColor = (varName: string, fallback: string): string => {
+    if (typeof window === 'undefined') return fallback
+    const val = window.getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
+    return val || fallback
+  }
+
+  const hexToRgba = (colorStr: string, alpha: number): string => {
+    if (colorStr.startsWith('rgba') || colorStr.startsWith('rgb')) {
+      const match = colorStr.match(/\d+/g)
+      if (match && match.length >= 3) {
+        return `rgba(${match[0]}, ${match[1]}, ${match[2]}, ${alpha})`
+      }
+    }
+    const cleanHex = colorStr.replace('#', '')
+    let r = 0, g = 0, b = 0
+    if (cleanHex.length === 3) {
+      r = parseInt(cleanHex[0] + cleanHex[0], 16)
+      g = parseInt(cleanHex[1] + cleanHex[1], 16)
+      b = parseInt(cleanHex[2] + cleanHex[2], 16)
+    } else if (cleanHex.length === 6) {
+      r = parseInt(cleanHex.substring(0, 2), 16)
+      g = parseInt(cleanHex.substring(2, 4), 16)
+      b = parseInt(cleanHex.substring(4, 6), 16)
+    }
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+
+  const COLORS = {
+    bg: getCSSColor('--hmi-bg', isLight ? '#FAFAFA' : '#141517'),
+    panel: getCSSColor('--hmi-panel', isLight ? '#FFFFFF' : '#1F2023'),
+    grid: getCSSColor('--hmi-grid', isLight ? '#E4E4E7' : '#323439'),
+    textSecondary: getCSSColor('--hmi-text-secondary', isLight ? '#52525B' : '#9F9F9F'),
+    j1: getCSSColor('--hmi-j1', isLight ? '#2563EB' : '#60A5FA'),
+    j1Des: getCSSColor('--hmi-j1-des', isLight ? '#3B82F6' : '#93C5FD'),
+    j2: getCSSColor('--hmi-j2', isLight ? '#EA580C' : '#FB923C'),
+    j2Des: getCSSColor('--hmi-j2-des', isLight ? '#F97316' : '#FDBA74'),
+    actual: getCSSColor('--hmi-actual', isLight ? '#DC2626' : '#F87171'),
+    ok: getCSSColor('--hmi-ok', isLight ? '#16A34A' : '#22C55E'),
+    warn: getCSSColor('--hmi-warn', isLight ? '#D97706' : '#F59E0B'),
+    error: getCSSColor('--hmi-error', isLight ? '#D97706' : '#FBBF24'),
+  }
   
   const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
   const W = canvas.width / dpr
@@ -120,6 +152,54 @@ export function drawTrace(
   ctx.fillStyle = COLORS.panel
   ctx.fillRect(LM, TM, plotW, plotH)
 
+  // ── Workspace: Annular Sector (r: 45–170mm, θ: 0–180°) ─────────────────
+  // Visual priority: boundary is background context. Fills are solid/distinct.
+  const outerR = L_OUTER * scale
+  const innerR = L_INNER * scale
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(LM, TM, plotW, plotH)
+  ctx.clip()
+
+  // Layer 1 — out-of-bounds zone (outside outer arc): soft warning red-tinted grey
+  ctx.fillStyle = isLight ? '#FAF0F0' : '#251919'
+  ctx.fillRect(LM, TM, plotW, plotH)
+
+  // Layer 2 — reachable annular sector: clean white or dark panel
+  ctx.fillStyle = COLORS.panel
+  ctx.beginPath()
+  ctx.arc(originPx, originPy, outerR, 0, Math.PI, true)
+  ctx.arc(originPx, originPy, innerR, Math.PI, 0, false)
+  ctx.closePath()
+  ctx.fill()
+
+  // Layer 3 — boundary arcs: thin dashed muted cyan
+  ctx.setLineDash([5, 4])
+  ctx.strokeStyle = isLight ? 'rgba(6, 182, 212, 0.45)' : 'rgba(100, 210, 220, 0.35)'
+  ctx.lineWidth = 1
+
+  // Outer arc
+  ctx.beginPath()
+  ctx.arc(originPx, originPy, outerR, 0, Math.PI, true)
+  ctx.stroke()
+
+  // Inner arc
+  ctx.beginPath()
+  ctx.arc(originPx, originPy, innerR, 0, Math.PI, true)
+  ctx.stroke()
+
+  // Radial edges at θ=0° and θ=180°
+  ctx.beginPath()
+  ctx.moveTo(originPx + innerR, originPy)
+  ctx.lineTo(originPx + outerR, originPy)
+  ctx.moveTo(originPx - innerR, originPy)
+  ctx.lineTo(originPx - outerR, originPy)
+  ctx.stroke()
+
+  ctx.setLineDash([])
+  ctx.restore() // end workspace clip
+
   // ── Dynamic Grid Spacing & Ticks ────────────────────────────────────────
   let activeTick = TICK
   if (zoom >= 4.0) {
@@ -131,7 +211,7 @@ export function drawTrace(
   }
 
   // ── Fine Dotted Grid ────────────────────────────────────────────────────
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'
+  ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)'
   ctx.lineWidth = 1
   ctx.setLineDash([2, 2])
 
@@ -152,7 +232,7 @@ export function drawTrace(
   }
 
   // ── Axis Zero Lines (Brighter, more prominent) ──────────────────────────
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)'
+  ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.22)'
   ctx.lineWidth = 1.5
   ctx.setLineDash([])
   if (originPx >= LM && originPx <= W - RM) {
@@ -178,7 +258,7 @@ export function drawTrace(
   for (let y = yStart; y <= yEnd; y += activeTick) {
     const py = toPx(0, y)[1]
     if (py < TM - 4 || py > H - BM + 4) continue
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
+    ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(LM - 4, py); ctx.lineTo(LM, py); ctx.stroke()
     ctx.fillStyle = COLORS.textSecondary
     ctx.fillText(String(y), LM - 6, py)
@@ -191,7 +271,7 @@ export function drawTrace(
     if (x === 0) continue
     const px = toPx(x, 0)[0]
     if (px < LM - 4 || px > W - RM + 4) continue
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
+    ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(px, H - BM); ctx.lineTo(px, H - BM + 4); ctx.stroke()
     ctx.fillStyle = COLORS.textSecondary
     ctx.fillText(String(x), px, H - BM + 5)
@@ -212,57 +292,10 @@ export function drawTrace(
   ctx.fillText('Y (mm)', 0, 0)
   ctx.restore()
 
-  // ── Workspace: Annular Sector (r: 45–170mm, θ: 0–180°) ─────────────────
-  // Visual priority: boundary is background context — it should be the LAST
-  // thing the eye notices. Fills are near-invisible; arcs are thin + dashed.
-  const outerR = L_OUTER * scale
-  const innerR = L_INNER * scale
-
-  ctx.save()
-  ctx.beginPath()
-  ctx.rect(LM, TM, plotW, plotH)
-  ctx.clip()
-
-  // Layer 1 — out-of-bounds zone (outside outer arc): barely-there warm tint
-  ctx.fillStyle = 'rgba(248, 113, 113, 0.04)'
-  ctx.fillRect(LM, TM, plotW, plotH)
-
-  // Layer 2 — reachable annular sector: "clear" the flood fill from within
-  ctx.fillStyle = 'rgba(9, 9, 11, 0.55)'
-  ctx.beginPath()
-  ctx.arc(originPx, originPy, outerR, 0, Math.PI, true)
-  ctx.arc(originPx, originPy, innerR, Math.PI, 0, false)
-  ctx.closePath()
-  ctx.fill()
-
-  // Layer 3 — boundary arcs: thin dashed muted cyan — recedes behind data
-  ctx.setLineDash([5, 4])
-  ctx.strokeStyle = 'rgba(100, 210, 220, 0.35)'
-  ctx.lineWidth = 1
-
-  // Outer arc
-  ctx.beginPath()
-  ctx.arc(originPx, originPy, outerR, 0, Math.PI, true)
-  ctx.stroke()
-
-  // Inner arc
-  ctx.beginPath()
-  ctx.arc(originPx, originPy, innerR, 0, Math.PI, true)
-  ctx.stroke()
-
-  // Radial edges at θ=0° and θ=180°
-  ctx.beginPath()
-  ctx.moveTo(originPx + innerR, originPy)
-  ctx.lineTo(originPx + outerR, originPy)
-  ctx.moveTo(originPx - innerR, originPy)
-  ctx.lineTo(originPx - outerR, originPy)
-  ctx.stroke()
-
-  ctx.setLineDash([])
-  ctx.restore() // end workspace clip
+  // Workspace drawing relocated before grid lines
 
   // ── Origin Marker Crosshair ───────────────────────────────────────────────
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
+  ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.15)'
   ctx.lineWidth = 1
   ctx.setLineDash([])
   ctx.beginPath()
@@ -326,31 +359,58 @@ export function drawTrace(
       ]
     }
 
-    // 1. Draw Ideal Arm (Dashed skeletal lines: J1 blue, J2 orange)
+    // 1. Draw Ideal Arm (Holographic translucent phantom capsules)
     if (idealElbow && idealTip) {
       const bPx = toPx(0, 0)
       const iePx = toPx(idealElbow[0], idealElbow[1])
       const itPx = toPx(idealTip[0], idealTip[1])
 
-      ctx.save()
-      ctx.lineWidth = 1.5
-      ctx.setLineDash([4, 3])
-      
-      // Link 1 (Ideal J1) - Blue
-      ctx.strokeStyle = 'rgba(96, 165, 250, 0.45)'
-      ctx.beginPath()
-      ctx.moveTo(bPx[0], bPx[1])
-      ctx.lineTo(iePx[0], iePx[1])
-      ctx.stroke()
+      const drawPhantomCapsule = (
+        p1: [number, number],
+        p2: [number, number],
+        width: number,
+        fillCol: string,
+        borderCol: string
+      ) => {
+        ctx.save()
+        const dx = p2[0] - p1[0]
+        const dy = p2[1] - p1[1]
+        const len = Math.sqrt(dx * dx + dy * dy)
+        if (len > 0) {
+          const angle = Math.atan2(dy, dx)
+          
+          ctx.beginPath()
+          ctx.arc(p1[0], p1[1], width / 2, angle + Math.PI / 2, angle - Math.PI / 2)
+          ctx.arc(p2[0], p2[1], width / 2, angle - Math.PI / 2, angle + Math.PI / 2)
+          ctx.closePath()
+          
+          ctx.fillStyle = fillCol
+          ctx.fill()
+          ctx.strokeStyle = borderCol
+          ctx.lineWidth = 1.0
+          ctx.setLineDash([3, 3])
+          ctx.stroke()
+        }
+        ctx.restore()
+      }
 
-      // Link 2 (Ideal J2) - Orange
-      ctx.strokeStyle = 'rgba(251, 146, 60, 0.45)'
-      ctx.beginPath()
-      ctx.moveTo(iePx[0], iePx[1])
-      ctx.lineTo(itPx[0], itPx[1])
-      ctx.stroke()
-      
-      ctx.restore()
+      // Link 1 (Ideal J1) - Holo Blue
+      drawPhantomCapsule(
+        bPx,
+        iePx,
+        14, // width
+        isLight ? 'rgba(37, 99, 235, 0.04)' : 'rgba(96, 165, 250, 0.08)',
+        isLight ? 'rgba(37, 99, 235, 0.35)' : 'rgba(96, 165, 250, 0.45)'
+      )
+
+      // Link 2 (Ideal J2) - Holo Orange
+      drawPhantomCapsule(
+        iePx,
+        itPx,
+        10, // width
+        isLight ? 'rgba(234, 88, 12, 0.04)' : 'rgba(251, 146, 60, 0.08)',
+        isLight ? 'rgba(234, 88, 12, 0.35)' : 'rgba(251, 146, 60, 0.45)'
+      )
     }
 
     // 2. Draw Actual Arm (Modern glowing semi-transparent capsule bars: J1 blue, J2 orange)
@@ -406,9 +466,9 @@ export function drawTrace(
         bPx,
         aePx,
         12, // width
-        'rgba(30, 30, 30, 0.75)', // body
-        'rgba(96, 165, 250, 0.3)', // border
-        'rgba(96, 165, 250, 0.85)', // core
+        isLight ? 'rgba(240, 240, 240, 0.75)' : 'rgba(30, 30, 30, 0.75)', // body
+        hexToRgba(COLORS.j1, 0.3), // border
+        hexToRgba(COLORS.j1, 0.85), // core
         2.5 // coreWidth
       )
 
@@ -417,13 +477,13 @@ export function drawTrace(
         aePx,
         atPx,
         9, // width
-        'rgba(30, 30, 30, 0.75)', // body
-        'rgba(251, 146, 60, 0.3)', // border
-        'rgba(251, 146, 60, 0.85)', // core
+        isLight ? 'rgba(240, 240, 240, 0.75)' : 'rgba(30, 30, 30, 0.75)', // body
+        hexToRgba(COLORS.j2, 0.3), // border
+        hexToRgba(COLORS.j2, 0.85), // core
         1.8 // coreWidth
       )
 
-      // Joint pivots
+      // Joint pivots (Clean concentric circles with colored outlines and centers)
       const drawJoint = (p: [number, number], r: number, color: string) => {
         ctx.save()
         ctx.beginPath()
@@ -445,6 +505,8 @@ export function drawTrace(
       drawJoint(bPx, 6, COLORS.j1)
       // Elbow joint (J2) - Orange
       drawJoint(aePx, 4.5, COLORS.j2)
+      // End effector joint indicator (J3 / Tip) - Red/Actual
+      drawJoint(atPx, 3.5, COLORS.actual)
     }
   }
 
@@ -532,7 +594,9 @@ export function drawTrace(
     ctx.save()
     ctx.setLineDash([4, 4])
     ctx.lineWidth = 1.8
-    ctx.strokeStyle = isPathSafe ? 'rgba(34, 197, 94, 0.65)' : 'rgba(248, 113, 113, 0.85)'
+    ctx.strokeStyle = isPathSafe 
+      ? (isLight ? 'rgba(22, 163, 74, 0.65)' : 'rgba(34, 197, 94, 0.65)') 
+      : (isLight ? 'rgba(220, 38, 38, 0.85)' : 'rgba(248, 113, 113, 0.85)')
     
     ctx.beginPath()
     ctx.moveTo(cpx, cpy)
@@ -620,7 +684,9 @@ export function drawTrace(
     const r2 = x * x + y * y
     const safety = checkStraightLineTrajectory(currentPos, hoverPoint, L_INNER, L_OUTER)
     const isPathSafe = r2 >= 45 * 45 && r2 <= 170 * 170 && y >= 0 && safety.isValid
-    const color = isPathSafe ? 'rgba(34, 197, 94, 0.7)' : 'rgba(248, 113, 113, 0.7)'
+    const color = isPathSafe 
+      ? (isLight ? 'rgba(22, 163, 74, 0.6)' : 'rgba(34, 197, 94, 0.7)') 
+      : (isLight ? 'rgba(220, 38, 38, 0.6)' : 'rgba(248, 113, 113, 0.7)')
     const textColor = isPathSafe ? COLORS.ok : COLORS.actual
     
     ctx.save()
@@ -674,6 +740,7 @@ export function drawTrace(
 
 export function XYTrace() {
   const { state, dispatch } = useHMI()
+  const { theme } = useTheme()
   const [isFocused, setIsFocused] = useState(false)
   const [showArm, setShowArm] = useState(true)
   const [ghostOpacity, setGhostOpacity] = useState(0.2)
@@ -790,7 +857,7 @@ export function XYTrace() {
     if (canvas) {
       drawTrace(canvas, stateRef.current, showArm, hoverPoint, zoom, centerX, centerY)
     }
-  }, [showArm, hoverPoint, zoom, centerX, centerY])
+  }, [showArm, hoverPoint, zoom, centerX, centerY, theme])
 
   // Event Handlers for Panning & Zooming
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -986,7 +1053,7 @@ export function XYTrace() {
       ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.2)]'
       : state.recordingState === 'IDLE'
         ? 'bg-emerald-600 text-white border border-emerald-500 font-bold shadow-[0_0_8px_rgba(16,185,129,0.2)]'
-        : 'bg-slate-800/60 text-slate-500 border border-slate-800'
+        : 'bg-hmi-btn/50 text-hmi-muted border border-hmi-grid'
   const recLabel =
     state.recordingState === 'REC'    ? '⏺ REC'
     : state.recordingState === 'IDLE' ? '⏹ IDLE'
@@ -996,9 +1063,10 @@ export function XYTrace() {
 
   return (
     <div 
+      id="hmi-xy-trace"
       className={cn(
         "bg-hmi-panel border rounded-lg overflow-hidden flex-1 min-h-0 flex flex-col transition-all duration-300 group/graph",
-        "border-slate-600/70",
+        "border-hmi-grid",
         isLive
           ? "shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_0_18px_4px_rgba(245,158,11,0.12),0_4px_20px_rgba(0,0,0,0.5)]"
           : "shadow-[0_2px_12px_rgba(0,0,0,0.4)] hover:shadow-[0_0_0_1px_rgba(33,150,243,0.2),0_4px_20px_rgba(0,0,0,0.5)]",
@@ -1007,10 +1075,9 @@ export function XYTrace() {
           : "relative"
       )}
     >
-      {/* Panel Header */}
       <div className={cn(
         "flex items-center justify-between border-b shrink-0 bg-hmi-panel",
-        isLive ? "border-amber-500/30" : "border-slate-600/50",
+        isLive ? "border-amber-500/30" : "border-hmi-grid/50",
         isFocused ? "mb-4 pb-3 px-2 pt-1" : "px-4 py-2.5"
       )}>
         <div className="flex items-center gap-2.5">
@@ -1027,7 +1094,7 @@ export function XYTrace() {
                   isLive ? "bg-amber-500 animate-pulse" : "bg-hmi-ideal/60"
                 )}
               />
-              <p className="text-sm font-semibold text-slate-200 tracking-wide">XY Trace</p>
+              <p className="text-sm font-semibold text-hmi-text tracking-wide">XY Trace</p>
             </div>
           )}
           <Tooltip 
@@ -1052,11 +1119,12 @@ export function XYTrace() {
         <div className="flex items-center gap-1.5">
           <Tooltip content={isPicking ? "Cancel: Exit target coordinate selection mode." : "Pick Point: Click a point on the workspace graph to set it as target coordinates."} align="center">
             <Button 
+              id="hmi-pick-point-button"
               variant="outline" 
               size="sm" 
               onClick={(e) => { e.stopPropagation(); setIsPicking(prev => !prev); if (isPicking) setHoverPoint(null); }} 
               className={cn(
-                "h-5 px-1.5 text-[10px] border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80", 
+                "h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text", 
                 isPicking && "bg-amber-500 text-slate-950 font-bold border-amber-400 hover:bg-amber-400 hover:text-slate-950 shadow-[0_0_8px_rgba(245,158,11,0.3)]"
               )}
             >
@@ -1070,8 +1138,8 @@ export function XYTrace() {
               size="sm" 
               onClick={(e) => { e.stopPropagation(); dispatch({ type: 'TOGGLE_GHOST' }); }} 
               className={cn(
-                "h-5 px-1.5 text-[10px] border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80", 
-                state.showGhost && "bg-slate-800 text-hmi-ideal border-hmi-ideal/30 hover:bg-slate-800/90"
+                "h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text", 
+                state.showGhost && "bg-hmi-btn-hover text-hmi-ideal border-hmi-ideal/30 hover:bg-hmi-btn-hover/90"
               )}
             >
               Ghost {state.showGhost ? 'on' : 'off'}
@@ -1083,8 +1151,8 @@ export function XYTrace() {
               size="sm" 
               onClick={(e) => { e.stopPropagation(); setShowArm(prev => !prev); }} 
               className={cn(
-                "h-5 px-1.5 text-[10px] border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80", 
-                showArm && "bg-slate-800 text-hmi-actual border-hmi-actual/30 hover:bg-slate-800/90"
+                "h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text", 
+                showArm && "bg-hmi-btn-hover text-hmi-actual border-hmi-actual/30 hover:bg-hmi-btn-hover/90"
               )}
             >
               Arms {showArm ? 'on' : 'off'}
@@ -1092,7 +1160,7 @@ export function XYTrace() {
           </Tooltip>
 
           {/* Zoom & Reset Controls */}
-          <div className="flex items-center gap-1 border-l border-slate-700/60 pl-1.5 mr-0.5">
+          <div className="flex items-center gap-1 border-l border-hmi-grid/60 pl-1.5 mr-0.5">
             <Tooltip content="Zoom In" align="center">
               <Button 
                 variant="outline" 
@@ -1106,7 +1174,7 @@ export function XYTrace() {
                     drawTrace(canvas, stateRef.current, showArmRef.current, null, nextZoom, centerXRef.current, centerYRef.current)
                   }
                 }} 
-                className="h-5 w-5 p-0 border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80"
+                className="h-5 w-5 p-0 border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
               >
                 <ZoomIn className="h-3 w-3" />
               </Button>
@@ -1124,7 +1192,7 @@ export function XYTrace() {
                     drawTrace(canvas, stateRef.current, showArmRef.current, null, nextZoom, centerXRef.current, centerYRef.current)
                   }
                 }} 
-                className="h-5 w-5 p-0 border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80"
+                className="h-5 w-5 p-0 border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
               >
                 <ZoomOut className="h-3 w-3" />
               </Button>
@@ -1144,8 +1212,8 @@ export function XYTrace() {
                   }
                 }} 
                 className={cn(
-                  "h-5 px-1 text-[10px] border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80",
-                  (zoom !== 1.0 || centerX !== 0 || centerY !== 75) && "text-amber-400 border-amber-500/30 bg-slate-800/50"
+                  "h-5 px-1 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text",
+                  (zoom !== 1.0 || centerX !== 0 || centerY !== 75) && "text-amber-500 border-amber-500/30 bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30 dark:bg-amber-950/20"
                 )}
               >
                 <RefreshCw className="h-2.5 w-2.5 mr-1" />
@@ -1159,7 +1227,7 @@ export function XYTrace() {
               variant="outline"
               size="sm"
               onClick={(e) => { e.stopPropagation(); setIsFocused(!isFocused); }}
-              className="h-5 px-1.5 text-[10px] border-slate-700/60 text-slate-300 bg-slate-900/60 hover:bg-slate-800/80"
+              className="h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
             >
               {isFocused ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
             </Button>
@@ -1171,7 +1239,7 @@ export function XYTrace() {
       <div className="relative flex-1 min-h-0 w-full">
         {/* Zoom Indicator badge — top-left */}
         {zoom !== 1.0 && (
-          <div className="absolute top-2 left-2 bg-slate-900/80 backdrop-blur-md border border-slate-800/80 px-2 py-1 rounded text-[10px] font-mono text-amber-400 shadow-md pointer-events-none select-none z-10">
+          <div className="absolute top-2 left-2 bg-hmi-panel/90 backdrop-blur-md border border-hmi-grid/80 px-2 py-1 rounded text-[10px] font-mono text-amber-600 dark:text-amber-400 shadow-md pointer-events-none select-none z-10">
             Zoom: {Math.round(zoom * 100)}%
           </div>
         )}
@@ -1204,14 +1272,14 @@ export function XYTrace() {
         )}
 
         {/* Vector HTML Legend Overlay */}
-        <div className="absolute top-2 right-2 bg-slate-900/70 backdrop-blur-md border border-slate-800/85 p-2 rounded-lg shadow-lg flex flex-col gap-1 min-w-[95px] pointer-events-none select-none z-10">
+        <div className="absolute top-2 right-2 bg-hmi-panel/85 backdrop-blur-md border border-hmi-grid p-2 rounded-lg shadow-lg flex flex-col gap-1 min-w-[95px] pointer-events-none select-none z-10">
           <div className="flex items-center gap-2 text-xs">
             <span className="w-3.5 h-0.5 border-t-2 border-dashed border-hmi-ideal" />
-            <span className="text-slate-300 font-medium">Ideal Path</span>
+            <span className="text-hmi-text font-medium text-[11px]">Ideal Path</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
             <span className="w-3.5 h-0.5 bg-hmi-actual" />
-            <span className="text-slate-300 font-medium">Actual Path</span>
+            <span className="text-hmi-text font-medium text-[11px]">Actual Path</span>
           </div>
           {showArm && (
             <div className="flex items-center gap-2 text-xs">
@@ -1224,59 +1292,59 @@ export function XYTrace() {
                   <span className="absolute inset-x-0 h-0.5 bg-orange-500" />
                 </span>
               </div>
-              <span className="text-slate-300 font-medium">Arm Links</span>
+              <span className="text-hmi-text font-medium text-[11px]">Arm Links</span>
             </div>
           )}
           <div className="flex items-center gap-2 text-xs">
             <span className="w-3.5 h-3.5 rounded-full border-2 border-hmi-start flex items-center justify-center bg-transparent scale-75" />
-            <span className="text-slate-300 font-medium">Start Point</span>
+            <span className="text-hmi-text font-medium text-[11px]">Start Point</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
             <svg className="w-3 h-4 text-hmi-target" viewBox="0 0 9 14" fill="none">
               <line x1="1" y1="0" x2="1" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               <path d="M1 0 L9 3.5 L1 7 Z" fill="currentColor" />
             </svg>
-            <span className="text-slate-300 font-medium">Target</span>
+            <span className="text-hmi-text font-medium text-[11px]">Target</span>
           </div>
         </div>
 
         {/* Glassmorphic Stats telemetry overlay — bottom-left */}
         <div className={cn(
-          "absolute bottom-3 left-16 font-sans text-xs text-slate-300 backdrop-blur-md px-3 py-2 rounded-lg shadow-lg flex flex-col gap-1.5 min-w-[190px] z-10 transition-all duration-500",
+          "absolute bottom-3 left-16 font-sans text-xs text-hmi-text backdrop-blur-md px-3 py-2 rounded-lg shadow-lg flex flex-col gap-1.5 min-w-[190px] z-10 transition-all duration-500",
           isLive
-            ? "bg-slate-900/85 border border-amber-500/30 shadow-[0_0_12px_2px_rgba(245,158,11,0.08)]"
-            : "bg-slate-900/80 border border-slate-800/80"
+            ? "bg-hmi-panel/90 border border-amber-500/30 shadow-[0_0_12px_2px_rgba(245,158,11,0.08)]"
+            : "bg-hmi-panel/85 border border-hmi-grid/80"
         )}>
-          <div className="flex justify-between items-center border-b border-slate-700/60 pb-1 mb-0.5">
+          <div className="flex justify-between items-center border-b border-hmi-grid/55 pb-1 mb-0.5">
             <div className="flex items-center gap-1.5">
               <span className={cn(
                 "w-1.5 h-1.5 rounded-full shrink-0",
-                isLive ? "bg-amber-500 animate-pulse" : "bg-slate-600"
+                isLive ? "bg-amber-500 animate-pulse" : "bg-hmi-muted"
               )} />
-              <span className="font-bold text-slate-300 text-[11px] uppercase tracking-wider">Telemetry</span>
+              <span className="font-bold text-hmi-text text-[11px] uppercase tracking-wider">Telemetry</span>
             </div>
-            <span className="text-[10px] bg-slate-800/80 px-1.5 py-0.5 rounded text-slate-400 font-normal">Move {state.moveCount}</span>
+            <span className="text-[10px] bg-hmi-elevated px-1.5 py-0.5 rounded text-hmi-text-secondary font-normal">Move {state.moveCount}</span>
           </div>
           {last ? (
             <div className="grid grid-cols-2 gap-x-2 gap-y-1 font-mono text-[11px]">
-              <span className="text-slate-500 font-sans text-left">Ideal X/Y:</span>
+              <span className="text-hmi-muted font-sans text-left">Ideal X/Y:</span>
               <span className="text-hmi-ideal text-right font-medium">{last.xi.toFixed(1)}, {last.yi.toFixed(1)}</span>
-              <span className="text-slate-500 font-sans text-left">Actual X/Y:</span>
+              <span className="text-hmi-muted font-sans text-left">Actual X/Y:</span>
               <span className="text-hmi-pwm-pos text-right font-medium">{last.xa.toFixed(1)}, {last.ya.toFixed(1)}</span>
-              <span className="text-slate-500 font-sans text-left">Deviation:</span>
+              <span className="text-hmi-muted font-sans text-left">Deviation:</span>
               <span className="text-hmi-error font-bold text-right">{errMm ? `${errMm.toFixed(2)} mm` : '--'}</span>
             </div>
           ) : state.bootPose ? (
             <div className="grid grid-cols-2 gap-x-2 gap-y-1 font-mono text-[11px]">
-              <span className="text-slate-500 font-sans text-left">Ideal X/Y:</span>
+              <span className="text-hmi-muted font-sans text-left">Ideal X/Y:</span>
               <span className="text-hmi-ideal text-right font-medium">{state.bootPose.x.toFixed(1)}, {state.bootPose.y.toFixed(1)}</span>
-              <span className="text-slate-500 font-sans text-left">Actual X/Y:</span>
+              <span className="text-hmi-muted font-sans text-left">Actual X/Y:</span>
               <span className="text-hmi-pwm-pos text-right font-medium">{state.bootPose.x.toFixed(1)}, {state.bootPose.y.toFixed(1)}</span>
-              <span className="text-slate-500 font-sans text-left">Deviation:</span>
+              <span className="text-hmi-muted font-sans text-left">Deviation:</span>
               <span className="text-hmi-error font-bold text-right">0.00 mm</span>
             </div>
           ) : (
-            <div className="text-slate-500 text-[11px] py-0.5 text-center font-sans">No active trajectory</div>
+            <div className="text-hmi-muted text-[11px] py-0.5 text-center font-sans">No active trajectory</div>
           )}
         </div>
       </div>

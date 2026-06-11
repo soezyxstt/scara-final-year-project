@@ -267,6 +267,7 @@ function buildInitialState(): HMIState {
     targetInputX: null,
     targetInputY: null,
     pendingSave: null,
+    lastSavedRunId: null,
   }
 }
 
@@ -308,6 +309,7 @@ function reducer(state: HMIState, action: HMIAction): HMIState {
         eBuffer: [],
         stats: null,
         previewTarget: null,
+        lastSavedRunId: null,
       }
     }
     case 'MOVE_END': {
@@ -486,6 +488,11 @@ function reducer(state: HMIState, action: HMIAction): HMIState {
       return {
         ...state,
         pendingSave: null,
+      }
+    case 'SET_LAST_SAVED_RUN_ID':
+      return {
+        ...state,
+        lastSavedRunId: action.runId,
       }
     default:
       return state
@@ -1059,8 +1066,13 @@ export function HMIProvider({ children }: { children: ReactNode }) {
     state.prevTBuffer,
     state.frozenD,
     state.frozenT,
+    state.frozenF,
+    state.frozenE,
     state.stats,
     state.gains,
+    state.params,
+    state.hasSyncedParams,
+    state.queueStatus,
     state.logLines,
     state.moveCount,
     state.recordingState,

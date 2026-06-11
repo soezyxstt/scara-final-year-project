@@ -37,9 +37,14 @@ export interface ChartCardProps {
 }
 
 const CHART_STYLE = {
-  grid: 'rgba(255,255,255,0.05)',
-  axis: '#6B7280',
-  tooltip: { backgroundColor: 'rgba(17,24,39,0.95)', border: '1px solid #2E2E2E', borderRadius: 6 },
+  grid: 'var(--color-hmi-grid-subtle)',
+  axis: 'var(--color-hmi-text-secondary)',
+  tooltip: { 
+    backgroundColor: 'var(--color-hmi-elevated)', 
+    border: '1px solid var(--color-hmi-grid)', 
+    borderRadius: 6,
+    color: 'var(--color-hmi-text)',
+  },
 }
 
 function computeStats(data: Record<string, number | null | undefined>[], key: string) {
@@ -171,7 +176,7 @@ export function ChartCard({
             σ stats
           </button>
           <button
-            className="text-[10px] p-1 rounded border border-hmi-grid text-hmi-muted hover:text-hmi-text hover:bg-slate-850 flex items-center justify-center h-6 w-6"
+            className="text-[10px] p-1 rounded border border-hmi-grid text-hmi-muted hover:text-hmi-text hover:bg-hmi-btn flex items-center justify-center h-6 w-6"
             onClick={() => setIsFocused(f => !f)}
             title={isFocused ? "Collapse Chart" : "Expand Chart"}
           >
@@ -302,8 +307,8 @@ export function ChartCard({
             <Brush
               dataKey={xKey}
               height={18}
-              stroke="#2E2E2E"
-              fill="#1C1C1C"
+              stroke="var(--color-hmi-grid)"
+              fill="var(--color-hmi-bg)"
               tickFormatter={formatX}
               travellerWidth={6}
               onChange={(domain) => {

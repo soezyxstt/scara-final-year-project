@@ -10,6 +10,7 @@ import { saveRun } from '@/app/actions/experiment'
 import { Play, Square, ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
+import { ThemeToggle } from '@/components/hmi/theme-toggle'
 
 type State = 'idle' | 'waiting_for_ready' | 'positioning' | 'running' | 'cooldown' | 'complete'
 
@@ -1024,6 +1025,7 @@ export function ExperimentClient() {
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <CommandPaletteTrigger />
             <Badge className={`${online ? 'bg-hmi-ok text-white' : 'bg-hmi-off text-hmi-muted'} text-[10px] px-1.5 py-0 font-normal`}>
               {online ? '● Online' : '○ Offline'}

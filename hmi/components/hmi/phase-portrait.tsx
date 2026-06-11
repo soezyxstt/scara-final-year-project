@@ -16,23 +16,23 @@ import {
   Legend,
 } from 'recharts'
 
-const GRID = 'rgba(255, 255, 255, 0.05)'
+const GRID = 'var(--color-hmi-grid-subtle)'
 const AXIS_TICK = {
-  fill: '#9CA3AF',
+  fill: 'var(--color-hmi-text-secondary)',
   fontSize: 11,
   fontFamily: 'var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif',
   fontWeight: 500,
 }
-const AXIS_LINE = { stroke: '#1F2937' } // Matches --color-hmi-grid
+const AXIS_LINE = { stroke: 'var(--color-hmi-grid)' }
 const TOOLTIP_STYLE = {
-  backgroundColor: 'rgba(17, 24, 39, 0.9)',
+  backgroundColor: 'var(--color-hmi-elevated)',
   backdropFilter: 'blur(8px)',
-  border: '1px solid #1F2937',
+  border: '1px solid var(--color-hmi-grid)',
   borderRadius: '6px',
-  color: '#F3F4F6',
+  color: 'var(--color-hmi-text)',
   fontFamily: 'var(--font-geist-sans), sans-serif',
   fontSize: '12px',
-  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
 }
 
 function downsample<T>(arr: T[], max: number): T[] {
@@ -84,7 +84,7 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
           value: 'θ (rad)', 
           position: 'insideBottom', 
           offset: -3, 
-          fill: '#9CA3AF', 
+          fill: 'var(--color-hmi-text-secondary)', 
           fontSize: 11,
           fontFamily: 'var(--font-geist-sans), sans-serif',
           fontWeight: 600
@@ -102,7 +102,7 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
           angle: -90, 
           position: 'insideLeft', 
           offset: 8, 
-          fill: '#9CA3AF', 
+          fill: 'var(--color-hmi-text-secondary)', 
           fontSize: 11,
           fontFamily: 'var(--font-geist-sans), sans-serif',
           fontWeight: 600
@@ -164,7 +164,7 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
           <Button
             variant="outline"
             size="sm"
-            className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+            className="flex items-center gap-1 bg-hmi-btn/60 hover:bg-hmi-btn-hover/80 border-hmi-grid/60 text-hmi-text-secondary h-8"
             onClick={(e) => {
               e.stopPropagation()
               setIsFocused(false)
@@ -175,13 +175,13 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
           </Button>
         </div>
       ) : (
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 px-1">Phase Portrait (θ vs θ̇)</p>
+        <p className="text-xs font-bold text-hmi-text-secondary uppercase tracking-wider mb-1 px-1">Phase Portrait (θ vs θ̇)</p>
       )}
 
       {/* Maximize button overlay (visible on hover) */}
       {!isFocused && (
         <button
-          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-slate-900/80 border border-slate-800 hover:bg-slate-800 hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-hmi-panel/80 border border-hmi-grid hover:bg-hmi-btn hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation()
             setIsFocused(true)

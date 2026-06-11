@@ -9,12 +9,14 @@ import { PidTab } from '@/components/dashboard/pid-tab'
 import { FeedforwardTab } from '@/components/dashboard/feedforward-tab'
 import { MetricsTab } from '@/components/dashboard/metrics-tab'
 import { AdvancedTab } from '@/components/dashboard/advanced-tab'
+import { CopilotTab } from '@/components/dashboard/copilot-tab'
 import type { Run, Sample, TrajectoryPoint } from '@/lib/db/schema'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
+import { ThemeToggle } from '@/components/hmi/theme-toggle'
 
-type TabId = 'trajectory' | 'velocity' | 'pid' | 'feedforward' | 'metrics' | 'advanced'
+type TabId = 'trajectory' | 'velocity' | 'pid' | 'feedforward' | 'metrics' | 'advanced' | 'copilot'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'trajectory', label: 'Trajectory' },
@@ -23,6 +25,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'feedforward', label: 'Feedforward' },
   { id: 'metrics', label: 'Metrics' },
   { id: 'advanced', label: 'Advanced' },
+  { id: 'copilot', label: '🤖 AI Copilot' },
 ]
 
 interface LoadedRun {
@@ -183,6 +186,7 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
 
           {/* Tab nav */}
           <div className="ml-auto flex items-center gap-4 h-full">
+            <ThemeToggle />
             <CommandPaletteTrigger />
             <nav className="flex h-12">
               {TABS.map(t => (
@@ -213,6 +217,27 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
             <MetricsTab runs={activeRunData.map(r => ({ run: r.run, color: r.color }))} />
           )}
           {tab === 'advanced' && <AdvancedTab runs={activeRunData} />}
+          {tab === 'copilot' && (
+            <CopilotTab
+              runs={activeRunData}
+              onUpdateRunSuggestion={(runId, suggestion) => {
+                setLoadedData(prev => {
+                  const runObj = prev[runId]
+                  if (!runObj) return prev
+                  return {
+                    ...prev,
+                    [runId]: {
+                      ...runObj,
+                      run: {
+                        ...runObj.run,
+                        aiSuggestion: suggestion
+                      }
+                    }
+                  }
+                })
+              }}
+            />
+          )}
         </div>
       </div>
     </div>

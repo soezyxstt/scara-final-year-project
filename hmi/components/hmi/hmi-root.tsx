@@ -6,6 +6,7 @@ import { MonitorTab } from './monitor-tab'
 import { ReadmeTab } from './readme-tab'
 import { AnalysisTab } from './analysis-tab'
 import { ZNAnalysisTab } from './zn-analysis-tab'
+import { HMITutorial } from './hmi-tutorial'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
@@ -18,6 +19,7 @@ import { ModeBadge } from '@/components/mode-badge'
 import { SerialMonitorButton, SerialTerminalSheet } from './serial-terminal'
 import { RunButton } from './run-button'
 import { CommandPaletteTrigger } from './command-palette'
+import { ThemeToggle } from './theme-toggle'
 
 
 type TopTab = 'monitor' | 'analysis' | 'rest' | 'readme'
@@ -102,6 +104,7 @@ function HMIShell() {
         </nav>
 
         <div className="flex items-center gap-2 ml-auto">
+          <ThemeToggle />
           <CommandPaletteTrigger />
           <ModeBadge />
           <Tooltip content="Network Status: Indicates if the web page is currently connected to the network." align="right">
@@ -112,13 +115,13 @@ function HMIShell() {
 
           {serialStatus === 'connected' ? (
             <Tooltip content="Disconnect: Closes the serial communication channel." align="right">
-              <Button variant="outline" size="sm" onClick={() => serial.disconnect()}>
+              <Button id="hmi-connect-button" variant="outline" size="sm" onClick={() => serial.disconnect()}>
                 Disconnect
               </Button>
             </Tooltip>
           ) : (
             <Tooltip content="Connect: Opens the serial communication channel using the Web Serial API." align="right">
-              <Button variant="outline" size="sm" onClick={() => serial.connect()}>
+              <Button id="hmi-connect-button" variant="outline" size="sm" onClick={() => serial.connect()}>
                 Connect
               </Button>
             </Tooltip>
@@ -127,6 +130,7 @@ function HMIShell() {
           <RunButton />
 
           <SerialMonitorButton
+            id="hmi-serial-button"
             open={serialLogOpen}
             onToggle={() => setSerialLogOpen(v => !v)}
             serialConnected={serialStatus === 'connected'}
@@ -134,13 +138,13 @@ function HMIShell() {
 
           {estopped ? (
             <Tooltip content="RESUME: Clears the E-STOP state and re-enables motor outputs." align="right">
-              <Button variant="resume" size="sm" className="animate-pulse" onClick={() => serial.sendCommand('resume')}>
+              <Button id="hmi-estop-button" variant="resume" size="sm" className="animate-pulse" onClick={() => serial.sendCommand('resume')}>
                 🔄 RESUME
               </Button>
             </Tooltip>
           ) : (
             <Tooltip content="EMERGENCY STOP: Instantly halts all trajectory movements and cuts power to the joint motors." align="right">
-              <Button variant="estop" size="sm" onClick={() => serial.sendCommand('estop')}>
+              <Button id="hmi-estop-button" variant="estop" size="sm" onClick={() => serial.sendCommand('estop')}>
                 🛑 Stop
               </Button>
             </Tooltip>
@@ -170,6 +174,9 @@ function HMIShell() {
           <ReadmeTab />
         </div>
       )}
+
+      {/* Onboarding Guide Overlay */}
+      <HMITutorial />
 
     </div>
   )

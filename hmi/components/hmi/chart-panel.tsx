@@ -90,16 +90,36 @@ function computeEEFVelocityJacobian(dBuf: DSample[], max = 500) {
 // ── Pure chart components for PID / J1 Ctrl / J2 Vel tabs ──────────────────
 // All read their own data via useHMISlow so they plug in exactly like CTEChart etc.
 
-function ChartEmpty({ msg }: { msg: string }) {
+export function ChartContainer({
+  isEmpty,
+  msg,
+  children,
+}: {
+  isEmpty: boolean
+  msg?: string
+  children: React.ReactNode
+}) {
   return (
-    <div className="flex items-center justify-center h-full text-hmi-muted text-xs font-semibold uppercase tracking-wider">
-      {msg}
+    <div className="relative w-full h-full min-h-[160px]">
+      {isEmpty && msg && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <span className="text-xs font-semibold text-hmi-muted uppercase tracking-wider select-none">
+            {msg}
+          </span>
+        </div>
+      )}
+      {children}
     </div>
   )
 }
 
 export function PIDChart() {
   const { state } = useHMISlow()
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
   const data = useMemo(() => {
     if (!state.frozenE || state.frozenE.length === 0) return []
     const firstT = state.frozenE[0].t
@@ -111,25 +131,31 @@ export function PIDChart() {
     })), 500)
   }, [state.frozenE])
 
-  if (data.length === 0) return <ChartEmpty msg="No PID telemetry — run a move to capture data" />
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={MARGIN}>
-        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={v => typeof v === 'number' ? v.toFixed(2) : v} />
-        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Output')} width={56} />
-        <Tooltip contentStyle={TS} formatter={v => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l} allowEscapeViewBox={{ x: false, y: false }} />
-        <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px' }} />
-        <Line type="linear" dataKey="p1_out" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="P Out" />
-        <Line type="linear" dataKey="i1_out" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="I Out" />
-        <Line type="linear" dataKey="d1_out" stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="D Out" />
-      </LineChart>
-    </ResponsiveContainer>
+    <ChartContainer isEmpty={data.length === 0} msg="No PID telemetry — run a move to capture data">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={MARGIN}>
+          <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+          <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={v => typeof v === 'number' ? v.toFixed(2) : v} />
+          <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Output')} width={56} />
+          <Tooltip contentStyle={TS} formatter={v => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l} allowEscapeViewBox={{ x: false, y: false }} />
+          <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
+          <Line type="linear" dataKey="p1_out" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="P Out" hide={!!hidden.p1_out} />
+          <Line type="linear" dataKey="i1_out" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="I Out" hide={!!hidden.i1_out} />
+          <Line type="linear" dataKey="d1_out" stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="D Out" hide={!!hidden.d1_out} />
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartContainer>
   )
 }
 
 export function J1CtrlChart() {
   const { state } = useHMISlow()
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
   const u1max = state.params?.u1max ?? 1
   const pwmDb = state.params?.pwmDb ?? 68
   const data = useMemo(() => {
@@ -182,31 +208,37 @@ export function J1CtrlChart() {
     return ds
   }, [state.frozenD, state.frozenF, u1max, pwmDb])
 
-  if (data.length === 0) return <ChartEmpty msg="No J1 control telemetry — run a move to capture data (requires updated firmware)" />
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={MARGIN}>
-        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={v => typeof v === 'number' ? v.toFixed(2) : v} />
-        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Fraction of max')} width={56} />
-        <Tooltip
-          contentStyle={TS}
-          formatter={v => typeof v === 'number' ? v.toFixed(4) : v}
-          labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l}
-          allowEscapeViewBox={{ x: false, y: false }}
-        />
-        <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px' }} />
-        <Line type="linear" dataKey="u1_total"          stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="u1_total / u1max" />
-        <Line type="linear" dataKey="u1_total_smoothed" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="u1_total / u1max (smoothed)" strokeDasharray="6 4" />
-        <Line type="linear" dataKey="ff1_contrib"       stroke="var(--color-hmi-ideal)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="FF Contribution" strokeDasharray="3 3" />
-        <Line type="linear" dataKey="pwm1_adj"          stroke="var(--color-hmi-j1)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="PWM / 255" connectNulls={false} opacity={0.75} />
-      </LineChart>
-    </ResponsiveContainer>
+    <ChartContainer isEmpty={data.length === 0} msg="No J1 control telemetry — run a move to capture data (requires updated firmware)">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={MARGIN}>
+          <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+          <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={v => typeof v === 'number' ? v.toFixed(2) : v} />
+          <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Fraction of max')} width={56} />
+          <Tooltip
+            contentStyle={TS}
+            formatter={v => typeof v === 'number' ? v.toFixed(4) : v}
+            labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l}
+            allowEscapeViewBox={{ x: false, y: false }}
+          />
+          <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
+          <Line type="linear" dataKey="u1_total"          stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="u1_total / u1max" hide={!!hidden.u1_total} />
+          <Line type="linear" dataKey="u1_total_smoothed" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="u1_total / u1max (smoothed)" strokeDasharray="6 4" hide={!!hidden.u1_total_smoothed} />
+          <Line type="linear" dataKey="ff1_contrib"       stroke="var(--color-hmi-ideal)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="FF Contribution" strokeDasharray="3 3" hide={!!hidden.ff1_contrib} />
+          <Line type="linear" dataKey="pwm1_adj"          stroke="var(--color-hmi-j1)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="PWM / 255" connectNulls={false} opacity={0.75} hide={!!hidden.pwm1_adj} />
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartContainer>
   )
 }
 
 export function J2VelChart() {
   const { state } = useHMISlow()
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
   const kp2 = state.gains?.kp2 ?? 0
   const kd2 = state.gains?.kd2 ?? 0
   const data = useMemo(() => {
@@ -230,22 +262,23 @@ export function J2VelChart() {
     }), 500)
   }, [state.frozenF, state.frozenD, kp2, kd2])
 
-  if (data.length === 0) return <ChartEmpty msg="No J2 velocity telemetry — run a move to capture data" />
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={MARGIN}>
-        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={v => typeof v === 'number' ? v.toFixed(2) : v} />
-        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Velocity (rad/s)')} width={60} />
-        <Tooltip contentStyle={TS} formatter={v => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l} allowEscapeViewBox={{ x: false, y: false }} />
-        <Legend verticalAlign="top" align="left" height={24} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px' }} />
-        <Line type="linear" dataKey="omega2_raw"     stroke="var(--color-hmi-j2)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total ω2 Command" />
-        <Line type="linear" dataKey="p_out"          stroke="var(--color-hmi-j1)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 P Out" />
-        <Line type="linear" dataKey="d_out"          stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 D Out" />
-        <Line type="linear" dataKey="integral2"      stroke="var(--color-hmi-error)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 I Out" strokeDasharray="4 2" />
-        <Line type="linear" dataKey="delta_omega_ff" stroke="var(--color-hmi-ideal)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 FF Contrib" strokeDasharray="3 3" />
-      </LineChart>
-    </ResponsiveContainer>
+    <ChartContainer isEmpty={data.length === 0} msg="No J2 velocity telemetry — run a move to capture data">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={MARGIN}>
+          <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+          <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (s)')} tickFormatter={v => typeof v === 'number' ? v.toFixed(2) : v} />
+          <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Velocity (rad/s)')} width={60} />
+          <Tooltip contentStyle={TS} formatter={v => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={l => typeof l === 'number' ? `${l.toFixed(3)} s` : l} allowEscapeViewBox={{ x: false, y: false }} />
+          <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
+          <Line type="linear" dataKey="omega2_raw"     stroke="var(--color-hmi-j2)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total ω2 Command" hide={!!hidden.omega2_raw} />
+          <Line type="linear" dataKey="p_out"          stroke="var(--color-hmi-j1)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 P Out" hide={!!hidden.p_out} />
+          <Line type="linear" dataKey="d_out"          stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 D Out" hide={!!hidden.d_out} />
+          <Line type="linear" dataKey="integral2"      stroke="var(--color-hmi-error)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 I Out" strokeDasharray="4 2" hide={!!hidden.integral2} />
+          <Line type="linear" dataKey="delta_omega_ff" stroke="var(--color-hmi-ideal)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="J2 FF Contrib" strokeDasharray="3 3" hide={!!hidden.delta_omega_ff} />
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartContainer>
   )
 }
 
@@ -308,7 +341,7 @@ export function MetricsPanel() {
     },
     {
       label: <span>ε<sub>max</sub></span>,
-      value: <span className="text-hmi-error">{fmt(stats?.max_err, 2, 'mm')}</span>,
+      value: <span className="text-hmi-text-error">{fmt(stats?.max_err, 2, 'mm')}</span>,
       tooltip: 'Maximum Cross Tracking Error (ε_max): worst lateral deviation in the run.',
     },
     {
@@ -318,7 +351,7 @@ export function MetricsPanel() {
     },
     {
       label: 'RMS ATE',
-      value: <span className="text-amber-500">{fmt(stats?.RMS_ATE, 2, 'mm')}</span>,
+      value: <span className="text-hmi-text-warning">{fmt(stats?.RMS_ATE, 2, 'mm')}</span>,
       tooltip: 'RMS Along-Track Error: quadratic average of lead/lag without sign cancellation.',
     },
     {
@@ -327,8 +360,8 @@ export function MetricsPanel() {
         <span className={cn(
           "font-semibold",
           stats?.error_ratio !== undefined
-            ? stats.error_ratio >= 0.5 ? "text-amber-400" : "text-cyan-400"
-            : "text-slate-600"
+            ? stats.error_ratio >= 0.5 ? "text-hmi-text-warning" : "text-hmi-text-cyan"
+            : "text-hmi-muted"
         )}>
           {stats?.error_ratio !== undefined
             ? stats.error_ratio >= 0.5
@@ -341,37 +374,37 @@ export function MetricsPanel() {
     },
     {
       label: <span>ε<sub>f</sub></span>,
-      value: <span className="text-slate-200">{fmt(stats?.final_err, 2, 'mm')}</span>,
+      value: <span className="text-hmi-text-neutral">{fmt(stats?.final_err, 2, 'mm')}</span>,
       tooltip: 'Final CTE (ε_f): cross-track error at the end of the trajectory.',
     },
     {
       label: <span>T<sub>el</sub></span>,
-      value: <span className="text-slate-200">{stats?.elapsed_time !== undefined ? `${stats.elapsed_time.toFixed(3)} s` : dash}</span>,
+      value: <span className="text-hmi-text-neutral">{stats?.elapsed_time !== undefined ? `${stats.elapsed_time.toFixed(3)} s` : dash}</span>,
       tooltip: 'Elapsed time (T_el): total duration of the last trajectory run.',
     },
     {
       label: 'RMSE J1',
-      value: <span className="text-purple-400">{fmt(computed?.rmseJ1, 3, '°')}</span>,
+      value: <span className="text-hmi-text-purple">{fmt(computed?.rmseJ1, 3, '°')}</span>,
       tooltip: 'Joint 1 tracking RMSE (°): root-mean-square of θ1 position error over the run.',
     },
     {
       label: 'RMSE J2',
-      value: <span className="text-purple-400">{fmt(computed?.rmseJ2, 3, '°')}</span>,
+      value: <span className="text-hmi-text-purple">{fmt(computed?.rmseJ2, 3, '°')}</span>,
       tooltip: 'Joint 2 tracking RMSE (°): root-mean-square of θ2 position error over the run.',
     },
     {
       label: 'RMSE EEF',
-      value: <span className="text-purple-400">{fmt(computed?.rmseEEF, 3, 'mm')}</span>,
+      value: <span className="text-hmi-text-purple">{fmt(computed?.rmseEEF, 3, 'mm')}</span>,
       tooltip: 'End-effector RMSE (mm): root-mean-square of Cartesian EEF position error over the run.',
     },
     {
       label: 'Ctrl Var',
-      value: <span className="text-emerald-400">{fmt(computed?.varPwm, 1)}</span>,
+      value: <span className="text-hmi-text-success">{fmt(computed?.varPwm, 1)}</span>,
       tooltip: 'Control Effort Variance (PWM σ²): higher values indicate more active correction. Very high values may indicate oscillation.',
     },
     {
       label: 'Jitter',
-      value: <span className="text-violet-400">{fmt(computed?.jitter, 2)}</span>,
+      value: <span className="text-hmi-text-violet">{fmt(computed?.jitter, 2)}</span>,
       tooltip: 'Actuator Jitter Proxy (mean |ΔPWM| per step): indicator of chattering. Lower is smoother.',
     },
 
@@ -388,18 +421,18 @@ export function MetricsPanel() {
   return (
     <div className="h-full w-full bg-hmi-panel border border-hmi-grid rounded-lg flex flex-col overflow-hidden">
       <div className="px-3 py-1.5 border-b border-hmi-grid shrink-0 flex items-center gap-2">
-        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
+        <span className="text-[11px] font-bold text-hmi-text-secondary uppercase tracking-wider select-none">
           Run Metrics
         </span>
         {!stats && (
-          <span className="text-[10px] text-slate-600 italic">— waiting for move data</span>
+          <span className="text-[10px] text-hmi-muted italic">— waiting for move data</span>
         )}
         <Button
           variant="outline"
           size="sm"
           onClick={handleDownloadMetrics}
           disabled={!stats && (!computed)}
-          className="ml-auto h-5 px-1.5 text-[10px] border-slate-700/60 text-slate-400 bg-slate-900/60 hover:bg-slate-800/80 hover:text-slate-200"
+          className="ml-auto h-5 px-1.5 text-[10px] border-hmi-grid text-hmi-text-secondary bg-hmi-btn hover:bg-hmi-btn-hover hover:text-hmi-text"
           title="Download Run Metrics"
         >
           <Download className="h-3 w-3" />
@@ -408,8 +441,8 @@ export function MetricsPanel() {
       <div className="flex-1 min-h-0 grid grid-cols-3 auto-rows-min gap-px bg-hmi-grid/30 overflow-y-auto">
         {rows.map((row, i) => (
           <UiTooltip key={i} content={row.tooltip} align="center">
-            <div className="flex flex-col justify-center px-3 py-2 bg-hmi-panel cursor-help hover:bg-slate-900/60 transition-colors">
-              <span className="text-[10px] text-slate-500 font-semibold tracking-wide uppercase leading-tight select-none">
+            <div className="flex flex-col justify-center px-3 py-2 bg-hmi-panel cursor-help hover:bg-hmi-elevated transition-colors">
+              <span className="text-[10px] text-hmi-text-secondary font-semibold tracking-wide uppercase leading-tight select-none">
                 {row.label}
               </span>
               <span className="font-mono font-medium text-sm mt-0.5 leading-tight">
@@ -497,18 +530,27 @@ export function EEFErrChart({
       <YAxis domain={[0, maxY]} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('‖e‖ (mm)')} width={56} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
-      {!hidden.err && (
-        <Area type="linear" dataKey="err" stroke="var(--color-hmi-error)" fill={`url(#${gradId}-errGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="EEF Error" />
-      )}
+      <Area type="linear" dataKey="err" stroke="var(--color-hmi-error)" fill={`url(#${gradId}-errGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="EEF Error" hide={!!hidden.err} />
     </AreaChart>
   )
 
-  if (width !== undefined && height !== undefined) return chart
+  const isEmpty = data.length === 0
+  const msg = "No end-effector error telemetry — run a move to capture data"
+
+  if (width !== undefined && height !== undefined) {
+    return (
+      <ChartContainer isEmpty={isEmpty} msg={msg}>
+        {chart}
+      </ChartContainer>
+    )
+  }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      {chart}
-    </ResponsiveContainer>
+    <ChartContainer isEmpty={isEmpty} msg={msg}>
+      <ResponsiveContainer width="100%" height="100%">
+        {chart}
+      </ResponsiveContainer>
+    </ChartContainer>
   )
 }
 
@@ -557,18 +599,27 @@ export function CTEChart({
       <YAxis domain={[0, maxY]} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('CTE (mm)')} width={56} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
-      {!hidden.cte && (
-        <Area type="linear" dataKey="cte" stroke="var(--color-hmi-actual)" fill={`url(#${gradId}-cteGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="Cross Tracking Error" />
-      )}
+      <Area type="linear" dataKey="cte" stroke="var(--color-hmi-actual)" fill={`url(#${gradId}-cteGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="Cross Tracking Error" hide={!!hidden.cte} />
     </AreaChart>
   )
 
-  if (width !== undefined && height !== undefined) return chart
+  const isEmpty = data.length === 0
+  const msg = "No CTE telemetry — run a move to capture data"
+
+  if (width !== undefined && height !== undefined) {
+    return (
+      <ChartContainer isEmpty={isEmpty} msg={msg}>
+        {chart}
+      </ChartContainer>
+    )
+  }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      {chart}
-    </ResponsiveContainer>
+    <ChartContainer isEmpty={isEmpty} msg={msg}>
+      <ResponsiveContainer width="100%" height="100%">
+        {chart}
+      </ResponsiveContainer>
+    </ChartContainer>
   )
 }
 
@@ -619,18 +670,27 @@ export function ATEChart({
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(3) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
       <ReferenceLine y={0} stroke="var(--color-hmi-grid)" strokeDasharray="4 2" />
-      {!hidden.ate && (
-        <Area type="linear" dataKey="ate" stroke="var(--color-hmi-warn)" fill={`url(#${gradId}-ateGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="Along Tracking Error" />
-      )}
+      <Area type="linear" dataKey="ate" stroke="var(--color-hmi-warn)" fill={`url(#${gradId}-ateGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="Along Tracking Error" hide={!!hidden.ate} />
     </AreaChart>
   )
 
-  if (width !== undefined && height !== undefined) return chart
+  const isEmpty = data.length === 0
+  const msg = "No ATE telemetry — run a move to capture data"
+
+  if (width !== undefined && height !== undefined) {
+    return (
+      <ChartContainer isEmpty={isEmpty} msg={msg}>
+        {chart}
+      </ChartContainer>
+    )
+  }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      {chart}
-    </ResponsiveContainer>
+    <ChartContainer isEmpty={isEmpty} msg={msg}>
+      <ResponsiveContainer width="100%" height="100%">
+        {chart}
+      </ResponsiveContainer>
+    </ChartContainer>
   )
 }
 
@@ -669,24 +729,29 @@ export function EEFVelocityChart({
       <YAxis tick={AT} axisLine={AL} tickLine={false} label={YLABEL('v (mm/s)')} width={48} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(2) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
-      {!hidden.v_actual && (
-        <Line dataKey="v_actual" stroke="var(--color-hmi-actual)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Actual" />
-      )}
-      {!hidden.v_actual_smoothed && (
-        <Line dataKey="v_actual_smoothed" stroke="var(--color-hmi-ok)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Actual (smoothed)" strokeDasharray="6 4" />
-      )}
-      {!hidden.v_ideal && (
-        <Line dataKey="v_ideal" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="Ideal (trapezoid)" />
-      )}
+      <Line dataKey="v_actual" stroke="var(--color-hmi-actual)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Actual" hide={!!hidden.v_actual} />
+      <Line dataKey="v_actual_smoothed" stroke="var(--color-hmi-ok)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Actual (smoothed)" strokeDasharray="6 4" hide={!!hidden.v_actual_smoothed} />
+      <Line dataKey="v_ideal" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="Ideal (trapezoid)" hide={!!hidden.v_ideal} />
     </LineChart>
   )
 
-  if (width !== undefined && height !== undefined) return chart
+  const isEmpty = data.length === 0
+  const msg = "No end-effector velocity telemetry — run a move to capture data"
+
+  if (width !== undefined && height !== undefined) {
+    return (
+      <ChartContainer isEmpty={isEmpty} msg={msg}>
+        {chart}
+      </ChartContainer>
+    )
+  }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      {chart}
-    </ResponsiveContainer>
+    <ChartContainer isEmpty={isEmpty} msg={msg}>
+      <ResponsiveContainer width="100%" height="100%">
+        {chart}
+      </ResponsiveContainer>
+    </ChartContainer>
   )
 }
 
@@ -726,18 +791,27 @@ export function PWMChart({
       <ReferenceLine y={0} stroke="var(--color-hmi-grid)" strokeDasharray="4 2" />
       <Tooltip contentStyle={TS} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
-      {!hidden.pwm && (
-        <Area type="linear" dataKey="pwm" stroke="var(--color-hmi-pwm-pos)" fill={`url(#${gradId}-pwmGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="PWM Output" />
-      )}
+      <Area type="linear" dataKey="pwm" stroke="var(--color-hmi-pwm-pos)" fill={`url(#${gradId}-pwmGradient)`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="PWM Output" hide={!!hidden.pwm} />
     </AreaChart>
   )
 
-  if (width !== undefined && height !== undefined) return chart
+  const isEmpty = data.length === 0
+  const msg = "No PWM telemetry — run a move to capture data"
+
+  if (width !== undefined && height !== undefined) {
+    return (
+      <ChartContainer isEmpty={isEmpty} msg={msg}>
+        {chart}
+      </ChartContainer>
+    )
+  }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      {chart}
-    </ResponsiveContainer>
+    <ChartContainer isEmpty={isEmpty} msg={msg}>
+      <ResponsiveContainer width="100%" height="100%">
+        {chart}
+      </ResponsiveContainer>
+    </ChartContainer>
   )
 }
 
@@ -782,27 +856,30 @@ export function PositionChart({
       <YAxis tick={AT} axisLine={AL} tickLine={false} label={YLABEL(useDegrees ? 'θ (°)' : 'θ (rad)')} width={48} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
-      {!hidden.th1 && (
-        <Line dataKey="th1"  stroke="var(--color-hmi-j1)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ1 Actual (°)" : "θ1 Actual (rad)"} />
-      )}
-      {!hidden.th1d && (
-        <Line dataKey="th1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ1 Desired (°)" : "θ1 Desired (rad)"} />
-      )}
-      {!hidden.th2 && (
-        <Line dataKey="th2"  stroke="var(--color-hmi-j2)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ2 Actual (°)" : "θ2 Actual (rad)"} />
-      )}
-      {!hidden.th2d && (
-        <Line dataKey="th2d" stroke="var(--color-hmi-j2-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ2 Desired (°)" : "θ2 Desired (rad)"} />
-      )}
+      <Line dataKey="th1"  stroke="var(--color-hmi-j1)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ1 Actual (°)" : "θ1 Actual (rad)"} hide={!!hidden.th1} />
+      <Line dataKey="th1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ1 Desired (°)" : "θ1 Desired (rad)"} hide={!!hidden.th1d} />
+      <Line dataKey="th2"  stroke="var(--color-hmi-j2)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ2 Actual (°)" : "θ2 Actual (rad)"} hide={!!hidden.th2} />
+      <Line dataKey="th2d" stroke="var(--color-hmi-j2-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ2 Desired (°)" : "θ2 Desired (rad)"} hide={!!hidden.th2d} />
     </LineChart>
   )
 
-  if (width !== undefined && height !== undefined) return chart
+  const isEmpty = data.length === 0
+  const msg = "No position telemetry — run a move to capture data"
+
+  if (width !== undefined && height !== undefined) {
+    return (
+      <ChartContainer isEmpty={isEmpty} msg={msg}>
+        {chart}
+      </ChartContainer>
+    )
+  }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      {chart}
-    </ResponsiveContainer>
+    <ChartContainer isEmpty={isEmpty} msg={msg}>
+      <ResponsiveContainer width="100%" height="100%">
+        {chart}
+      </ResponsiveContainer>
+    </ChartContainer>
   )
 }
 
@@ -847,27 +924,30 @@ export function VelocityChart({
       <YAxis tick={AT} axisLine={AL} tickLine={false} label={YLABEL(useDegrees ? 'θ̇ (°/s)' : 'θ̇ (rad/s)')} width={48} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
       <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
-      {!hidden.v1 && (
-        <Line dataKey="v1"  stroke="var(--color-hmi-j1)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ̇1 Actual (°/s)" : "θ̇1 Actual (rad/s)"} />
-      )}
-      {!hidden.v1d && (
-        <Line dataKey="v1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ̇1 Desired (°/s)" : "θ̇1 Desired (rad/s)"} />
-      )}
-      {!hidden.v2 && (
-        <Line dataKey="v2"  stroke="var(--color-hmi-j2)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ̇2 Actual (°/s)" : "θ̇2 Actual (rad/s)"} />
-      )}
-      {!hidden.v2d && (
-        <Line dataKey="v2d" stroke="var(--color-hmi-j2-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ̇2 Desired (°/s)" : "θ̇2 Desired (rad/s)"} />
-      )}
+      <Line dataKey="v1"  stroke="var(--color-hmi-j1)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ̇1 Actual (°/s)" : "θ̇1 Actual (rad/s)"} hide={!!hidden.v1} />
+      <Line dataKey="v1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ̇1 Desired (°/s)" : "θ̇1 Desired (rad/s)"} hide={!!hidden.v1d} />
+      <Line dataKey="v2"  stroke="var(--color-hmi-j2)" strokeWidth={1.75}   dot={false} isAnimationActive={false} name={useDegrees ? "θ̇2 Actual (°/s)" : "θ̇2 Actual (rad/s)"} hide={!!hidden.v2} />
+      <Line dataKey="v2d" stroke="var(--color-hmi-j2-des)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={useDegrees ? "θ̇2 Desired (°/s)" : "θ̇2 Desired (rad/s)"} hide={!!hidden.v2d} />
     </LineChart>
   )
 
-  if (width !== undefined && height !== undefined) return chart
+  const isEmpty = data.length === 0
+  const msg = "No velocity telemetry — run a move to capture data"
+
+  if (width !== undefined && height !== undefined) {
+    return (
+      <ChartContainer isEmpty={isEmpty} msg={msg}>
+        {chart}
+      </ChartContainer>
+    )
+  }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      {chart}
-    </ResponsiveContainer>
+    <ChartContainer isEmpty={isEmpty} msg={msg}>
+      <ResponsiveContainer width="100%" height="100%">
+        {chart}
+      </ResponsiveContainer>
+    </ChartContainer>
   )
 }
 
@@ -909,20 +989,24 @@ interface AnalyzerSeries {
 }
 
 function prepareAnalyzerData(
-  activeTab: 'cte' | 'ate' | 'pos' | 'vel',
+  activeTab: 'cte' | 'ate' | 'pos' | 'vel' | 'pid' | 'j1ctrl' | 'j2vel',
   dBuf: DSample[],
   tBuf: TPoint[],
-  angularUnit: string
+  eBuf: any[],
+  fBuf: any[],
+  angularUnit: string,
+  params?: any,
+  gains?: any
 ): {
   rawData: any[]
   series: AnalyzerSeries[]
   yLabel: string
   defaultYDomain: [any, any]
 } {
-  if (dBuf.length === 0) {
+  if (dBuf.length === 0 && eBuf.length === 0 && fBuf.length === 0) {
     return { rawData: [], series: [], yLabel: '', defaultYDomain: ['auto', 'auto'] as [any, any] }
   }
-  const firstT = dBuf[0].t
+  const firstT = dBuf.length > 0 ? dBuf[0].t : (eBuf.length > 0 ? eBuf[0].t : (fBuf.length > 0 ? fBuf[0].t : 0))
 
   switch (activeTab) {
     case 'cte': {
@@ -983,6 +1067,95 @@ function prepareAnalyzerData(
       const labelSuffix = angularUnit === 'degrees' ? '(°/s)' : '(rad/s)'
       return { rawData, series, yLabel: `Velocity ${labelSuffix}`, defaultYDomain: ['auto', 'auto'] as [any, any] }
     }
+    case 'pid': {
+      if (eBuf.length === 0) return { rawData: [], series: [], yLabel: '', defaultYDomain: ['auto', 'auto'] as [any, any] }
+      const rawData = eBuf.map(e => ({
+        t: (e.t - firstT) / 1000,
+        p1_out: e.p1_out,
+        i1_out: e.i1_out,
+        d1_out: e.d1_out,
+      }))
+      const series = [
+        { key: 'p1_out', name: 'P Out', stroke: 'var(--color-hmi-j1)', type: 'line' as const },
+        { key: 'i1_out', name: 'I Out', stroke: 'var(--color-hmi-pwm-pos)', type: 'line' as const },
+        { key: 'd1_out', name: 'D Out', stroke: 'var(--color-hmi-pwm-neg)', type: 'line' as const },
+      ]
+      return { rawData, series, yLabel: 'PID Output', defaultYDomain: ['auto', 'auto'] as [any, any] }
+    }
+    case 'j1ctrl': {
+      if (dBuf.length === 0) return { rawData: [], series: [], yLabel: '', defaultYDomain: ['auto', 'auto'] as [any, any] }
+      const u1max = params?.u1max ?? 1
+      const pwmDb = params?.pwmDb ?? 68
+      const rawData = dBuf.map(d => {
+        const mag = Math.abs(d.pwm1)
+        const pwm1_adj = mag > pwmDb
+          ? Math.sign(d.pwm1) * (mag - pwmDb) / (255 - pwmDb)
+          : 0
+        const u1_total = d.u1Total / u1max
+
+        let ff1_contrib = 0
+        if (fBuf && fBuf.length > 0) {
+          let bestF = fBuf[0], minDiff = Infinity
+          for (const f of fBuf) {
+            const diff = Math.abs(f.t - d.t)
+            if (diff < minDiff) { minDiff = diff; bestF = f } else break
+          }
+          ff1_contrib = bestF.ff1Contrib / u1max
+        }
+        return {
+          t: (d.t - firstT) / 1000,
+          u1_total,
+          ff1_contrib,
+          pwm1_adj,
+          u1_total_smoothed: 0,
+        }
+      })
+
+      try {
+        const xs = rawData.map(d => d.t)
+        const ys = rawData.map(d => d.u1_total)
+        const sm = localLoess(ys, xs, 0.08, 1)
+        for (let i = 0; i < rawData.length; i++) rawData[i].u1_total_smoothed = sm[i]
+      } catch (e) {
+        console.warn('localLoess smoothing failed in prepareAnalyzerData', e)
+      }
+
+      const series = [
+        { key: 'u1_total', name: 'u1_total / u1max', stroke: 'var(--color-hmi-pwm-pos)', type: 'line' as const },
+        { key: 'u1_total_smoothed', name: 'u1_total / u1max (smoothed)', stroke: 'var(--color-hmi-pwm-pos)', type: 'line' as const, strokeDasharray: '6 4' },
+        { key: 'ff1_contrib', name: 'FF Contribution', stroke: 'var(--color-hmi-ideal)', type: 'line' as const, strokeDasharray: '3 3' },
+        { key: 'pwm1_adj', name: 'PWM / 255', stroke: 'var(--color-hmi-j1)', type: 'line' as const },
+      ]
+      return { rawData, series, yLabel: 'Fraction of max', defaultYDomain: ['auto', 'auto'] as [any, any] }
+    }
+    case 'j2vel': {
+      if (fBuf.length === 0) return { rawData: [], series: [], yLabel: '', defaultYDomain: ['auto', 'auto'] as [any, any] }
+      const kp2 = gains?.kp2 ?? 0
+      const kd2 = gains?.kd2 ?? 0
+      const rawData = fBuf.map(f => {
+        let bestD = null, minDiff = Infinity
+        for (const d of dBuf) {
+          const diff = Math.abs(d.t - f.t)
+          if (diff < minDiff) { minDiff = diff; bestD = d } else break
+        }
+        return {
+          t: (f.t - firstT) / 1000,
+          omega2_raw: f.omega2Raw,
+          delta_omega_ff: f.deltaOmegaFf,
+          p_out: bestD ? kp2 * bestD.e2 : 0,
+          d_out: bestD ? -kd2 * bestD.dth2 : 0,
+          integral2: f.integral2,
+        }
+      })
+      const series = [
+        { key: 'omega2_raw', name: 'Total ω2 Command', stroke: 'var(--color-hmi-j2)', type: 'line' as const },
+        { key: 'p_out', name: 'J2 P Out', stroke: 'var(--color-hmi-j1)', type: 'line' as const },
+        { key: 'd_out', name: 'J2 D Out', stroke: 'var(--color-hmi-pwm-neg)', type: 'line' as const },
+        { key: 'integral2', name: 'J2 I Out', stroke: 'var(--color-hmi-error)', type: 'line' as const, strokeDasharray: '4 2' },
+        { key: 'delta_omega_ff', name: 'J2 FF Contrib', stroke: 'var(--color-hmi-ideal)', type: 'line' as const, strokeDasharray: '3 3' },
+      ]
+      return { rawData, series, yLabel: 'Velocity (rad/s)', defaultYDomain: ['auto', 'auto'] as [any, any] }
+    }
   }
 }
 
@@ -991,12 +1164,20 @@ function AdvancedAnalyzer({
   activeTab,
   dBuf,
   tBuf,
+  eBuf,
+  fBuf,
   angularUnit,
+  params,
+  gains,
 }: {
-  activeTab: 'cte' | 'ate' | 'pos' | 'vel'
+  activeTab: 'cte' | 'ate' | 'pos' | 'vel' | 'pid' | 'j1ctrl' | 'j2vel'
   dBuf: DSample[]
   tBuf: TPoint[]
+  eBuf: any[]
+  fBuf: any[]
   angularUnit: string
+  params: any
+  gains: any
 }) {
   const [activeTool, setActiveTool] = useState<'zoom' | 'cursor' | 'pan'>('zoom')
   const [zoomLeft, setZoomLeft] = useState<number | 'dataMin'>('dataMin')
@@ -1016,8 +1197,8 @@ function AdvancedAnalyzer({
 
   // Extract raw and structured series descriptions for current tab
   const { rawData, series, yLabel, defaultYDomain } = useMemo(() => {
-    return prepareAnalyzerData(activeTab, dBuf, tBuf, angularUnit)
-  }, [activeTab, dBuf, tBuf, angularUnit])
+    return prepareAnalyzerData(activeTab, dBuf, tBuf, eBuf, fBuf, angularUnit, params, gains)
+  }, [activeTab, dBuf, tBuf, eBuf, fBuf, angularUnit, params, gains])
 
   // Reset tools and view constraints on active telemetry series switch
   useEffect(() => {
@@ -1224,16 +1405,16 @@ function AdvancedAnalyzer({
   return (
     <div className="flex flex-col h-full w-full min-h-0 overflow-hidden font-sans">
       {/* 1. Analyzer Toolbar Controls */}
-      <div className="flex flex-wrap items-center gap-3 py-2 border-b border-hmi-grid/60 bg-slate-900/10 px-1 mb-3 text-xs shrink-0 select-none">
+      <div className="flex flex-wrap items-center gap-3 py-2 border-b border-hmi-grid/60 bg-hmi-elevated/10 px-1 mb-3 text-xs shrink-0 select-none">
         
         {/* Interaction Tool Selector */}
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded border border-hmi-grid">
-          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold px-1.5 mr-1">Tool:</span>
+        <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded border border-hmi-grid">
+          <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5 mr-1">Tool:</span>
           <Button
             type="button"
             variant={activeTool === 'zoom' ? 'default' : 'ghost'}
             size="sm"
-            className="h-6 px-2.5 text-xs rounded flex items-center gap-1"
+            className="h-6 px-2.5 text-xs rounded flex items-center gap-1 cursor-pointer"
             onClick={() => setActiveTool('zoom')}
           >
             <ZoomIn className="h-3 w-3" />
@@ -1243,7 +1424,7 @@ function AdvancedAnalyzer({
             type="button"
             variant={activeTool === 'cursor' ? 'default' : 'ghost'}
             size="sm"
-            className="h-6 px-2.5 text-xs rounded flex items-center gap-1"
+            className="h-6 px-2.5 text-xs rounded flex items-center gap-1 cursor-pointer"
             onClick={() => setActiveTool('cursor')}
           >
             📐 Calipers
@@ -1252,7 +1433,7 @@ function AdvancedAnalyzer({
             type="button"
             variant={activeTool === 'pan' ? 'default' : 'ghost'}
             size="sm"
-            className="h-6 px-2.5 text-xs rounded flex items-center gap-1"
+            className="h-6 px-2.5 text-xs rounded flex items-center gap-1 cursor-pointer"
             onClick={() => setActiveTool('pan')}
           >
             <Hand className="h-3 w-3" />
@@ -1261,13 +1442,13 @@ function AdvancedAnalyzer({
         </div>
 
         {/* Quick Zoom Fit & Scale Buttons */}
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded border border-hmi-grid">
-          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold px-1.5 mr-1">Scaling:</span>
+        <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded border border-hmi-grid">
+          <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5 mr-1">Scaling:</span>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 w-8 text-xs hover:bg-slate-900"
+            className="h-6 w-8 text-xs hover:bg-hmi-btn-hover cursor-pointer"
             onClick={() => zoomTimeAxis(0.8)}
             title="Zoom In X (Time)"
           >
@@ -1277,7 +1458,7 @@ function AdvancedAnalyzer({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 w-8 text-xs hover:bg-slate-900"
+            className="h-6 w-8 text-xs hover:bg-hmi-btn-hover cursor-pointer"
             onClick={() => zoomTimeAxis(1.25)}
             title="Zoom Out X (Time)"
           >
@@ -1287,7 +1468,7 @@ function AdvancedAnalyzer({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 w-8 text-xs hover:bg-slate-900"
+            className="h-6 w-8 text-xs hover:bg-hmi-btn-hover cursor-pointer"
             onClick={() => setYZoomFactor(prev => prev * 0.8)}
             title="Zoom In Y (Amplitude)"
           >
@@ -1297,7 +1478,7 @@ function AdvancedAnalyzer({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 w-8 text-xs hover:bg-slate-900"
+            className="h-6 w-8 text-xs hover:bg-hmi-btn-hover cursor-pointer"
             onClick={() => setYZoomFactor(prev => prev * 1.25)}
             title="Zoom Out Y (Amplitude)"
           >
@@ -1308,7 +1489,7 @@ function AdvancedAnalyzer({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 px-2 text-xs font-semibold text-hmi-ideal hover:bg-slate-900 flex items-center gap-1"
+            className="h-6 px-2 text-xs font-semibold text-hmi-ideal hover:bg-hmi-btn-hover flex items-center gap-1 cursor-pointer"
             onClick={handleDoubleClick}
           >
             <RefreshCw className="h-2.5 w-2.5" />
@@ -1318,13 +1499,18 @@ function AdvancedAnalyzer({
 
         {/* Caliper Configuration Mode */}
         {activeTool === 'cursor' && (
-          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded border border-hmi-grid animate-tooltip-left">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold px-1.5">Caliper:</span>
+          <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded border border-hmi-grid animate-tooltip-left">
+            <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5">Caliper:</span>
             <Button
               type="button"
               variant={activeCursor === 'A' ? 'default' : 'ghost'}
               size="sm"
-              className={cn("h-6 px-2 text-[10px] rounded border border-blue-500/20 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-200")}
+              className={cn(
+                "h-6 px-2 text-[10px] rounded border transition-all cursor-pointer", 
+                activeCursor === 'A' 
+                  ? "bg-hmi-j1/15 border-hmi-j1 text-hmi-j1 font-bold" 
+                  : "border-hmi-grid text-hmi-muted hover:text-hmi-text hover:bg-hmi-btn-hover"
+              )}
               onClick={() => setActiveCursor('A')}
             >
               Set A
@@ -1333,7 +1519,12 @@ function AdvancedAnalyzer({
               type="button"
               variant={activeCursor === 'B' ? 'default' : 'ghost'}
               size="sm"
-              className={cn("h-6 px-2 text-[10px] rounded border border-orange-500/20 data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-200")}
+              className={cn(
+                "h-6 px-2 text-[10px] rounded border transition-all cursor-pointer", 
+                activeCursor === 'B' 
+                  ? "bg-hmi-j2/15 border-hmi-j2 text-hmi-j2 font-bold" 
+                  : "border-hmi-grid text-hmi-muted hover:text-hmi-text hover:bg-hmi-btn-hover"
+              )}
               onClick={() => setActiveCursor('B')}
             >
               Set B
@@ -1343,7 +1534,7 @@ function AdvancedAnalyzer({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-6 px-2 text-[10px] text-slate-400 hover:text-slate-200"
+              className="h-6 px-2 text-[10px] text-hmi-text-secondary hover:text-hmi-text cursor-pointer"
               onClick={() => {
                 setCursorA(null)
                 setCursorB(null)
@@ -1356,7 +1547,7 @@ function AdvancedAnalyzer({
         )}
 
         {/* Grid Density Slider */}
-        <div className="flex items-center gap-2 ml-auto bg-slate-950/60 p-1 rounded border border-hmi-grid/50 text-[11px] text-slate-400">
+        <div className="flex items-center gap-2 ml-auto bg-hmi-bg/60 p-1 rounded border border-hmi-grid text-[11px] text-hmi-text-secondary">
           <span className="select-none pl-1">Grid:</span>
           <input
             type="range"
@@ -1365,9 +1556,9 @@ function AdvancedAnalyzer({
             step="0.01"
             value={gridDensity}
             onChange={(e) => setGridDensity(parseFloat(e.target.value))}
-            className="w-16 h-1 cursor-pointer accent-hmi-ideal bg-slate-800 rounded-lg appearance-none"
+            className="w-16 h-1 cursor-pointer accent-hmi-ideal bg-hmi-btn rounded-lg appearance-none"
           />
-          <span className="w-8 font-mono text-[10px] text-slate-500 text-right pr-1">{(gridDensity * 100).toFixed(0)}%</span>
+          <span className="w-8 font-mono text-[10px] text-hmi-muted text-right pr-1">{(gridDensity * 100).toFixed(0)}%</span>
         </div>
       </div>
 
@@ -1375,12 +1566,8 @@ function AdvancedAnalyzer({
       <div className="flex-1 min-h-0 w-full flex gap-4 overflow-hidden">
         
         {/* Left: Recharts interactive screen */}
-        <div className="flex-1 min-h-0 bg-slate-950/30 border border-hmi-grid/50 rounded-lg p-4 relative flex flex-col justify-center select-none overflow-hidden">
-          {displayData.length === 0 ? (
-            <div className="text-center text-hmi-muted text-xs font-semibold py-8 uppercase tracking-wider">
-              No telemetry samples in active buffer.
-            </div>
-          ) : (
+        <div className="flex-1 min-h-0 bg-hmi-bg/30 border border-hmi-grid rounded-lg p-4 relative flex flex-col justify-center select-none overflow-hidden">
+          <ChartContainer isEmpty={displayData.length === 0} msg="No telemetry samples in active buffer">
             <div className="w-full h-full relative">
               <ResponsiveContainer width="100%" height="100%">
                 {activeTab === 'cte' || activeTab === 'ate' ? (
@@ -1425,7 +1612,7 @@ function AdvancedAnalyzer({
                     />
                     <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
                     
-                    {series.map(s => !hiddenSeries[s.key] && (
+                    {series.map(s => (
                       <Area
                         key={s.key}
                         type="linear"
@@ -1436,6 +1623,7 @@ function AdvancedAnalyzer({
                         dot={false}
                         isAnimationActive={false}
                         name={s.name}
+                        hide={!!hiddenSeries[s.key]}
                       />
                     ))}
 
@@ -1502,7 +1690,7 @@ function AdvancedAnalyzer({
                     />
                     <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} labelFormatter={(label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label} allowEscapeViewBox={{ x: false, y: false }} />
                     
-                    {series.map(s => !hiddenSeries[s.key] && (
+                    {series.map(s => (
                       <Line
                         key={s.key}
                         type="linear"
@@ -1513,6 +1701,7 @@ function AdvancedAnalyzer({
                         dot={false}
                         isAnimationActive={false}
                         name={s.name}
+                        hide={!!hiddenSeries[s.key]}
                       />
                     ))}
 
@@ -1548,25 +1737,24 @@ function AdvancedAnalyzer({
                 )}
               </ResponsiveContainer>
             </div>
-          )}
+          </ChartContainer>
         </div>
 
         {/* Right: Analyzer Diagnostics Panel Sidebar */}
         <div className="w-80 shrink-0 flex flex-col gap-4 overflow-y-auto pr-1">
-          
           {/* Signal visibility configuration checklist */}
-          <div className="border border-hmi-grid bg-slate-900/40 rounded-lg p-3">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
+          <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
+            <h3 className="text-xs font-bold text-hmi-text-secondary uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
               Visible Signals
             </h3>
             <div className="flex flex-col gap-2">
               {series.map(s => (
-                <label key={s.key} className="flex items-center gap-2.5 text-xs text-slate-200 cursor-pointer hover:bg-slate-900/30 py-0.5 rounded">
+                <label key={s.key} className="flex items-center gap-2.5 text-xs text-hmi-text cursor-pointer hover:bg-hmi-btn-hover/30 py-0.5 rounded">
                   <input
                     type="checkbox"
                     checked={!hiddenSeries[s.key]}
                     onChange={() => setHiddenSeries(prev => ({ ...prev, [s.key]: !prev[s.key] }))}
-                    className="rounded border-slate-700 bg-slate-950 text-hmi-ideal focus:ring-hmi-ideal focus:ring-offset-slate-950"
+                    className="rounded border-hmi-grid bg-hmi-bg text-hmi-ideal focus:ring-hmi-ideal focus:ring-offset-hmi-bg"
                   />
                   <span className="w-3 h-3 rounded-full shrink-0 animate-pulse" style={{ backgroundColor: s.stroke }} />
                   <span className="font-medium truncate">{s.name}</span>
@@ -1576,42 +1764,42 @@ function AdvancedAnalyzer({
           </div>
 
           {/* Caliper delta and amplitude measurements */}
-          <div className="border border-hmi-grid bg-slate-900/40 rounded-lg p-3">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5 flex justify-between items-center">
+          <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
+            <h3 className="text-xs font-bold text-hmi-text-secondary uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5 flex justify-between items-center">
               Caliper Measurements
               {activeTool !== 'cursor' && (
-                <span className="text-[9px] text-slate-500 normal-case font-normal">Enable Calipers to place</span>
+                <span className="text-[9px] text-hmi-muted normal-case font-normal">Enable Calipers to place</span>
               )}
             </h3>
             {caliperPoints.ptA || caliperPoints.ptB ? (
               <div className="flex flex-col gap-3 font-mono text-[11px]">
                 
                 {/* Caliper Time values */}
-                <div className="grid grid-cols-2 gap-x-2 gap-y-1 bg-slate-950/40 p-2 rounded border border-hmi-grid/30">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 bg-hmi-bg/40 p-2 rounded border border-hmi-grid/30">
                   <div>
-                    <span className="text-[10px] text-slate-500 font-sans block">Time (A):</span>
-                    <span className="text-blue-400 font-medium">
+                    <span className="text-[10px] text-hmi-muted font-sans block">Time (A):</span>
+                    <span className="text-hmi-j1 font-medium">
                       {caliperPoints.ptA ? `${caliperPoints.ptA.t.toFixed(4)} s` : '--'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-500 font-sans block">Time (B):</span>
-                    <span className="text-orange-400 font-medium">
+                    <span className="text-[10px] text-hmi-muted font-sans block">Time (B):</span>
+                    <span className="text-hmi-j2 font-medium">
                       {caliperPoints.ptB ? `${caliperPoints.ptB.t.toFixed(4)} s` : '--'}
                     </span>
                   </div>
                   {caliperPoints.ptA && caliperPoints.ptB && (
                     <div className="col-span-2 border-t border-hmi-grid/30 pt-1.5 mt-1 flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] text-slate-500 font-sans block">Delta Time (Δt):</span>
-                        <span className="text-emerald-400 font-medium text-xs">
+                        <span className="text-[10px] text-hmi-muted font-sans block">Delta Time (Δt):</span>
+                        <span className="text-hmi-text-success font-medium text-xs">
                           {Math.abs(caliperPoints.ptB.t - caliperPoints.ptA.t).toFixed(4)} s
                         </span>
                       </div>
                       {Math.abs(caliperPoints.ptB.t - caliperPoints.ptA.t) > 0 && (
                         <div className="text-right">
-                          <span className="text-[10px] text-slate-500 font-sans block">Frequency (1/Δt):</span>
-                          <span className="text-purple-400 font-semibold text-xs">
+                          <span className="text-[10px] text-hmi-muted font-sans block">Frequency (1/Δt):</span>
+                          <span className="text-hmi-text-purple font-semibold text-xs">
                             {(1 / Math.abs(caliperPoints.ptB.t - caliperPoints.ptA.t)).toFixed(2)} Hz
                           </span>
                         </div>
@@ -1627,30 +1815,30 @@ function AdvancedAnalyzer({
                     const valA = caliperPoints.ptA ? (caliperPoints.ptA as any)[s.key] : null
                     const valB = caliperPoints.ptB ? (caliperPoints.ptB as any)[s.key] : null
                     const diff = (valA !== null && valB !== null) ? (valB - valA) : null
-
+ 
                     return (
-                      <div key={s.key} className="p-2 rounded border border-hmi-grid/20 bg-slate-900/30 flex flex-col gap-0.5 animate-tooltip-left">
-                        <span className="text-[10px] text-slate-400 font-sans truncate font-medium block">
+                      <div key={s.key} className="p-2 rounded border border-hmi-grid/20 bg-hmi-elevated/30 flex flex-col gap-0.5 animate-tooltip-left">
+                        <span className="text-[10px] text-hmi-text-secondary font-sans truncate font-medium block">
                           {s.name}
                         </span>
                         <div className="grid grid-cols-3 text-center gap-1 font-mono mt-1">
                           <div className="text-left">
-                            <span className="text-[9px] text-slate-500 block">Y(A)</span>
-                            <span className="text-blue-400 font-medium text-[10px]">
+                            <span className="text-[9px] text-hmi-muted block">Y(A)</span>
+                            <span className="text-hmi-j1 font-medium text-[10px]">
                               {valA !== null ? valA.toFixed(3) : '--'}
                             </span>
                           </div>
                           <div>
-                            <span className="text-[9px] text-slate-500 block">Y(B)</span>
-                            <span className="text-orange-400 font-medium text-[10px]">
+                            <span className="text-[9px] text-hmi-muted block">Y(B)</span>
+                            <span className="text-hmi-j2 font-medium text-[10px]">
                               {valB !== null ? valB.toFixed(3) : '--'}
                             </span>
                           </div>
                           <div className="text-right border-l border-hmi-grid/20">
-                            <span className="text-[9px] text-slate-500 block">ΔY</span>
+                            <span className="text-[9px] text-hmi-muted block">ΔY</span>
                             <span className={cn(
                               "font-medium text-[10px]",
-                              diff !== null && diff > 0 ? "text-emerald-400" : diff !== null && diff < 0 ? "text-red-400" : "text-slate-400"
+                              diff !== null && diff > 0 ? "text-hmi-text-success" : diff !== null && diff < 0 ? "text-hmi-text-error" : "text-hmi-text-secondary"
                             )}>
                               {diff !== null ? (diff > 0 ? '+' : '') + diff.toFixed(3) : '--'}
                             </span>
@@ -1662,15 +1850,15 @@ function AdvancedAnalyzer({
                 </div>
               </div>
             ) : (
-              <p className="text-[11px] text-slate-500 font-sans italic leading-relaxed">
+              <p className="text-[11px] text-hmi-muted font-sans italic leading-relaxed">
                 Select Calipers tool and click at two distinct times along the horizontal axis to measure settling oscillations or overshoot ratios.
               </p>
             )}
           </div>
 
           {/* Regional Window Statistics Dashboard */}
-          <div className="border border-hmi-grid bg-slate-900/40 rounded-lg p-3">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
+          <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
+            <h3 className="text-xs font-bold text-hmi-text-secondary uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
               Visible Window Stats
             </h3>
             <div className="flex flex-col gap-2 font-mono text-[11px]">
@@ -1680,26 +1868,26 @@ function AdvancedAnalyzer({
                 if (!stats) return null
 
                 return (
-                  <div key={s.key} className="p-2 rounded border border-hmi-grid/20 bg-slate-900/30 animate-tooltip-left">
-                    <span className="text-[10px] text-slate-400 font-sans truncate font-medium block border-b border-hmi-grid/10 pb-0.5 mb-1.5">
+                  <div key={s.key} className="p-2 rounded border border-hmi-grid/20 bg-hmi-elevated/30 animate-tooltip-left">
+                    <span className="text-[10px] text-hmi-text-secondary font-sans truncate font-medium block border-b border-hmi-grid/10 pb-0.5 mb-1.5">
                       {s.name}
                     </span>
                     <div className="grid grid-cols-2 gap-y-1.5 gap-x-2">
                       <div>
-                        <span className="text-[9px] text-slate-500 font-sans block">Peak-to-Peak:</span>
-                        <span className="text-slate-200 font-medium">{stats.p2p.toFixed(3)}</span>
+                        <span className="text-[9px] text-hmi-muted font-sans block">Peak-to-Peak:</span>
+                        <span className="text-hmi-text font-medium">{stats.p2p.toFixed(3)}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-slate-500 font-sans block">Mean (Average):</span>
-                        <span className="text-slate-200 font-medium">{stats.mean.toFixed(3)}</span>
+                        <span className="text-[9px] text-hmi-muted font-sans block">Mean (Average):</span>
+                        <span className="text-hmi-text font-medium">{stats.mean.toFixed(3)}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-slate-500 font-sans block">RMS value:</span>
-                        <span className="text-slate-200 font-medium">{stats.rms.toFixed(3)}</span>
+                        <span className="text-[9px] text-hmi-muted font-sans block">RMS value:</span>
+                        <span className="text-hmi-text font-medium">{stats.rms.toFixed(3)}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-slate-500 font-sans block">Std Dev (σ):</span>
-                        <span className="text-slate-200 font-medium">{stats.std.toFixed(3)}</span>
+                        <span className="text-[9px] text-hmi-muted font-sans block">Std Dev (σ):</span>
+                        <span className="text-hmi-text font-medium">{stats.std.toFixed(3)}</span>
                       </div>
                     </div>
                   </div>
@@ -1766,38 +1954,56 @@ export function ChartPanel() {
   // dispatch while still keeping buffer data up-to-date for analysis.
   const dBufRef = useRef<DSample[]>([])
   const tBufRef = useRef<TPoint[]>([])
+  const eBufRef = useRef<any[]>([])
+  const fBufRef = useRef<any[]>([])
   const [chartD, setChartD] = useState<DSample[]>(() =>
     state.recordingState === 'REC' ? state.dBuffer : state.frozenD
   )
   const [chartT, setChartT] = useState<TPoint[]>(() =>
     state.recordingState === 'REC' ? state.tBuffer : state.frozenT
   )
+  const [chartE, setChartE] = useState<any[]>(() =>
+    state.recordingState === 'REC' ? state.eBuffer : state.frozenE
+  )
+  const [chartF, setChartF] = useState<any[]>(() =>
+    state.recordingState === 'REC' ? state.fBuffer : state.frozenF
+  )
 
   // Always keep refs in sync with context (no re-render triggered)
   const liveDSource = isLive ? state.dBuffer : state.frozenD
   const liveTSource = isLive ? state.tBuffer : state.frozenT
+  const liveESource = isLive ? state.eBuffer : state.frozenE
+  const liveFSource = isLive ? state.fBuffer : state.frozenF
   dBufRef.current = liveDSource
   tBufRef.current = liveTSource
+  eBufRef.current = liveESource
+  fBufRef.current = liveFSource
 
   useEffect(() => {
     if (!isLive) {
       // Frozen: update once immediately
       setChartD(state.frozenD)
       setChartT(state.frozenT)
+      setChartE(state.frozenE)
+      setChartF(state.frozenF)
       return
     }
     // Live: throttle DOM updates to 5 Hz (200 ms)
     const id = setInterval(() => {
       setChartD([...dBufRef.current])
       setChartT([...tBufRef.current])
+      setChartE([...eBufRef.current])
+      setChartF([...fBufRef.current])
     }, 200)
     return () => clearInterval(id)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLive, state.frozenD, state.frozenT])
+  }, [isLive, state.frozenD, state.frozenT, state.frozenE, state.frozenF])
 
   // aliases used by focused AdvancedAnalyzer (not throttled — only shown when frozen)
   const dBuf = isFocused ? liveDSource : chartD
   const tBuf = isFocused ? liveTSource : chartT
+  const eBuf = isFocused ? liveESource : chartE
+  const fBuf = isFocused ? liveFSource : chartF
 
   // Listen for Escape key to close focus
   useEffect(() => {
@@ -1852,24 +2058,24 @@ export function ChartPanel() {
         <div className="flex items-center justify-between mb-2 border-b border-hmi-grid pb-2 shrink-0">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold text-hmi-text">Telemetry Analyzer Console</h2>
-            <Badge className="bg-slate-900 border border-hmi-grid text-slate-300">
+            <Badge className="bg-hmi-bg border border-hmi-grid text-hmi-text-secondary">
               {state.recordingState === 'REC' ? '🔴 Live stream' : '⏸ Sliced Run'}
             </Badge>
           </div>
           
           <div className="flex items-center gap-2">
             {/* Quick tab switcher inside full screen analyzer */}
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-md border border-hmi-grid mr-4">
+            <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded-md border border-hmi-grid mr-4">
               {CHART_TABS.map(tab => (
                 <Button
                   key={tab}
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "h-7 px-3 text-xs rounded",
+                    "h-7 px-3 text-xs rounded cursor-pointer",
                     activeTab === tab
                       ? "bg-hmi-btn text-hmi-text font-semibold shadow-sm"
-                      : "text-hmi-muted hover:text-slate-200"
+                      : "text-hmi-muted hover:text-hmi-text"
                   )}
                   onClick={() => setActiveTab(tab)}
                 >
@@ -1881,7 +2087,7 @@ export function ChartPanel() {
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex items-center gap-1 bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60 text-slate-300 h-8"
+              className="flex items-center gap-1 bg-hmi-btn hover:bg-hmi-btn-hover border-hmi-grid text-hmi-text-secondary hover:text-hmi-text h-8 cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation()
                 setIsFocused(false)
@@ -1903,7 +2109,7 @@ export function ChartPanel() {
                 <TabsTrigger
                   key={tab}
                   value={tab}
-                  className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text px-3"
+                  className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text px-3 cursor-pointer"
                 >
                   {TAB_LABELS[tab]}
                 </TabsTrigger>
@@ -1915,7 +2121,7 @@ export function ChartPanel() {
                   variant="outline" 
                   size="sm" 
                   onClick={(e) => { e.stopPropagation(); setIsFocused(!isFocused); }} 
-                  className="h-7 px-1.5 text-[10px] text-slate-300 border-slate-700/60 hover:bg-slate-800/80 hover:text-white"
+                  className="h-7 px-1.5 text-[10px] text-hmi-text-secondary border-hmi-grid hover:bg-hmi-btn-hover hover:text-hmi-text cursor-pointer"
                 >
                   {isFocused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                 </Button>
@@ -1926,22 +2132,16 @@ export function ChartPanel() {
 
         <CardContent className="flex-1 min-h-0 p-2 overflow-hidden">
           {isFocused ? (
-            // For CTE/ATE/POS/VEL use the interactive AdvancedAnalyzer;
-            // for the new tabs, the section components handle their own fullscreen.
-            (['cte', 'ate', 'pos', 'vel'] as const).includes(activeTab as any) ? (
-              <AdvancedAnalyzer
-                activeTab={activeTab as 'cte' | 'ate' | 'pos' | 'vel'}
-                dBuf={dBuf}
-                tBuf={tBuf}
-                angularUnit={angularUnit}
-              />
-            ) : (
-              <div className="h-full w-full">
-                {activeTab === 'pid'    && <PIDChart />}
-                {activeTab === 'j1ctrl' && <J1CtrlChart />}
-                {activeTab === 'j2vel'  && <J2VelChart />}
-              </div>
-            )
+            <AdvancedAnalyzer
+              activeTab={activeTab}
+              dBuf={dBuf}
+              tBuf={tBuf}
+              eBuf={eBuf}
+              fBuf={fBuf}
+              angularUnit={angularUnit}
+              params={state.params}
+              gains={state.gains}
+            />
           ) : (
             <>
               <TabsContent value="cte" className="h-full w-full relative overflow-hidden">

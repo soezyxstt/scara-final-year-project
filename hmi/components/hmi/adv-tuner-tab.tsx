@@ -198,7 +198,7 @@ function ParamField({
             {label}
           </label>
         </Tooltip>
-        <span className="text-[10px] text-slate-500 font-mono select-none">
+        <span className="text-[10px] text-hmi-muted font-mono select-none">
           Cmd: <code className="text-hmi-ideal">{cmd}</code>
         </span>
       </div>
@@ -231,7 +231,7 @@ function ParamField({
             "h-8 px-2.5 text-xs transition-all",
             status === 'dirty' 
               ? "bg-amber-500 hover:bg-amber-600 text-black font-semibold" 
-              : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+              : "bg-hmi-btn text-hmi-text-secondary hover:bg-hmi-btn-hover"
           )}
         >
           Apply
@@ -291,7 +291,7 @@ function ToggleField({
           className={cn(
             "h-8 px-2.5 text-xs transition-all",
             value
-              ? "bg-slate-800 text-slate-300 hover:bg-slate-700"
+              ? "bg-hmi-btn text-hmi-text-secondary hover:bg-hmi-btn-hover"
               : "bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-semibold"
           )}
         >
@@ -360,7 +360,7 @@ export function AdvTunerTab() {
             size="sm"
             onClick={handleRefresh}
             disabled={serialStatus !== 'connected' || isRefreshing}
-            className="gap-2 bg-slate-900 border-slate-800 text-slate-200 h-9 font-semibold"
+            className="gap-2 bg-hmi-btn border-hmi-grid text-hmi-text h-9 font-semibold hover:bg-hmi-btn-hover"
           >
             <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
             {isRefreshing ? 'Syncing...' : 'Sync Parameters'}
@@ -384,7 +384,7 @@ export function AdvTunerTab() {
         <div className="flex flex-col gap-6">
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-hmi-ideal shrink-0" />
                 Motion limits
               </CardTitle>
@@ -428,7 +428,7 @@ export function AdvTunerTab() {
 
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-purple-500 shrink-0" />
                 Control Loop Settings
               </CardTitle>
@@ -534,13 +534,13 @@ export function AdvTunerTab() {
         <div className="flex flex-col gap-6">
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0" />
                 Tracking Differentiator (TD)
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 flex flex-col gap-3">
-              <div className="text-[10px] text-hmi-muted px-1.5 py-1 bg-slate-950/40 border border-hmi-grid/20 rounded font-sans leading-relaxed">
+              <div className="text-[10px] text-hmi-muted px-1.5 py-1 bg-hmi-bg/40 border border-hmi-grid/20 rounded font-sans leading-relaxed">
                 TD menggantikan IIR filter. <strong>r</strong> = bandwidth (rad/s) — semakin besar semakin responsif tapi lebih noise. <strong>h</strong> = step size = 3×DT (read-only, ditentukan firmware).
               </div>
               <ParamField
@@ -573,9 +573,9 @@ export function AdvTunerTab() {
                       TD Step Size (h) — read-only
                     </label>
                   </Tooltip>
-                  <span className="text-[10px] text-slate-600 font-mono select-none">h = 3 × (1/cfreq)</span>
+                  <span className="text-[10px] text-hmi-muted font-mono select-none">h = 3 × (1/cfreq)</span>
                 </div>
-                <span className="text-xs font-mono text-slate-500 bg-slate-900/60 border border-hmi-grid/20 px-3 py-1.5 rounded">
+                <span className="text-xs font-mono text-hmi-text-secondary bg-hmi-bg/60 border border-hmi-grid/20 px-3 py-1.5 rounded">
                   {currentParams.tdH?.toFixed(4) ?? '--'}
                 </span>
               </div>
@@ -585,7 +585,7 @@ export function AdvTunerTab() {
 
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-hmi-actual shrink-0" />
                 PWM Deadband Compensation
               </CardTitle>
@@ -686,7 +686,7 @@ export function AdvTunerTab() {
         <div className="flex flex-col gap-6">
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
                 J1 Hold Mode Constants
               </CardTitle>
@@ -752,7 +752,7 @@ export function AdvTunerTab() {
 
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
                 J2 Hold Mode Constants
               </CardTitle>
@@ -784,9 +784,9 @@ export function AdvTunerTab() {
           </Card>
 
           {/* Trajectory Queue Dashboard */}
-          <Card className="border border-hmi-grid bg-slate-900/30 backdrop-blur shadow-md">
+          <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <Activity className="h-3.5 w-3.5 text-hmi-start animate-pulse" />
                 Trajectory Queue Status
               </CardTitle>
@@ -795,13 +795,13 @@ export function AdvTunerTab() {
               
               {/* Status Badge */}
               <div className="flex items-center justify-between border-b border-hmi-grid/40 pb-3">
-                <span className="text-xs text-slate-400 font-semibold">Active State:</span>
+                <span className="text-xs text-hmi-text-secondary font-semibold">Active State:</span>
                 {queueStatus?.pendingStatus === 1 ? (
                   <span className="text-xs font-bold text-hmi-start bg-hmi-start/10 border border-hmi-start/20 px-2 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
                     <Play className="h-2.5 w-2.5 fill-current" /> Move Queued
                   </span>
                 ) : (
-                  <span className="text-xs font-bold text-hmi-muted bg-slate-800 border border-slate-700/60 px-2 py-0.5 rounded-full flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-hmi-muted bg-hmi-btn border border-hmi-grid px-2 py-0.5 rounded-full flex items-center gap-1.5">
                     <Square className="h-2 w-2 fill-current" /> Empty / Ready
                   </span>
                 )}
@@ -810,21 +810,21 @@ export function AdvTunerTab() {
               {/* Queue coordinates */}
               <div className="grid grid-cols-2 gap-3 font-mono text-xs">
                 <div className="p-3 bg-hmi-panel/50 rounded border border-hmi-grid/25 text-center">
-                  <span className="text-[10px] text-slate-500 font-sans block mb-1">Pending Target X</span>
-                  <span className="text-slate-200 text-sm font-semibold">
+                  <span className="text-[10px] text-hmi-muted font-sans block mb-1">Pending Target X</span>
+                  <span className="text-hmi-text text-sm font-semibold">
                     {queueStatus?.pendingStatus === 1 ? `${queueStatus.pendingX.toFixed(1)} mm` : '--'}
                   </span>
                 </div>
                 <div className="p-3 bg-hmi-panel/50 rounded border border-hmi-grid/25 text-center">
-                  <span className="text-[10px] text-slate-500 font-sans block mb-1">Pending Target Y</span>
-                  <span className="text-slate-200 text-sm font-semibold">
+                  <span className="text-[10px] text-hmi-muted font-sans block mb-1">Pending Target Y</span>
+                  <span className="text-hmi-text text-sm font-semibold">
                     {queueStatus?.pendingStatus === 1 ? `${queueStatus.pendingY.toFixed(1)} mm` : '--'}
                   </span>
                 </div>
               </div>
 
               {queueStatus?.pendingStatus === 1 && (
-                <div className="flex justify-center items-center gap-1 text-[11px] text-hmi-muted bg-slate-950/40 p-2 rounded border border-hmi-grid/10">
+                <div className="flex justify-center items-center gap-1 text-[11px] text-hmi-muted bg-hmi-bg/45 p-2 rounded border border-hmi-grid/10">
                   Next trajectory starts automatically once current settles.
                 </div>
               )}
@@ -834,7 +834,7 @@ export function AdvTunerTab() {
           {/* TEST Mode Parameters */}
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
                 TEST Mode Parameters
               </CardTitle>

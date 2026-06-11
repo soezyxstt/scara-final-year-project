@@ -39,6 +39,7 @@
 
 constexpr float L1 = 0.100f;
 constexpr float L2 = 0.070f;
+constexpr float L_INNER = 0.0707f; // 70.7 mm inner singularity radius
 
 // ------------------------------------------------------------
 //  DYNAMIC MODEL PARAMETERS

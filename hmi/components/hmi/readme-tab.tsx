@@ -108,8 +108,8 @@ function CodeBlock({ filename, code }: { filename?: string; code: string }) {
   }
 
   return (
-    <div className="my-5 rounded-xl overflow-hidden border border-zinc-800 bg-[#0e0e11] shadow-lg shadow-black/30">
-      <div className="flex items-center justify-between px-4 py-2 bg-[#141418] border-b border-zinc-800/80">
+    <div className="my-5 rounded-xl overflow-hidden border border-zinc-800 bg-hmi-bg shadow-lg shadow-black/30">
+      <div className="flex items-center justify-between px-4 py-2 bg-hmi-panel border-b border-zinc-800/80">
         <span className="text-[11px] font-mono text-zinc-400 font-medium">
           {filename || 'Source Code'}
         </span>
@@ -153,10 +153,10 @@ function Callout({
   children: React.ReactNode
 }) {
   const styles = {
-    info: 'border-sky-500/50 bg-sky-500/5 text-sky-300',
-    warn: 'border-amber-500/50 bg-amber-500/5 text-amber-300',
-    tip: 'border-emerald-500/50 bg-emerald-500/5 text-emerald-300',
-    danger: 'border-red-500/50 bg-red-500/5 text-red-300',
+    info: 'border-sky-500 bg-sky-50/50 text-sky-800 dark:border-sky-500/50 dark:bg-sky-500/5 dark:text-sky-300',
+    warn: 'border-amber-500 bg-amber-50/50 text-amber-800 dark:border-amber-500/50 dark:bg-amber-500/5 dark:text-amber-300',
+    tip: 'border-emerald-500 bg-emerald-50/50 text-emerald-800 dark:border-emerald-500/50 dark:bg-emerald-500/5 dark:text-emerald-300',
+    danger: 'border-red-500 bg-red-50/50 text-red-800 dark:border-red-500/50 dark:bg-red-500/5 dark:text-red-300',
   }
   const icons = {
     info: 'ℹ',
@@ -183,7 +183,7 @@ function Callout({
 
 function PropertyList({ children }: { children: React.ReactNode }) {
   return (
-    <div className="my-5 divide-y divide-zinc-800/60 border border-zinc-800/80 rounded-xl overflow-hidden bg-[#141418]/30 shadow-md">
+    <div className="my-5 divide-y divide-zinc-800/60 border border-zinc-800/80 rounded-xl overflow-hidden bg-hmi-panel/30 shadow-md">
       {children}
     </div>
   )
@@ -397,7 +397,7 @@ export function ReadmeTab() {
   }
 
   return (
-    <div className="flex flex-row h-full overflow-hidden bg-hmi-bg">
+    <div className="flex flex-row h-full overflow-hidden bg-hmi-bg readme-tab-container">
       {/* ── Left Navigation Sidebar ────────────────────────────────────────── */}
       <aside className="w-60 shrink-0 border-r border-hmi-grid bg-hmi-panel/30 flex flex-col px-4 py-6 overflow-y-auto">
         <div className="px-2 mb-6">
@@ -467,20 +467,20 @@ export function ReadmeTab() {
       >
         <article className="max-w-3xl mx-auto">
           {/* Document Header */}
-          <div className="pb-8 border-b border-zinc-800/80 mb-8">
-            <h1 className="text-3xl font-extrabold text-zinc-100 tracking-tight leading-none mb-3">
+          <div className="pb-8 border-b border-hmi-grid mb-8">
+            <h1 className="text-3xl font-extrabold text-hmi-text tracking-tight leading-none mb-3">
               SCARA HMI — User Guide
             </h1>
-            <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl font-normal">
+            <p className="text-sm text-hmi-muted leading-relaxed max-w-2xl font-normal">
               Real-time monitoring and control interface for the 2-DOF planar SCARA robot, developed for the Dynamic System Control (MS3201) course at Mechanical Engineering ITB.
             </p>
           </div>
 
           {/* Project Context & Evolution */}
-          <div className="p-5 border border-zinc-800 bg-[#141418]/40 rounded-xl mb-10 text-xs text-zinc-400 space-y-4">
+          <div className="p-5 border border-hmi-grid bg-hmi-panel/50 rounded-xl mb-10 text-xs text-hmi-muted space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <span className="font-bold text-[11px] uppercase tracking-wider text-zinc-200 block mb-1">Project Objective</span>
+                <span className="font-bold text-[11px] uppercase tracking-wider text-hmi-text block mb-1">Project Objective</span>
                 <p className="leading-relaxed">
                   Modify the control algorithm of the 2-DOF SCARA robot by adding **dynamic compensation** (inertia, gravity, Coriolis, and centrifugal forces) and provide real-time HMI tools for parameter tuning (<InlineCode>Kp, Ki, Kd</InlineCode>).
                 </p>
@@ -527,7 +527,7 @@ export function ReadmeTab() {
                 { tab: 'Rest Analysis', desc: 'Step-response and rest-state telemetry analysis' },
                 { tab: 'README', desc: 'This guide — you are here' },
               ].map((item, idx) => (
-                <div key={idx} className="p-3 border border-zinc-800 rounded-lg bg-[#101014]">
+                <div key={idx} className="p-3 border border-zinc-800 rounded-lg bg-hmi-elevated">
                   <p className="text-[11px] font-bold text-hmi-ideal font-mono">{item.tab}</p>
                   <p className="text-[9.5px] text-zinc-500 mt-1 leading-relaxed">{item.desc}</p>
                 </div>
@@ -945,8 +945,8 @@ export function ReadmeTab() {
             
             <h3 className="text-sm font-semibold text-zinc-200 mt-6 mb-2">Ziegler-Nichols Parameter Rules</h3>
             <div className="overflow-x-auto my-3 border border-zinc-850 rounded-xl">
-              <table className="min-w-full divide-y divide-zinc-850 bg-[#101014]/50 text-[11px] font-sans text-zinc-400">
-                <thead className="bg-[#141418] text-zinc-300">
+              <table className="min-w-full divide-y divide-zinc-850 bg-hmi-elevated/50 text-[11px] font-sans text-zinc-400">
+                <thead className="bg-hmi-panel text-zinc-300">
                   <tr>
                     <th className="px-4 py-2 text-left font-semibold">Tuning Rule</th>
                     <th className="px-4 py-2 text-left font-semibold">Kp (Proportional)</th>
@@ -1033,8 +1033,8 @@ export function ReadmeTab() {
               Shortcuts are disabled while typing in input fields. Rebind any key in the ☰ settings menu.
             </p>
             <div className="overflow-x-auto my-3 border border-zinc-850 rounded-xl">
-              <table className="min-w-full divide-y divide-zinc-850 bg-[#101014]/50 text-[11px] font-sans text-zinc-400">
-                <thead className="bg-[#141418] text-zinc-300">
+              <table className="min-w-full divide-y divide-zinc-850 bg-hmi-elevated/50 text-[11px] font-sans text-zinc-400">
+                <thead className="bg-hmi-panel text-zinc-300">
                   <tr>
                     <th className="px-4 py-2 text-left font-semibold">Key</th>
                     <th className="px-4 py-2 text-left font-semibold">Action</th>

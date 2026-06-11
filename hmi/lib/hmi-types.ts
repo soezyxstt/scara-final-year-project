@@ -161,6 +161,7 @@ export interface HMIState {
   targetInputY: number | null
   /** Set before a run to trigger save-to-DB after move completes */
   pendingSave: { name: string; startedAt: number } | null
+  lastSavedRunId: string | null
 }
 
 export type HMIAction =
@@ -189,6 +190,7 @@ export type HMIAction =
   | { type: 'SET_TARGET_INPUT'; x: number | null; y: number | null }
   | { type: 'SET_PENDING_SAVE'; name: string; startedAt: number }
   | { type: 'CLEAR_PENDING_SAVE' }
+  | { type: 'SET_LAST_SAVED_RUN_ID'; runId: string | null }
 
 export interface SerialController {
   connect: () => Promise<void>

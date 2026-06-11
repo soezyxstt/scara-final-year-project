@@ -1,64 +1,175 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── Core Surfaces ─────────────────────────────────────────────────────────
-     Stepped luminance: each layer is visibly distinct from the next.
-     bg (darkest) → panel → elevated → border → muted-text → text (brightest)
-  ─────────────────────────────────────────────────────────────────────────── */
-  --color-hmi-bg:           #09090B;   /* Near-black base (zinc-950 equivalent) */
-  --color-hmi-panel:        #111113;   /* Primary panel surface                  */
-  --color-hmi-elevated:     #18181B;   /* Elevated cards, dropdowns              */
-  --color-hmi-grid:         #27272A;   /* Borders, dividers (zinc-800)           */
-  --color-hmi-grid-subtle:  #1C1C1F;   /* Subtle inner borders                   */
+  /* ── Core Surfaces ── */
+  --color-hmi-bg:           var(--hmi-bg);
+  --color-hmi-panel:        var(--hmi-panel);
+  --color-hmi-elevated:     var(--hmi-elevated);
+  --color-hmi-grid:         var(--hmi-grid);
+  --color-hmi-grid-subtle:  var(--hmi-grid-subtle);
 
-  /* ── Typography ────────────────────────────────────────────────────────────*/
-  --color-hmi-text:         #FAFAFA;   /* Primary text (near white, zinc-50)     */
-  --color-hmi-text-secondary: #A1A1AA; /* Secondary labels (zinc-400)            */
-  --color-hmi-muted:        #71717A;   /* Muted/disabled text (zinc-500)         */
-  --color-hmi-dimmed:       #3F3F46;   /* Very dim text/icons (zinc-700)         */
+  /* ── Typography ── */
+  --color-hmi-text:         var(--hmi-text);
+  --color-hmi-text-secondary: var(--hmi-text-secondary);
+  --color-hmi-muted:        var(--hmi-muted);
+  --color-hmi-dimmed:       var(--hmi-dimmed);
 
-  /* ── Interactive Controls ──────────────────────────────────────────────────*/
-  --color-hmi-btn:          #27272A;   /* Default button bg (zinc-800)           */
-  --color-hmi-btn-hover:    #3F3F46;   /* Hovered button bg (zinc-700)           */
-  --color-hmi-tab-active:   #18181B;   /* Active tab/sidebar item bg             */
+  /* ── Interactive Controls ── */
+  --color-hmi-btn:          var(--hmi-btn);
+  --color-hmi-btn-hover:    var(--hmi-btn-hover);
+  --color-hmi-tab-active:   var(--hmi-tab-active);
 
-  /* ── Accent: Electric Indigo → replaces flat Material Blue ────────────────
-     Vibrancy: starts at 400 (text), has a subtle glow feel.
-  ─────────────────────────────────────────────────────────────────────────── */
-  --color-hmi-ideal:        #818CF8;   /* Indigo-400: primary accent, links      */
-  --color-hmi-ideal-dark:   #6366F1;   /* Indigo-500: pressed/active accent      */
-  --color-hmi-ideal-dim:    #1E1F3A;   /* Indigo tinted bg for active items      */
+  /* ── Accent ── */
+  --color-hmi-ideal:        var(--hmi-ideal);
+  --color-hmi-ideal-dark:   var(--hmi-ideal-dark);
+  --color-hmi-ideal-dim:    var(--hmi-ideal-dim);
 
-  /* ── Data Series Colors (high contrast, distinct hues) ────────────────────*/
-  --color-hmi-j1:           #60A5FA;   /* Blue-400: J1 actual                    */
-  --color-hmi-j1-des:       #93C5FD;   /* Blue-300: J1 desired (lighter dash)    */
-  --color-hmi-j2:           #FB923C;   /* Orange-400: J2 actual                  */
-  --color-hmi-j2-des:       #FDBA74;   /* Orange-300: J2 desired (lighter dash)  */
-  --color-hmi-actual:       #F87171;   /* Red-400: actual trajectory path        */
-  --color-hmi-pwm-pos:      #34D399;   /* Emerald-400: positive PWM/effort       */
-  --color-hmi-pwm-neg:      #F87171;   /* Red-400: negative effort               */
-  --color-hmi-error:        #FBBF24;   /* Amber-400: error signal traces         */
-  --color-hmi-start:        #34D399;   /* Emerald-400: start marker              */
-  --color-hmi-target:       #FB923C;   /* Orange-400: target marker              */
-  --color-hmi-workspace:    #3F3F46;   /* Zinc-700: workspace boundary           */
+  /* ── Data Series Colors ── */
+  --color-hmi-j1:           var(--hmi-j1);
+  --color-hmi-j1-des:       var(--hmi-j1-des);
+  --color-hmi-j2:           var(--hmi-j2);
+  --color-hmi-j2-des:       var(--hmi-j2-des);
+  --color-hmi-actual:       var(--hmi-actual);
+  --color-hmi-pwm-pos:      var(--hmi-pwm-pos);
+  --color-hmi-pwm-neg:      var(--hmi-pwm-neg);
+  --color-hmi-error:        var(--hmi-error);
+  --color-hmi-start:        var(--hmi-start);
+  --color-hmi-target:       var(--hmi-target);
+  --color-hmi-workspace:    var(--hmi-workspace);
 
-  /* ── Status / Semantic ─────────────────────────────────────────────────────*/
-  --color-hmi-ok:           #22C55E;   /* Green-500: success, online, connected  */
-  --color-hmi-ok-hover:     #16A34A;   /* Green-600                              */
-  --color-hmi-warn:         #F59E0B;   /* Amber-500: cooldown, warnings          */
-  --color-hmi-off:          #27272A;   /* Zinc-800: inactive/offline badge bg    */
-  --color-hmi-rec-on:       #F87171;   /* Red-400: recording active              */
-  --color-hmi-rec-off:      #27272A;   /* Zinc-800: recording off                */
-  --color-hmi-estop:        #DC2626;   /* Red-600: E-STOP button                 */
-  --color-hmi-estop-hover:  #B91C1C;   /* Red-700                                */
+  /* ── Status / Semantic ── */
+  --color-hmi-ok:           var(--hmi-ok);
+  --color-hmi-ok-hover:     var(--hmi-ok-hover);
+  --color-hmi-warn:         var(--hmi-warn);
+  --color-hmi-off:          var(--hmi-off);
+  --color-hmi-rec-on:       var(--hmi-rec-on);
+  --color-hmi-rec-off:      var(--hmi-rec-off);
+  --color-hmi-estop:        var(--hmi-estop);
+  --color-hmi-estop-hover:  var(--hmi-estop-hover);
+
+  --color-hmi-text-neutral: var(--hmi-text-neutral);
+  --color-hmi-text-error:   var(--hmi-text-error);
+  --color-hmi-text-warning: var(--hmi-text-warning);
+  --color-hmi-text-success: var(--hmi-text-success);
+  --color-hmi-text-purple:  var(--hmi-text-purple);
+  --color-hmi-text-violet:  var(--hmi-text-violet);
+  --color-hmi-text-cyan:    var(--hmi-text-cyan);
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
+:root {
+  --hmi-bg:           #141517;   /* Deepened JetBrains Dark base background */
+  --hmi-panel:        #1F2023;   /* Deepened JetBrains Dark primary panel surface */
+  --hmi-elevated:     #2A2B2F;   /* Elevated cards, dropdowns, active item bg */
+  --hmi-grid:         #323439;   /* Borders, dividers */
+  --hmi-grid-subtle:  #25262A;   /* Subtle inner borders */
+
+  /* ── Typography ── */
+  --hmi-text:         #DFE1E5;   /* Primary text (softer than pure white) */
+  --hmi-text-secondary: #9F9F9F; /* Secondary labels */
+  --hmi-muted:        #7A7E85;   /* Muted text / comments */
+  --hmi-dimmed:       #5A5D63;   /* Very dim text/icons */
+
+  /* ── Interactive Controls ── */
+  --hmi-btn:          #2A2B2F;   /* Default button bg */
+  --hmi-btn-hover:    #323439;   /* Hovered button bg */
+  --hmi-tab-active:   #25262A;   /* Active tab/sidebar item bg */
+
+  /* ── Accent ── */
+  --hmi-ideal:        #3574F0;   /* JetBrains Blue Accent */
+  --hmi-ideal-dark:   #2C60C8;   /* JetBrains Accent Hover */
+  --hmi-ideal-dim:    #25324D;   /* Accent tinted bg */
+
+  /* ── Data Series Colors ── */
+  --hmi-j1:           #60A5FA;   /* Blue-400 */
+  --hmi-j1-des:       #93C5FD;   /* Blue-300 */
+  --hmi-j2:           #FB923C;   /* Orange-400 */
+  --hmi-j2-des:       #FDBA74;   /* Orange-300 */
+  --hmi-actual:       #F87171;   /* Red-400 */
+  --hmi-pwm-pos:      #34D399;   /* Emerald-400 */
+  --hmi-pwm-neg:      #F87171;   /* Red-400 */
+  --hmi-error:        #FBBF24;   /* Amber-400 */
+  --hmi-start:        #34D399;   /* Emerald-400 */
+  --hmi-target:       #FB923C;   /* Orange-400 */
+  --hmi-workspace:    #3F3F46;   /* Zinc-700 */
+
+  /* ── Status / Semantic ── */
+  --hmi-ok:           #22C55E;   /* Green-500 */
+  --hmi-ok-hover:     #16A34A;   /* Green-600 */
+  --hmi-warn:         #F59E0B;   /* Amber-500 */
+  --hmi-off:          #2A2B2F;   /* Softer off state */
+  --hmi-rec-on:       #F87171;   /* Red-400 */
+  --hmi-rec-off:      #2A2B2F;   /* Softer rec-off state */
+  --hmi-estop:        #DC2626;   /* Red-600 */
+  /* ── Dynamic Text (contrast-adjusted for dark/light themes) ── */
+  --hmi-text-neutral: #DFE1E5; /* Soft white/gray */
+  --hmi-text-error:   #F87171; /* red-400 */
+  --hmi-text-warning: #FBBF24; /* amber-400 */
+  --hmi-text-success: #34D399; /* emerald-400 */
+  --hmi-text-purple:  #C084FC; /* purple-400 */
+  --hmi-text-violet:  #A78BFA; /* violet-400 */
+  --hmi-text-cyan:    #22D3EE; /* cyan-400 */
+}
+
+:root.light {
+  --hmi-bg:           #FAFAFA;   /* Off-white base (zinc-50) */
+  --hmi-panel:        #FFFFFF;   /* Clean white panels */
+  --hmi-elevated:     #F4F4F5;   /* Light gray panels (zinc-100) */
+  --hmi-grid:         #E4E4E7;   /* Zinc-200 border */
+  --hmi-grid-subtle:  #F4F4F5;   /* Zinc-100 border */
+
+  /* ── Typography ── */
+  --hmi-text:         #18181B;   /* Zinc-900 primary text */
+  --hmi-text-secondary: #52525B; /* Zinc-600 secondary text */
+  --hmi-muted:        #71717A;   /* Zinc-500 muted text */
+  --hmi-dimmed:       #A1A1AA;   /* Zinc-400 dim text/icons */
+
+  /* ── Interactive Controls ── */
+  --hmi-btn:          #E4E4E7;   /* Zinc-200 button bg */
+  --hmi-btn-hover:    #D4D4D8;   /* Zinc-300 button hover bg */
+  --hmi-tab-active:   #F4F4F5;   /* Active tab/sidebar item bg (zinc-100) */
+
+  /* ── Accent ── */
+  --hmi-ideal:        #4F46E5;   /* Indigo-600 */
+  --hmi-ideal-dark:   #4338CA;   /* Indigo-700 */
+  --hmi-ideal-dim:    #EEF2FF;   /* Indigo-50 tinted bg */
+
+  /* ── Data Series Colors ── */
+  --hmi-j1:           #2563EB;   /* Blue-600 */
+  --hmi-j1-des:       #3B82F6;   /* Blue-500 */
+  --hmi-j2:           #EA580C;   /* Orange-600 */
+  --hmi-j2-des:       #F97316;   /* Orange-500 */
+  --hmi-actual:       #DC2626;   /* Red-600 */
+  --hmi-pwm-pos:      #059669;   /* Emerald-600 */
+  --hmi-pwm-neg:      #DC2626;   /* Red-600 */
+  --hmi-error:        #D97706;   /* Amber-600 */
+  --hmi-start:        #16A34A;   /* Green-600 */
+  --hmi-target:       #EA580C;   /* Orange-600 */
+  --hmi-workspace:    #71717A;   /* Zinc-500 */
+
+  /* ── Status / Semantic ── */
+  --hmi-ok:           #16A34A;   /* Green-600 */
+  --hmi-ok-hover:     #15803D;   /* Green-700 */
+  --hmi-warn:         #D97706;   /* Amber-600 */
+  --hmi-off:          #E4E4E7;   /* Zinc-200 */
+  --hmi-rec-on:       #DC2626;   /* Red-600 */
+  --hmi-rec-off:      #E4E4E7;   /* Zinc-200 */
+  --hmi-estop:        #DC2626;   /* Red-600 */
+  /* ── Dynamic Text (contrast-adjusted for dark/light themes) ── */
+  --hmi-text-neutral: #1E293B; /* slate-800 */
+  --hmi-text-error:   #DC2626; /* red-600 */
+  --hmi-text-warning: #D97706; /* amber-600 */
+  --hmi-text-success: #059669; /* emerald-600 */
+  --hmi-text-purple:  #7C3AED; /* purple-600 */
+  --hmi-text-violet:  #6D28D9; /* violet-700 */
+  --hmi-text-cyan:    #0891B2; /* cyan-600 */
+}
+
 body {
-  background-color: #09090B;
-  color: #FAFAFA;
+  background-color: var(--hmi-bg);
+  color: var(--hmi-text);
   min-height: 100vh;
 }
 
@@ -117,3 +228,42 @@ body {
 ::-webkit-scrollbar-thumb  { background: var(--color-hmi-grid); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-hmi-btn-hover); }
 * { scrollbar-width: thin; scrollbar-color: var(--color-hmi-grid) transparent; }
+
+/* ── Theme Adaptability Overrides for Hardcoded Components ── */
+.readme-tab-container {
+  --color-zinc-50: var(--color-hmi-text);
+  --color-zinc-100: var(--color-hmi-text);
+  --color-zinc-200: var(--color-hmi-text);
+  --color-zinc-300: var(--color-hmi-text-secondary);
+  --color-zinc-400: var(--color-hmi-text-secondary);
+  --color-zinc-500: var(--color-hmi-muted);
+  --color-zinc-650: var(--color-hmi-dimmed);
+  --color-zinc-700: var(--color-hmi-grid);
+  --color-zinc-800: var(--color-hmi-grid);
+  --color-zinc-850: var(--color-hmi-grid-subtle);
+}
+
+.results-container {
+  --color-slate-50: var(--color-hmi-text);
+  --color-slate-100: var(--color-hmi-text);
+  --color-slate-200: var(--color-hmi-text);
+  --color-slate-300: var(--color-hmi-text-secondary);
+  --color-slate-400: var(--color-hmi-text-secondary);
+  --color-slate-500: var(--color-hmi-muted);
+  --color-slate-600: var(--color-hmi-dimmed);
+  --color-slate-700: var(--color-hmi-grid);
+  --color-slate-800: var(--color-hmi-grid);
+  --color-slate-900: var(--color-hmi-panel);
+  --color-slate-950: var(--color-hmi-bg);
+}
+
+/* Hide spin buttons globally for type number inputs */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

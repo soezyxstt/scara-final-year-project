@@ -66,13 +66,13 @@ export function SerialTerminalSheet({ open, onClose }: SerialTerminalSheetProps)
           "h-2 w-full shrink-0 flex items-center justify-center group select-none",
           dragging
             ? "cursor-row-resize bg-hmi-ideal/20"
-            : "cursor-row-resize bg-slate-900/70 hover:bg-hmi-ideal/10 transition-colors"
+            : "cursor-row-resize bg-hmi-elevated/70 hover:bg-hmi-ideal/10 transition-colors"
         )}
         title="Drag to resize"
       >
         <div className={cn(
           "w-10 h-0.5 rounded-full transition-colors",
-          dragging ? "bg-hmi-ideal" : "bg-slate-600 group-hover:bg-hmi-ideal/60"
+          dragging ? "bg-hmi-ideal" : "bg-hmi-dimmed group-hover:bg-hmi-ideal/60"
         )} />
       </div>
 
@@ -90,9 +90,10 @@ interface SerialMonitorButtonProps {
   open: boolean
   onToggle: () => void
   serialConnected: boolean
+  id?: string
 }
 
-export function SerialMonitorButton({ open, onToggle, serialConnected }: SerialMonitorButtonProps) {
+export function SerialMonitorButton({ open, onToggle, serialConnected, id }: SerialMonitorButtonProps) {
   return (
     <Tooltip
       content={open
@@ -101,6 +102,7 @@ export function SerialMonitorButton({ open, onToggle, serialConnected }: SerialM
       align="right"
     >
       <Button
+        id={id}
         variant="outline"
         size="sm"
         onClick={onToggle}
@@ -108,7 +110,7 @@ export function SerialMonitorButton({ open, onToggle, serialConnected }: SerialM
           "relative gap-1.5 text-[12px]",
           open
             ? "border-hmi-ideal text-hmi-ideal bg-hmi-ideal/10 hover:bg-hmi-ideal/20"
-            : "text-slate-300 hover:text-white"
+            : "text-hmi-text-secondary hover:text-hmi-text"
         )}
       >
         {/* Terminal / serial monitor icon */}

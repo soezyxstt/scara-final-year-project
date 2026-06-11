@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
+import { ThemeToggle } from '@/components/hmi/theme-toggle'
 
 import {
   ResponsiveContainer,
@@ -31,7 +32,7 @@ import {
 const GRID = 'var(--color-hmi-grid-subtle)'
 const AT = {
   fill: 'var(--color-hmi-text-secondary)',
-  fontSize: 10,
+  fontSize: 11,
   fontFamily: 'var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif',
   fontWeight: 500,
 }
@@ -43,8 +44,8 @@ const TS = {
   borderRadius: '6px',
   color: 'var(--color-hmi-text)',
   fontFamily: 'var(--font-geist-sans), sans-serif',
-  fontSize: '11px',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+  fontSize: '12px',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
 }
 const MARGIN = { top: 8, right: 16, left: 4, bottom: 28 }
 
@@ -52,8 +53,8 @@ const XLABEL = (label: string) => ({
   value: label,
   position: 'insideBottom' as const,
   offset: -6,
-  fill: '#6B7280',
-  fontSize: 10,
+  fill: '#9CA3AF',
+  fontSize: 12,
   fontFamily: 'var(--font-geist-sans), sans-serif',
   fontWeight: 600,
 })
@@ -61,9 +62,9 @@ const YLABEL = (label: string) => ({
   value: label,
   angle: -90,
   position: 'insideLeft' as const,
-  offset: 12,
-  fill: '#6B7280',
-  fontSize: 10,
+  offset: 8,
+  fill: '#9CA3AF',
+  fontSize: 12,
   fontFamily: 'var(--font-geist-sans), sans-serif',
   fontWeight: 600,
 })
@@ -170,10 +171,10 @@ function ExpandableChart({
         onKeyDown={e => e.key === 'Escape' && setExpanded(false)}
       >
         <div
-          className="w-full max-w-5xl h-[80vh] bg-[#0D1117] border border-white/[0.08] rounded-xl flex flex-col shadow-2xl overflow-hidden"
+          className="w-full max-w-5xl h-[80vh] bg-hmi-panel border border-hmi-grid rounded-xl flex flex-col shadow-2xl overflow-hidden"
           onClick={e => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-hmi-grid/60 shrink-0">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-slate-300 select-none">{title}</p>
               {subtitle && <p className="text-[10px] text-slate-500 mt-0.5 select-none">{subtitle}</p>}
@@ -194,12 +195,181 @@ function ExpandableChart({
   }
 
   return (
-    <div className={cn('bg-[#0D1117] border border-white/[0.07] rounded-lg flex flex-col overflow-hidden', className)}>
+    <div className={cn('bg-hmi-panel border border-hmi-grid rounded-lg flex flex-col overflow-hidden', className)}>
       {header}
       <div className="flex-1 min-h-0 p-3">
         {children}
       </div>
     </div>
+  )
+}
+
+// ── Extracted Subcomponents for RunCharts ─────────────────────────────────────
+function JointPositionChart({ data }: { data: any[] }) {
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={MARGIN}>
+        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
+        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('θ (°)')} width={52} />
+        <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + '°' : v} />
+        <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
+        <Line type="monotone" dataKey="th1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J1 Act" hide={!!hidden.th1} />
+        <Line type="monotone" dataKey="th1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J1 Des" hide={!!hidden.th1d} />
+        <Line type="monotone" dataKey="th2" stroke="var(--color-hmi-j2)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 Act" hide={!!hidden.th2} />
+        <Line type="monotone" dataKey="th2d" stroke="var(--color-hmi-j2-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 Des" hide={!!hidden.th2d} />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+function JointVelocityChart({ data }: { data: any[] }) {
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={MARGIN}>
+        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
+        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('ω (°/s)')} width={52} />
+        <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + '°/s' : v} />
+        <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
+        <Line type="monotone" dataKey="v1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J1 Act" hide={!!hidden.v1} />
+        <Line type="monotone" dataKey="v1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J1 Des" hide={!!hidden.v1d} />
+        <Line type="monotone" dataKey="v2" stroke="var(--color-hmi-j2)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 Act" hide={!!hidden.v2} />
+        <Line type="monotone" dataKey="v2d" stroke="var(--color-hmi-j2-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 Des" hide={!!hidden.v2d} />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+function CartesianXYChart({ data }: { data: any[] }) {
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={MARGIN}>
+        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
+        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
+        <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(2) + ' mm' : v} />
+        <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
+        <Line type="monotone" dataKey="x" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="X Act" hide={!!hidden.x} />
+        <Line type="monotone" dataKey="xd" stroke="var(--color-hmi-j1-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="X Des" hide={!!hidden.xd} />
+        <Line type="monotone" dataKey="y" stroke="var(--color-hmi-j2)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="Y Act" hide={!!hidden.y} />
+        <Line type="monotone" dataKey="yd" stroke="var(--color-hmi-j2-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="Y Des" hide={!!hidden.yd} />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+function PwmOutputChart({ data, runId }: { data: any[], runId: string }) {
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data} margin={MARGIN}>
+        <defs>
+          <linearGradient id={`pwmGrad-${runId}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="var(--color-hmi-pwm-pos)" stopOpacity={0.25} />
+            <stop offset="95%" stopColor="var(--color-hmi-pwm-pos)" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
+        <YAxis domain={[-260, 260]} tick={AT} axisLine={AL} tickLine={false} label={YLABEL('PWM')} width={48} />
+        <ReferenceLine y={0} stroke="var(--color-hmi-grid)" strokeDasharray="4 2" />
+        <Tooltip contentStyle={TS} />
+        <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
+        <Area type="monotone" dataKey="pwm1" stroke="var(--color-hmi-pwm-pos)" fill={`url(#pwmGrad-${runId})`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="PWM J1" hide={!!hidden.pwm1} />
+      </AreaChart>
+    </ResponsiveContainer>
+  )
+}
+
+function ControlEffortChart({ data }: { data: any[] }) {
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={MARGIN}>
+        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
+        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Control')} width={52} />
+        <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(4) : v} />
+        <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
+        <Line type="monotone" dataKey="u1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="U1 Total" hide={!!hidden.u1} />
+        <Line type="monotone" dataKey="ff1" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="FF1 Contrib" hide={!!hidden.ff1} />
+        <Line type="monotone" dataKey="omega2" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="ω2 Raw" hide={!!hidden.omega2} />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+function PidBreakdownChart({ data }: { data: any[] }) {
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={MARGIN}>
+        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
+        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Output')} width={52} />
+        <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(4) : v} />
+        <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
+        <Line type="monotone" dataKey="p1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="P Out" hide={!!hidden.p1} />
+        <Line type="monotone" dataKey="i1" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="I Out" hide={!!hidden.i1} />
+        <Line type="monotone" dataKey="d1" stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="D Out" hide={!!hidden.d1} />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+function VelocityProfileChart({ data }: { data: any[] }) {
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e
+    setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={MARGIN}>
+        <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
+        <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
+        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('ω (°/s)')} width={52} />
+        <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + '°/s' : v} />
+        <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
+        <Line type="monotone" dataKey="v1" stroke="var(--color-hmi-actual)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="Measured" hide={!!hidden.v1} />
+        <Line type="monotone" dataKey="v1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} name="Profile" hide={!!hidden.v1d} />
+      </LineChart>
+    </ResponsiveContainer>
   )
 }
 
@@ -280,120 +450,37 @@ function RunCharts({ runId, runSamples, runMetrics }: { runId: string; runSample
 
       {/* 3. Joint Position */}
       <ExpandableChart title="3. Posisi Sendi J1 & J2" className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={formatted} margin={MARGIN}>
-            <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-            <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-            <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('θ (°)')} width={52} />
-            <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + '°' : v} />
-            <Legend verticalAlign="top" align="left" height={20} wrapperStyle={LEGEND_STYLE} />
-            <Line type="monotone" dataKey="th1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J1 Act" />
-            <Line type="monotone" dataKey="th1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J1 Des" />
-            <Line type="monotone" dataKey="th2" stroke="var(--color-hmi-j2)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 Act" />
-            <Line type="monotone" dataKey="th2d" stroke="var(--color-hmi-j2-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 Des" />
-          </LineChart>
-        </ResponsiveContainer>
+        <JointPositionChart data={formatted} />
       </ExpandableChart>
 
       {/* 4. Joint Velocity */}
       <ExpandableChart title="4. Kecepatan Sendi J1 & J2" className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={formatted} margin={MARGIN}>
-            <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-            <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-            <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('ω (°/s)')} width={52} />
-            <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + '°/s' : v} />
-            <Legend verticalAlign="top" align="left" height={20} wrapperStyle={LEGEND_STYLE} />
-            <Line type="monotone" dataKey="v1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J1 Act" />
-            <Line type="monotone" dataKey="v1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J1 Des" />
-            <Line type="monotone" dataKey="v2" stroke="var(--color-hmi-j2)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 Act" />
-            <Line type="monotone" dataKey="v2d" stroke="var(--color-hmi-j2-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 Des" />
-          </LineChart>
-        </ResponsiveContainer>
+        <JointVelocityChart data={formatted} />
       </ExpandableChart>
 
       {/* 5. Cartesian X & Y */}
       <ExpandableChart title="5. Cartesian X & Y vs Time" className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={formatted} margin={MARGIN}>
-            <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-            <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-            <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
-            <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(2) + ' mm' : v} />
-            <Legend verticalAlign="top" align="left" height={20} wrapperStyle={LEGEND_STYLE} />
-            <Line type="monotone" dataKey="x" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="X Act" />
-            <Line type="monotone" dataKey="xd" stroke="var(--color-hmi-j1-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="X Des" />
-            <Line type="monotone" dataKey="y" stroke="var(--color-hmi-j2)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="Y Act" />
-            <Line type="monotone" dataKey="yd" stroke="var(--color-hmi-j2-des)" strokeWidth={1} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="Y Des" />
-          </LineChart>
-        </ResponsiveContainer>
+        <CartesianXYChart data={formatted} />
       </ExpandableChart>
 
       {/* 6. PWM Output */}
       <ExpandableChart title="6. Output PWM J1" className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={formatted} margin={MARGIN}>
-            <defs>
-              <linearGradient id={`pwmGrad-${runId}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--color-hmi-pwm-pos)" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="var(--color-hmi-pwm-pos)" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-            <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-            <YAxis domain={[-260, 260]} tick={AT} axisLine={AL} tickLine={false} label={YLABEL('PWM')} width={48} />
-            <ReferenceLine y={0} stroke="var(--color-hmi-grid)" strokeDasharray="4 2" />
-            <Tooltip contentStyle={TS} />
-            <Area type="monotone" dataKey="pwm1" stroke="var(--color-hmi-pwm-pos)" fill={`url(#pwmGrad-${runId})`} strokeWidth={1.5} dot={false} isAnimationActive={false} name="PWM J1" />
-          </AreaChart>
-        </ResponsiveContainer>
+        <PwmOutputChart data={formatted} runId={runId} />
       </ExpandableChart>
 
       {/* 7. Control Effort */}
       <ExpandableChart title="7. Total & Feedforward Control" className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={formatted} margin={MARGIN}>
-            <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-            <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-            <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Control')} width={52} />
-            <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(4) : v} />
-            <Legend verticalAlign="top" align="left" height={20} wrapperStyle={LEGEND_STYLE} />
-            <Line type="monotone" dataKey="u1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="U1 Total" />
-            <Line type="monotone" dataKey="ff1" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="FF1 Contrib" />
-            <Line type="monotone" dataKey="omega2" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="ω2 Raw" />
-          </LineChart>
-        </ResponsiveContainer>
+        <ControlEffortChart data={formatted} />
       </ExpandableChart>
 
       {/* 8. PID Breakdown */}
       <ExpandableChart title="8. PID Breakdown J1" className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={formatted} margin={MARGIN}>
-            <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-            <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-            <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Output')} width={52} />
-            <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(4) : v} />
-            <Legend verticalAlign="top" align="left" height={20} wrapperStyle={LEGEND_STYLE} />
-            <Line type="monotone" dataKey="p1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="P Out" />
-            <Line type="monotone" dataKey="i1" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="I Out" />
-            <Line type="monotone" dataKey="d1" stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="D Out" />
-          </LineChart>
-        </ResponsiveContainer>
+        <PidBreakdownChart data={formatted} />
       </ExpandableChart>
 
       {/* 9. Velocity Profile Comparison */}
       <ExpandableChart title="9. Velocity Profile J1" className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={formatted} margin={MARGIN}>
-            <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-            <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-            <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('ω (°/s)')} width={52} />
-            <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + '°/s' : v} />
-            <Legend verticalAlign="top" align="left" height={20} wrapperStyle={LEGEND_STYLE} />
-            <Line type="monotone" dataKey="v1" stroke="var(--color-hmi-actual)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="Measured" />
-            <Line type="monotone" dataKey="v1d" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} name="Profile" />
-          </LineChart>
-        </ResponsiveContainer>
+        <VelocityProfileChart data={formatted} />
       </ExpandableChart>
 
     </div>
@@ -611,7 +698,7 @@ export function ResultsClient({ initialRuns }: Props) {
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen bg-hmi-bg text-hmi-text overflow-hidden">
+    <div className="flex h-screen bg-hmi-bg text-hmi-text overflow-hidden results-container">
 
       {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
       <aside className="w-64 shrink-0 border-r border-hmi-grid bg-hmi-panel flex flex-col justify-between overflow-hidden">
@@ -706,6 +793,7 @@ export function ResultsClient({ initialRuns }: Props) {
           </div>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <CommandPaletteTrigger />
             {/* Direction filter */}
             <div className="bg-hmi-bg border border-hmi-grid rounded-md p-0.5 flex">
@@ -761,8 +849,8 @@ export function ResultsClient({ initialRuns }: Props) {
             <div className="space-y-5">
 
               {/* ── Summary Table ──────────────────────────────────────────── */}
-              <div className="bg-[#0D1117] border border-white/[0.07] rounded-lg overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-white/[0.06] flex items-center gap-2">
+              <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-hmi-grid/60 flex items-center gap-2">
                   <FileText className="w-3.5 h-3.5 text-hmi-ideal" />
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                     Ringkasan Metrik Kinerja ({selectedExp}) — {filteredRuns.length} run
@@ -771,7 +859,7 @@ export function ResultsClient({ initialRuns }: Props) {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="border-white/[0.05] hover:bg-transparent">
+                      <TableRow className="border-hmi-grid/60 hover:bg-transparent">
                         <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 w-44">Kondisi</TableHead>
                         <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-16">N</TableHead>
                         <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center">MATE (mm)</TableHead>
@@ -783,7 +871,7 @@ export function ResultsClient({ initialRuns }: Props) {
                     </TableHeader>
                     <TableBody>
                       {activeTableRows.map((row: any, idx: number) => (
-                        <TableRow key={idx} className="border-white/[0.04] hover:bg-white/[0.02]">
+                        <TableRow key={idx} className="border-hmi-grid/40 hover:bg-hmi-btn/30">
                           <TableCell className="text-xs font-semibold text-slate-200 py-2.5">{row.name}</TableCell>
                           <TableCell className="text-center font-mono text-xs text-slate-400 py-2.5">{row.n}</TableCell>
                           <TableCell className="text-center font-mono text-[11px] text-blue-400 py-2.5">{row.mate.mean.toFixed(3)} <span className="text-slate-600">±</span> {row.mate.std.toFixed(3)}</TableCell>
@@ -897,8 +985,8 @@ export function ResultsClient({ initialRuns }: Props) {
               )}
 
               {/* ── Individual Runs Table ───────────────────────────────────── */}
-              <div className="bg-[#0D1117] border border-white/[0.07] rounded-lg overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-white/[0.06]">
+              <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-hmi-grid/60">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                     Daftar Hasil Run Individual — {filteredRuns.length} runs
                   </p>
@@ -908,7 +996,7 @@ export function ResultsClient({ initialRuns }: Props) {
                 </div>
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-white/[0.05] hover:bg-transparent">
+                    <TableRow className="border-hmi-grid/60 hover:bg-transparent">
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 w-36">Run ID</TableHead>
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-16">Run #</TableHead>
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-24">Arah</TableHead>
@@ -929,8 +1017,8 @@ export function ResultsClient({ initialRuns }: Props) {
                           <TableRow
                             key={r.id}
                             className={cn(
-                              'border-b border-white/[0.04] cursor-pointer transition-colors text-[11px]',
-                              isExpanded ? 'bg-hmi-ideal/5 hover:bg-hmi-ideal/10' : 'hover:bg-white/[0.02]'
+                              'border-b border-hmi-grid/40 cursor-pointer transition-colors text-[11px]',
+                              isExpanded ? 'bg-hmi-ideal/5 hover:bg-hmi-ideal/10' : 'hover:bg-hmi-btn/30'
                             )}
                           >
                             <TableCell className="font-mono font-bold text-slate-200 py-2.5" onClick={() => setExpandedRunId(isExpanded ? null : r.id)}>
@@ -983,7 +1071,7 @@ export function ResultsClient({ initialRuns }: Props) {
 
                           {/* Expanded charts */}
                           {isExpanded && (
-                            <TableRow className="bg-[#080C10] border-b border-white/[0.05] hover:bg-transparent">
+                            <TableRow className="bg-hmi-bg border-b border-hmi-grid/60 hover:bg-transparent">
                               <TableCell colSpan={7} className="p-0">
                                 <div className="p-4">
                                   <div className="flex items-center justify-between mb-3">

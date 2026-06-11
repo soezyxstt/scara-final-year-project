@@ -13,6 +13,7 @@ import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { ModeBadge } from '@/components/mode-badge'
 import { SerialMonitorButton, SerialTerminalSheet } from '@/components/hmi/serial-terminal'
 import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
+import { ThemeToggle } from '@/components/hmi/theme-toggle'
 
 function ZNTunerShell() {
   const { state, serial } = useHMI()
@@ -67,6 +68,7 @@ function ZNTunerShell() {
         <span className="text-sm font-bold text-hmi-text shrink-0 tracking-wide uppercase">ZN Tuner</span>
 
         <div className="flex items-center gap-2 ml-auto">
+          <ThemeToggle />
           <CommandPaletteTrigger />
           <ModeBadge />
           <Tooltip content="Network Status: Indicates if the web page is currently connected to the network." align="right">

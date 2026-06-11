@@ -31,3 +31,10 @@ void checkTrajectoryDone();
 
 // Emit S-packet (trajectory stop notification).
 void emitStopPacket();
+
+// Helper to check if straight path crosses inner radius.
+bool checkPathCrossesInnerRadius(float x0, float y0, float xf, float yf, float rMin);
+
+// Helper to compute intermediate point to bypass the inner radius.
+void calculateIntermediatePoint(float x0, float y0, float xf, float yf, float rMin, float rMax, float &x_int, float &y_int);
+

@@ -19,6 +19,7 @@ import { ModeBadge } from '@/components/mode-badge'
 import { SerialMonitorButton, SerialTerminalSheet } from '@/components/hmi/serial-terminal'
 import { RunButton } from '@/components/hmi/run-button'
 import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
+import { ThemeToggle } from '@/components/hmi/theme-toggle'
 
 type TestTab = 'monitor' | 'analysis' | 'rest' | 'params'
 
@@ -133,6 +134,7 @@ function TestTunerShell() {
         </nav>
 
         <div className="flex items-center gap-2 ml-auto">
+          <ThemeToggle />
           <CommandPaletteTrigger />
           <ModeBadge />
           <Tooltip content="Network Status: Indicates if the web page is currently connected to the network." align="right">
