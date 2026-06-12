@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useEffect } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
 import { Button } from '@/components/ui/button'
 import type { ExperimentRun } from '@/lib/db/schema/experiment'
@@ -523,7 +523,9 @@ export function ResultsClient({ initialRuns }: Props) {
   }
 
   // Load on mount + when selectedExp changes
-  useMemo(() => { refreshData(selectedExp) }, [selectedExp]) // eslint-disable-line
+  useEffect(() => {
+    refreshData(selectedExp)
+  }, [selectedExp])
 
   const filteredRuns = useMemo(() => {
     if (!data) return []

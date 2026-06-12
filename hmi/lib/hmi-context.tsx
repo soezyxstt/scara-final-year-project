@@ -8,6 +8,7 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
   type Dispatch,
   type ReactNode,
 } from 'react'
@@ -689,7 +690,12 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
           const e2 = th2d - th2
 
           // ── ZN tuner event (all modes — ignored when ZN tab is not mounted) ──
-          if (typeof window !== 'undefined' && (window.location.pathname.includes('/zn') || window.location.pathname.includes('/test'))) {
+          const isRestTabActive = typeof window !== 'undefined' && (
+            window.location.pathname.includes('/zn') ||
+            window.location.pathname.includes('/test') ||
+            (window.location.pathname === '/' && window.location.search.includes('tab=rest'))
+          )
+          if (isRestTabActive) {
             window.dispatchEvent(new CustomEvent('zn_sample', {
               detail: {
                 ts_ms:     t,
@@ -1052,6 +1058,40 @@ export function HMIProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, buildInitialState)
   const serial = useSerial(dispatch)
   const pathname = usePathname()
+  const [currentSearch, setCurrentSearch] = useState('')
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleURLChange = () => {
+      setTimeout(() => {
+        setCurrentSearch(window.location.search)
+      }, 0)
+    }
+
+    window.addEventListener('popstate', handleURLChange)
+    
+    const originalPushState = window.history.pushState
+    const originalReplaceState = window.history.replaceState
+    
+    window.history.pushState = function(...args) {
+      originalPushState.apply(this, args)
+      handleURLChange()
+    }
+    
+    window.history.replaceState = function(...args) {
+      originalReplaceState.apply(this, args)
+      handleURLChange()
+    }
+
+    handleURLChange()
+
+    return () => {
+      window.removeEventListener('popstate', handleURLChange)
+      window.history.pushState = originalPushState
+      window.history.replaceState = originalReplaceState
+    }
+  }, [])
 
   // ── Persist state to localStorage on every meaningful change ────────────
   useEffect(() => {
@@ -1139,9 +1179,11 @@ export function HMIProvider({ children }: { children: ReactNode }) {
   // Fires on initial connect AND whenever the user navigates between pages.
   useEffect(() => {
     if (state.serialStatus !== 'connected') return
-    const isPlotPage = pathname.includes('/zn') || pathname.includes('/test')
+    const isPlotPage = pathname.includes('/zn') || 
+                       pathname.includes('/test') || 
+                       (pathname === '/' && currentSearch.includes('tab=rest'))
     serial.sendCommand(isPlotPage ? 'plot,1' : 'plot,0').catch(() => {})
-  }, [pathname, state.serialStatus, serial])
+  }, [pathname, currentSearch, state.serialStatus, serial])
 
   // ── Heartbeat "ping" to serial ───────────────────────────────────────────
   useEffect(() => {

@@ -99,12 +99,16 @@ export function ChartContainer({
   msg?: string
   children: React.ReactNode
 }) {
+  const cleanedMsg = msg
+    ? msg.replace(/\s*[-—]\s*run a move to capture data/gi, "").replace(/\s*run a move to capture data/gi, "").trim()
+    : msg
+
   return (
     <div className="relative w-full h-full min-h-[160px]">
-      {isEmpty && msg && (
+      {isEmpty && cleanedMsg && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <span className="text-xs font-semibold text-hmi-muted uppercase tracking-wider select-none">
-            {msg}
+            {cleanedMsg}
           </span>
         </div>
       )}
@@ -157,21 +161,72 @@ export function J1CtrlChart() {
     setHidden(prev => ({ ...prev, [dataKey]: !prev[dataKey] }))
   }
   const u1max = state.params?.u1max ?? 1
-  const pwmDb = state.params?.pwmDb ?? 68
   const data = useMemo(() => {
     const frozenD = state.frozenD
     const frozenF = state.frozenF
     if (!frozenD || frozenD.length === 0) return []
     const firstT = frozenD[0].t
 
+    const params = state.params
+    const x0 = state.frozenT && state.frozenT.length > 0 ? state.frozenT[0].xi : (state.currentMove?.x0 ?? 0)
+    const y0 = state.frozenT && state.frozenT.length > 0 ? state.frozenT[0].yi : (state.currentMove?.y0 ?? 0)
+    const xf = state.frozenT && state.frozenT.length > 0 ? state.frozenT[state.frozenT.length - 1].xi : (state.currentMove?.xf ?? 0)
+    const yf = state.frozenT && state.frozenT.length > 0 ? state.frozenT[state.frozenT.length - 1].yi : (state.currentMove?.yf ?? 0)
+
+    const dx = (xf - x0) / 1000
+    const dy = (yf - y0) / 1000
+    const traj_D = Math.sqrt(dx * dx + dy * dy)
+
+    const vmax = params?.vmax ?? 0.5
+    const amax = params?.amax ?? 2.0
+    const trapEnabled = params?.trapEnabled ?? true
+
+    let traj_ta = 0
+    if (traj_D >= 0.001) {
+      if (trapEnabled) {
+        const ta = vmax / amax
+        const da = 0.5 * amax * ta * ta
+        if (2.0 * da > traj_D) {
+          traj_ta = Math.sqrt(traj_D / amax)
+        } else {
+          traj_ta = ta
+        }
+      } else {
+        traj_ta = 0
+      }
+    }
+
     // Build primary data from D-packet: u1Total and pwm1 are the SAME 500 Hz tick.
     const ds = downsample(frozenD.map(d => {
-      // Normalize PWM: remove static deadband floor, no fzt, no dynDb.
-      // Threshold = pwmDb (static) so box count matches raw PWM chart.
-      const mag    = Math.abs(d.pwm1)
-      const pwm1_adj = mag > pwmDb
-        ? Math.sign(d.pwm1) * (mag - pwmDb) / (255 - pwmDb)
-        : 0
+      const t_traj = (d.t - firstT) / 1000
+      const is_moving = true
+
+      // Select active fractional threshold: reduced only during the accel ramp
+      let active_frac_thresh = params?.fzt ?? 0.04
+      if (params?.kickstartEnabled && is_moving && t_traj <= traj_ta) {
+        active_frac_thresh = (params?.fzt ?? 0.04) * (params?.fztKickPct ?? 0.1)
+      }
+
+      // Compute dynamic deadband
+      const pwmDb = params?.pwmDb ?? 68
+      const dbAmp = 21.0 * (pwmDb / 68.0)
+      const s = Math.sin(d.th1)
+      let dynamicDbHold = Math.round(pwmDb + dbAmp * s * s)
+      dynamicDbHold = Math.max(0, Math.min(255, dynamicDbHold))
+
+      let dynamicDb = dynamicDbHold
+      if (params?.dbMovingEnabled && is_moving && t_traj > traj_ta) {
+        dynamicDb = Math.round(dynamicDbHold * (params?.dbEngageScale ?? 0.75))
+        dynamicDb = Math.max(0, Math.min(255, dynamicDb))
+      }
+
+      const mag = Math.abs(d.pwm1)
+      let pwm1_adj = 0
+      if (mag > 0) {
+        const frac_eff = (255 > dynamicDb) ? Math.min(1.0, Math.max(0.0, (mag - dynamicDb) / (255 - dynamicDb))) : 0
+        const frac_abs = frac_eff * (1.0 - active_frac_thresh) + active_frac_thresh
+        pwm1_adj = Math.sign(d.pwm1) * frac_abs
+      }
 
       const u1_total = d.u1Total / u1max
 
@@ -191,22 +246,11 @@ export function J1CtrlChart() {
         u1_total,
         ff1_contrib,
         pwm1_adj,
-        u1_total_smoothed: 0,
       }
     }), 500)
 
-    // Smooth u1_total
-    try {
-      const xs = ds.map(d => d.t)
-      const ys = ds.map(d => d.u1_total)
-      const sm = localLoess(ys, xs, 0.08, 1)
-      for (let i = 0; i < ds.length; i++) ds[i].u1_total_smoothed = sm[i]
-    } catch (e) {
-      console.warn('localLoess smoothing failed', e)
-    }
-
     return ds
-  }, [state.frozenD, state.frozenF, u1max, pwmDb])
+  }, [state.frozenD, state.frozenF, state.frozenT, state.currentMove, state.params, u1max])
 
   return (
     <ChartContainer isEmpty={data.length === 0} msg="No J1 control telemetry — run a move to capture data (requires updated firmware)">
@@ -223,7 +267,6 @@ export function J1CtrlChart() {
           />
           <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
           <Line type="linear" dataKey="u1_total"          stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="u1_total / u1max" hide={!!hidden.u1_total} />
-          <Line type="linear" dataKey="u1_total_smoothed" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="u1_total / u1max (smoothed)" strokeDasharray="6 4" hide={!!hidden.u1_total_smoothed} />
           <Line type="linear" dataKey="ff1_contrib"       stroke="var(--color-hmi-ideal)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="FF Contribution" strokeDasharray="3 3" hide={!!hidden.ff1_contrib} />
           <Line type="linear" dataKey="pwm1_adj"          stroke="var(--color-hmi-j1)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="PWM / 255" connectNulls={false} opacity={0.75} hide={!!hidden.pwm1_adj} />
         </LineChart>
@@ -1085,12 +1128,64 @@ function prepareAnalyzerData(
     case 'j1ctrl': {
       if (dBuf.length === 0) return { rawData: [], series: [], yLabel: '', defaultYDomain: ['auto', 'auto'] as [any, any] }
       const u1max = params?.u1max ?? 1
-      const pwmDb = params?.pwmDb ?? 68
+
+      const x0 = tBuf && tBuf.length > 0 ? tBuf[0].xi : 0
+      const y0 = tBuf && tBuf.length > 0 ? tBuf[0].yi : 0
+      const xf = tBuf && tBuf.length > 0 ? tBuf[tBuf.length - 1].xi : 0
+      const yf = tBuf && tBuf.length > 0 ? tBuf[tBuf.length - 1].yi : 0
+
+      const dx = (xf - x0) / 1000
+      const dy = (yf - y0) / 1000
+      const traj_D = Math.sqrt(dx * dx + dy * dy)
+
+      const vmax = params?.vmax ?? 0.5
+      const amax = params?.amax ?? 2.0
+      const trapEnabled = params?.trapEnabled ?? true
+
+      let traj_ta = 0
+      if (traj_D >= 0.001) {
+        if (trapEnabled) {
+          const ta = vmax / amax
+          const da = 0.5 * amax * ta * ta
+          if (2.0 * da > traj_D) {
+            traj_ta = Math.sqrt(traj_D / amax)
+          } else {
+            traj_ta = ta
+          }
+        } else {
+          traj_ta = 0
+        }
+      }
+
       const rawData = dBuf.map(d => {
+        const t_traj = (d.t - firstT) / 1000
+        const is_moving = true
+
+        let active_frac_thresh = params?.fzt ?? 0.04
+        if (params?.kickstartEnabled && is_moving && t_traj <= traj_ta) {
+          active_frac_thresh = (params?.fzt ?? 0.04) * (params?.fztKickPct ?? 0.1)
+        }
+
+        const pwmDb = params?.pwmDb ?? 68
+        const dbAmp = 21.0 * (pwmDb / 68.0)
+        const s = Math.sin(d.th1)
+        let dynamicDbHold = Math.round(pwmDb + dbAmp * s * s)
+        dynamicDbHold = Math.max(0, Math.min(255, dynamicDbHold))
+
+        let dynamicDb = dynamicDbHold
+        if (params?.dbMovingEnabled && is_moving && t_traj > traj_ta) {
+          dynamicDb = Math.round(dynamicDbHold * (params?.dbEngageScale ?? 0.75))
+          dynamicDb = Math.max(0, Math.min(255, dynamicDb))
+        }
+
         const mag = Math.abs(d.pwm1)
-        const pwm1_adj = mag > pwmDb
-          ? Math.sign(d.pwm1) * (mag - pwmDb) / (255 - pwmDb)
-          : 0
+        let pwm1_adj = 0
+        if (mag > 0) {
+          const frac_eff = (255 > dynamicDb) ? Math.min(1.0, Math.max(0.0, (mag - dynamicDb) / (255 - dynamicDb))) : 0
+          const frac_abs = frac_eff * (1.0 - active_frac_thresh) + active_frac_thresh
+          pwm1_adj = Math.sign(d.pwm1) * frac_abs
+        }
+
         const u1_total = d.u1Total / u1max
 
         let ff1_contrib = 0
@@ -1107,22 +1202,11 @@ function prepareAnalyzerData(
           u1_total,
           ff1_contrib,
           pwm1_adj,
-          u1_total_smoothed: 0,
         }
       })
 
-      try {
-        const xs = rawData.map(d => d.t)
-        const ys = rawData.map(d => d.u1_total)
-        const sm = localLoess(ys, xs, 0.08, 1)
-        for (let i = 0; i < rawData.length; i++) rawData[i].u1_total_smoothed = sm[i]
-      } catch (e) {
-        console.warn('localLoess smoothing failed in prepareAnalyzerData', e)
-      }
-
       const series = [
         { key: 'u1_total', name: 'u1_total / u1max', stroke: 'var(--color-hmi-pwm-pos)', type: 'line' as const },
-        { key: 'u1_total_smoothed', name: 'u1_total / u1max (smoothed)', stroke: 'var(--color-hmi-pwm-pos)', type: 'line' as const, strokeDasharray: '6 4' },
         { key: 'ff1_contrib', name: 'FF Contribution', stroke: 'var(--color-hmi-ideal)', type: 'line' as const, strokeDasharray: '3 3' },
         { key: 'pwm1_adj', name: 'PWM / 255', stroke: 'var(--color-hmi-j1)', type: 'line' as const },
       ]
