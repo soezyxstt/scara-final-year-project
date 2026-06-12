@@ -242,8 +242,8 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      {/* Header toolbar */}
-      <div className="bg-hmi-panel border border-hmi-grid p-4 rounded-lg flex flex-row items-center justify-between flex-wrap gap-3">
+      {/* Header toolbar - Sticky */}
+      <div className="sticky top-0 z-30 bg-hmi-bg/95 backdrop-blur-sm border border-hmi-grid p-4 rounded-lg flex flex-row items-center justify-between flex-wrap gap-3 shadow-md">
         <div className="flex items-center gap-3">
           <div className="p-1.5 bg-hmi-ideal/15 rounded-lg text-hmi-ideal border border-hmi-ideal/30">
             <Bot className="h-5 w-5" />
@@ -261,23 +261,39 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
           </div>
         </div>
 
-        {/* Mode Selector */}
-        <div className="flex items-center bg-hmi-bg/85 border border-hmi-grid p-1 rounded-lg">
-          {(['explain', 'diagnose', 'recommend'] as const).map(m => (
-            <button
-              key={m}
-              disabled={loading}
-              onClick={() => setMode(m)}
-              className={cn(
-                "px-2.5 py-1 text-[10px] font-bold rounded-md uppercase tracking-wider transition-all cursor-pointer",
-                mode === m
-                  ? "bg-hmi-ideal text-white shadow-sm"
-                  : "text-hmi-muted hover:text-hmi-text"
-              )}
-            >
-              {m}
-            </button>
-          ))}
+        {/* Right side controls: Mode Selector + Action Button */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-hmi-bg/85 border border-hmi-grid p-1 rounded-lg">
+            {(['explain', 'diagnose', 'recommend'] as const).map(m => (
+              <button
+                key={m}
+                disabled={loading}
+                onClick={() => setMode(m)}
+                className={cn(
+                  "px-2.5 py-1 text-[10px] font-bold rounded-md uppercase tracking-wider transition-all cursor-pointer",
+                  mode === m
+                    ? "bg-hmi-ideal text-white shadow-sm"
+                    : "text-hmi-muted hover:text-hmi-text"
+                )}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+
+          <Button
+            size="sm"
+            disabled={loading}
+            onClick={handleConsult}
+            className="bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-bold text-[10px] uppercase tracking-wider gap-1.5 py-1 px-3.5 h-8 shadow cursor-pointer transition-all shrink-0"
+          >
+            {loading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            {loading ? 'Consulting...' : output ? 'Re-Generate' : 'Generate'}
+          </Button>
         </div>
       </div>
 
@@ -327,16 +343,6 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
             </div>
           )}
         </div>
-      )}
-
-      {!loading && (
-        <Button
-          onClick={handleConsult}
-          className="w-full bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-bold text-xs uppercase tracking-widest gap-2 py-2 h-9 shadow-md transition-all hover:scale-[1.01] cursor-pointer shrink-0"
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          {output ? 'Re-Generate Advice' : 'Generate AI Advice'} ({mode})
-        </Button>
       )}
     </div>
   )
