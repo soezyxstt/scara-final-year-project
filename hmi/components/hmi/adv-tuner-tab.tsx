@@ -541,13 +541,13 @@ export function AdvTunerTab() {
             </CardHeader>
             <CardContent className="p-3 flex flex-col gap-3">
               <div className="text-[10px] text-hmi-muted px-1.5 py-1 bg-hmi-bg/40 border border-hmi-grid/20 rounded font-sans leading-relaxed">
-                TD menggantikan IIR filter. <strong>r</strong> = bandwidth (rad/s) — semakin besar semakin responsif tapi lebih noise. <strong>h</strong> = step size = 3×DT (read-only, ditentukan firmware).
+                TD replaces the IIR filter. <strong>r</strong> = bandwidth (rad/s) — larger is more responsive but noisier. <strong>h</strong> = step size = 3×DT (read-only, determined by firmware).
               </div>
               <ParamField
                 label="TD1 Bandwidth (r) — Joint 1"
                 name="td1r"
                 hwValue={currentParams.td1r}
-                tooltip="Bandwidth parameter r untuk Tracking Differentiator Joint 1 (rad/s). Semakin besar = semakin responsif, semakin kecil = semakin smooth."
+                tooltip="Bandwidth parameter r for Joint 1 Tracking Differentiator (rad/s). Larger = more responsive, smaller = smoother."
                 cmd="td1r"
                 min={0}
                 step={1}
@@ -558,7 +558,7 @@ export function AdvTunerTab() {
                 label="TD2 Bandwidth (r) — Joint 2"
                 name="td2r"
                 hwValue={currentParams.td2r}
-                tooltip="Bandwidth parameter r untuk Tracking Differentiator Joint 2 (rad/s)."
+                tooltip="Bandwidth parameter r for Joint 2 Tracking Differentiator (rad/s)."
                 cmd="td2r"
                 min={0}
                 step={1}
@@ -568,7 +568,7 @@ export function AdvTunerTab() {
               {/* TD1_H is read-only: h = 3×DT, set by firmware based on cfreq */}
               <div className="flex items-center justify-between gap-3 p-2 bg-hmi-panel/30 rounded-lg border border-hmi-grid/20">
                 <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                  <Tooltip content="Step size h = 3×DT. Read-only — dihitung otomatis oleh firmware berdasarkan frekuensi loop (cfreq). Tidak dapat diubah langsung.">
+                  <Tooltip content="Step size h = 3×DT. Read-only — automatically calculated by firmware based on loop frequency (cfreq). Cannot be modified directly.">
                     <label className="text-xs font-semibold text-hmi-muted/60 truncate cursor-help border-b border-dotted border-hmi-muted/20 w-fit">
                       TD Step Size (h) — read-only
                     </label>

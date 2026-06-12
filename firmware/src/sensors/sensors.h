@@ -21,22 +21,22 @@ struct TD {
   float v1 = 0.0f;
   float v2 = 0.0f;
   float r  = 50.0f;
-  float h  = 0.006f;
+  float h  = 0.002f;
 
   void init(float pos, float bandwidth, float dt) {
     v1 = pos;
     v2 = 0.0f;
     r  = bandwidth;
-    h  = 3.0f * dt;
+    h  = dt;
   }
 
   void update(float x0, float dt) {
     float d  = h * r;
-    float e  = v1 - x0;
-    float a0 = sqrtf(d * d + 8.0f * r * fabsf(e));
-    float a  = (fabsf(e) <= (d * h))
-               ? (v2 + e / h)
-               : (v2 + 0.5f * (a0 - d) * (e > 0.0f ? 1.0f : -1.0f));
+    float y  = v1 - x0 + h * v2;
+    float a0 = sqrtf(d * d + 8.0f * r * fabsf(y));
+    float a  = (fabsf(y) <= (d * h))
+               ? (v2 + y / h)
+               : (v2 + 0.5f * (a0 - d) * (y > 0.0f ? 1.0f : -1.0f));
     float fh = (fabsf(a) <= d) ? (a / d) : (a > 0.0f ? 1.0f : -1.0f);
     v1 += dt * v2;
     v2 -= r * dt * fh;

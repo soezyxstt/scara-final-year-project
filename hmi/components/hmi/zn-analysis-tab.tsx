@@ -769,25 +769,25 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
       <Card className="border-hmi-grid bg-hmi-panel p-3.5 shadow-lg flex flex-wrap items-center justify-between gap-4 shrink-0">
         <div className="flex flex-col gap-0.5">
           <span className="text-xs font-bold uppercase tracking-wider text-hmi-text font-sans flex items-center gap-1.5">
-            <Activity className="w-4 h-4 text-emerald-400" /> Konfigurasi Analisis Grafik
+            <Activity className="w-4 h-4 text-emerald-400" /> Chart Analysis Configuration
           </span>
           <span className="text-[10px] text-hmi-muted font-sans">
-            Pilih parameter atau mode perbandingan untuk dianalisis dalam satu grafik
+            Select parameters or comparison modes to analyze in a single chart
           </span>
         </div>
         
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-hmi-muted uppercase font-sans">Tampilkan:</span>
+          <span className="text-[10px] font-bold text-hmi-muted uppercase font-sans">Show:</span>
           <Select value={viewMode} onValueChange={(val) => setViewMode(val as any)}>
             <SelectTrigger className="w-60 h-7 text-xs bg-hmi-bg border-hmi-grid text-hmi-text-secondary">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="pos">Posisi Filtered (Target vs Aktif)</SelectItem>
-              <SelectItem value="raw">Posisi Raw ADC (Tanpa Filter)</SelectItem>
-              <SelectItem value="compare">Perbandingan Posisi (Filtered vs Raw)</SelectItem>
-              <SelectItem value="vel">Kecepatan</SelectItem>
-              <SelectItem value="fft">Frekuensi (FFT Spectrum)</SelectItem>
+              <SelectItem value="pos">Filtered Position (Target vs Active)</SelectItem>
+              <SelectItem value="raw">Raw ADC Position (Unfiltered)</SelectItem>
+              <SelectItem value="compare">Position Comparison (Filtered vs Raw)</SelectItem>
+              <SelectItem value="vel">Velocity</SelectItem>
+              <SelectItem value="fft">Frequency (FFT Spectrum)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1383,7 +1383,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
 
             <div className="flex flex-col gap-3">
               <span className="text-xs text-hmi-text-secondary">
-                Pilih rentang data telemetry yang ingin diekspor ke file CSV:
+                Select the telemetry data range you want to export to a CSV file:
               </span>
 
               {/* Standard Options */}
@@ -1403,8 +1403,8 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                       className="accent-emerald-500"
                     />
                     <div className="flex flex-col">
-                      <span className="font-semibold">Seluruh Telemetry Buffer</span>
-                      <span className="text-[10px] text-hmi-muted">Semua data tersimpan sejak awal perekaman</span>
+                      <span className="font-semibold">Entire Telemetry Buffer</span>
+                      <span className="text-[10px] text-hmi-muted">All stored data since recording started</span>
                     </div>
                   </div>
                   <span className="font-mono text-[10px] bg-hmi-btn px-1.5 py-0.5 rounded text-hmi-text-secondary">
@@ -1431,11 +1431,11 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                       className="accent-emerald-500"
                     />
                     <div className="flex flex-col">
-                      <span className="font-semibold">Seleksi Caliper Grafik</span>
+                      <span className="font-semibold">Caliper Chart Selection</span>
                       <span className="text-[10px] text-hmi-muted">
                         {selectStart !== null && selectEnd !== null 
-                          ? `Rentang: ${Math.min(selectStart, selectEnd).toFixed(2)}s - ${Math.max(selectStart, selectEnd).toFixed(2)}s`
-                          : 'Silakan drag caliper di grafik terlebih dahulu'}
+                          ? `Range: ${Math.min(selectStart, selectEnd).toFixed(2)}s - ${Math.max(selectStart, selectEnd).toFixed(2)}s`
+                          : 'Please drag a caliper selection on the chart first'}
                       </span>
                     </div>
                   </div>
@@ -1459,8 +1459,8 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                       className="accent-emerald-500"
                     />
                     <div className="flex flex-col">
-                      <span className="font-semibold">10 Detik Terakhir (Jendela Grafik)</span>
-                      <span className="text-[10px] text-hmi-muted">Sesuai rentang yang tampil di grafik berjalan</span>
+                      <span className="font-semibold">Last 10 Seconds (Chart Window)</span>
+                      <span className="text-[10px] text-hmi-muted">Matching the range visible on the running chart</span>
                     </div>
                   </div>
                   <span className="font-mono text-[10px] bg-hmi-btn px-1.5 py-0.5 rounded text-hmi-text-secondary">
@@ -1483,8 +1483,8 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                       className="accent-emerald-500"
                     />
                     <div className="flex flex-col">
-                      <span className="font-semibold">20 Detik Terakhir</span>
-                      <span className="text-[10px] text-hmi-muted">Mengambil data respon terbaru dari buffer</span>
+                      <span className="font-semibold">Last 20 Seconds</span>
+                      <span className="text-[10px] text-hmi-muted">Retrieve the latest response data from the buffer</span>
                     </div>
                   </div>
                   <span className="font-mono text-[10px] bg-hmi-btn px-1.5 py-0.5 rounded text-hmi-text-secondary">
@@ -1497,7 +1497,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
               {runEvents.length > 0 && (
                 <div className="flex flex-col gap-2 mt-1">
                   <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-sans">
-                    📌 Run Trigger Bookmarks (Respon Langkah)
+                    📌 Run Trigger Bookmarks (Step Response)
                   </span>
                   <div className="flex flex-col gap-2 max-h-[120px] overflow-y-auto pr-1 border border-hmi-grid/45 rounded p-1.5 bg-hmi-bg/20">
                     {runEvents.map((event, idx) => {
@@ -1519,7 +1519,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                             />
                             <div className="flex flex-col">
                               <span className="font-semibold">Run {idx + 1}: Target {event.target.toFixed(1)}°</span>
-                              <span className="text-[9px] text-hmi-muted">Fired: {event.timeLabel} ({event.t.toFixed(1)}s s.d {(event.t + 20).toFixed(1)}s)</span>
+                              <span className="text-[9px] text-hmi-muted">Fired: {event.timeLabel} ({event.t.toFixed(1)}s to {(event.t + 20).toFixed(1)}s)</span>
                             </div>
                           </div>
                           <span className="font-mono text-[10px] bg-hmi-btn px-1 py-0.5 rounded text-hmi-text-secondary">
@@ -1538,7 +1538,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                         onChange={(e) => setApplyCaliperOnExport(e.target.checked)}
                         className="accent-emerald-500 h-3 w-3"
                       />
-                      <span>Terapkan caliper visual pada grafik setelah download</span>
+                      <span>Apply visual caliper on the chart after download</span>
                     </label>
                   )}
                 </div>
@@ -1552,14 +1552,14 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 onClick={() => setIsExportModalOpen(false)}
                 className="text-xs h-8 border-hmi-grid hover:bg-hmi-btn text-hmi-text-secondary hover:text-hmi-text cursor-pointer"
               >
-                Batal
+                Cancel
               </Button>
               <Button 
                 size="sm"
                 onClick={handleExportCSV}
                 className="text-xs h-8 bg-emerald-700 hover:bg-emerald-600 text-white font-bold cursor-pointer"
               >
-                Unduh CSV
+                Download CSV
               </Button>
             </div>
           </Card>

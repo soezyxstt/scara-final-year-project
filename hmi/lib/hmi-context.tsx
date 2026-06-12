@@ -1128,10 +1128,10 @@ export function HMIProvider({ children }: { children: ReactNode }) {
       TEST: 'Test',
     }
     const modeName = modeNames[state.currentMode] || state.currentMode
-    toast.success(`Mode ${modeName} Aktif`, {
+    toast.success(`Mode ${modeName} Active`, {
       description: state.currentMode === 'IDLE'
-        ? 'Semua output motor dinonaktifkan.'
-        : `Sistem berhasil beralih ke Mode ${modeName}.`
+        ? 'All motor outputs disabled.'
+        : `System successfully switched to Mode ${modeName}.`
     })
   }, [state.currentMode])
 

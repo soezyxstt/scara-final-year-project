@@ -1,6 +1,6 @@
 # SCARA Robot HMI Context Document
-
-This document provides a comprehensive technical overview and reference for the **SCARA Robot HMI** project. It is designed to act as a cold-start context for any developer or AI assistant starting or continuing work on this codebase.
+**2-DOF Planar SCARA | Next.js 16 Client Dashboard | Turso & Drizzle Integration**  
+*Adi Haditya Nursyam — Tugas Sarjana, ITB 2026 (Updated June 2026)*
 
 ---
 
@@ -135,7 +135,7 @@ hmi/
 *   **Purpose**: Visualizes the 2D Cartesian workspace of the SCARA arm, traces movements, draws joint links, and previews moves with safety indicators.
 *   **Props**: None.
 *   **Controls/Renders**:
-1. HTML5 `<canvas>` rendering: Outer reach limits ($R=170\text{ mm}$), inner singularity zone ($r=45\text{ mm}$), grid lines, ideal coordinate path (dashed blue), actual coordinate path (solid red), previous run ghost path (drawn with adjustable opacity loaded dynamically from `localStorage`), current destination flag (orange), and joint links (J1 in blue, J2 in orange).
+1. HTML5 `<canvas>` rendering: Outer reach limits ($R=170\text{ mm}$), inner singularity zone ($r=70\text{ mm}$), grid lines, ideal coordinate path (dashed blue), actual coordinate path (solid red), previous run ghost path (drawn with adjustable opacity loaded dynamically from `localStorage`), current destination flag (orange), and joint links (J1 in blue, J2 in orange).
 2. Safety reachability indicators: Red border and crossing alert markers drawn on canvas if the previewed straight-line move violates safety constraints.
 3. Toggles: Ghost Trail ON/OFF, Link skeleton overlay ON/OFF, Focus Mode (expands graph to full screen).
 4. Bottom-left status board: Displays live numerical Cartesian coordinate positions and deviation error.
@@ -538,7 +538,7 @@ Some UI components manage their own local state:
 ### Hardcoded Constants
 *   **Workspace Boundary Limits**: In [xy-trace.tsx](../../hmi/components/hmi/xy-trace.tsx#L12-L15):
     *   `L_OUTER = 170`: Outer reach boundary radius in millimeters.
-    *   `L_INNER = 45`: Inner workspace boundary radius (dead-zone/singularity limit) in millimeters.
+    *   `L_INNER = 70`: Inner workspace boundary radius (dead-zone/singularity limit) in millimeters.
 *   **Physical SCARA Link Dimensions**:
     *   Link 1 Length ($l_1$) is assumed to be **$100\text{ mm}$**.
     *   Link 2 Length ($l_2$) is assumed to be **$70\text{ mm}$**.
@@ -593,7 +593,7 @@ Every straight-line trajectory planned from the robot's current Cartesian positi
 2.  **Outer Reach Limit**: Target coordinate endpoint must lie within the maximum physical reach radius of the linkages:
     $$\sqrt{x_2^2 + y_2^2} \le 170\text{ mm}$$
     Violating this yields an `outer_violation`.
-3.  **Inner Singularity Dead Zone Limit**: The trajectory line segment between $P_1$ and $P_2$ must not cross or enter the inner singularity circle of radius $r_{min} = 45\text{ mm}$. The minimum distance $d_{min}$ of the segment to the origin is computed analytically. If $d_{min} < 45\text{ mm}$, the move yields an `inner_violation`.
+3.  **Inner Singularity Dead Zone Limit**: The trajectory line segment between $P_1$ and $P_2$ must not cross or enter the inner singularity circle of radius $r_{min} = 70\text{ mm}$. The minimum distance $d_{min}$ of the segment to the origin is computed analytically. If $d_{min} < 70\text{ mm}$, the move yields an `inner_violation`.
 
 ### Frontend Integration & Previews
 *   **Coordinate Move Input Fields**: In `ControlPanel`, when typing or updating $X_f$ or $Y_f$, the validation function `checkStraightLineTrajectory` runs reactively. If invalid, the "Send Move" button is disabled and a warning card displays the violation details.

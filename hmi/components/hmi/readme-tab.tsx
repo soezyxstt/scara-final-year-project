@@ -498,7 +498,7 @@ export function ReadmeTab() {
             </div>
             
             <div className="pt-3 border-t border-zinc-800/80 text-[10.5px] italic text-zinc-500 font-serif leading-relaxed">
-              &ldquo;Dalam kurikulum Program Studi Teknik Mesin ITB, mata kuliah Kendali Sistem Dinamik (MS3201) memegang peranan vital... Penelitian ini bertujuan untuk memodifikasi algoritma kontrol dengan memasukkan kompensasi dinamik serta mengembangkan fitur HMI yang lebih komprehensif guna meningkatkan kualitas pembelajaran praktikum mandiri.&rdquo;
+              &ldquo;In the Mechanical Engineering curriculum at ITB, the Dynamic Systems Control course (MS3201) plays a vital role... This research aims to modify the control algorithm by incorporating dynamic compensation and developing a more comprehensive HMI feature to improve the quality of independent practical learning.&rdquo;
             </div>
           </div>
 
@@ -514,7 +514,7 @@ export function ReadmeTab() {
             <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">First-time workflow</h3>
             <ol className="list-decimal pl-5 space-y-2 text-xs text-zinc-400 mb-5 leading-relaxed">
               <li>Flash the firmware to the ESP32 (see <InlineCode>docs/firmware/readme.md</InlineCode>).</li>
-              <li>Run <InlineCode>npm run dev</InlineCode> in the <InlineCode>hmi/</InlineCode> folder and open <strong className="text-zinc-300">http://localhost:3000</strong> in Chrome or Edge.</li>
+              <li>Open the live hosted HMI dashboard at <strong className="text-zinc-300">tugasakhir.adihnursyam.com</strong> (or run <InlineCode>npm run dev</InlineCode> locally and open <strong className="text-zinc-300">http://localhost:3000</strong>) in Chrome or Edge.</li>
               <li>Plug in the ESP32, click <InlineCode>Connect</InlineCode>, and select the COM port.</li>
               <li>Confirm the <strong className="text-zinc-300">Mode Badge</strong> shows <InlineCode>SCARA</InlineCode> (the HMI switches modes automatically per page).</li>
               <li>Go to the <strong className="text-zinc-300">Monitor</strong> tab, enter a target coordinate in the Control Panel, and click <InlineCode>Send Move</InlineCode>.</li>
@@ -534,7 +534,7 @@ export function ReadmeTab() {
               ))}
             </div>
             <Callout type="tip">
-              Use the <strong>☰ Settings menu</strong> in the header to switch between the Home dashboard, ZN Tuner (<InlineCode>/zn</InlineCode>), and Test Page (<InlineCode>/test</InlineCode>) without disconnecting serial.
+              Use the <strong>Command Palette (<kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-300 font-mono">Ctrl + K</kbd> or <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-300 font-mono">Cmd + K</kbd>)</strong> to switch between the Home dashboard, ZN Tuner (<InlineCode>/zn</InlineCode>), and Test Page (<InlineCode>/test</InlineCode>) without disconnecting serial.
             </Callout>
           </section>
 
@@ -611,11 +611,11 @@ export function ReadmeTab() {
             </ol>
 
             <Callout type="info">
-              <strong>Geometric Workspace Envelope:</strong> The robot is constrained by physical linkages to an annular sector: radial distance <strong className="text-zinc-200">45mm to 170mm</strong> and angular limits <strong className="text-zinc-200">0° to 180°</strong>. Coordinates outside this region will fail inverse kinematics calculations on the ESP32.
+              <strong>Geometric Workspace Envelope:</strong> The robot is constrained by physical linkages to an annular sector: radial distance <strong className="text-zinc-200">70mm to 170mm</strong> and angular limits <strong className="text-zinc-200">0° to 180°</strong>. Coordinates outside this region will fail inverse kinematics calculations on the ESP32.
             </Callout>
 
             <Callout type="danger">
-              <strong>Trajectory Safety Validation:</strong> The HMI includes a safety layer checking all straight-line moves. If a path crosses the inner singularity circle (R &lt; 45 mm), exceeds the outer reach (R &gt; 170 mm), or goes below the horizontal plane (Y &lt; 0), the HMI disables the move command, displays validation warning details in the Control Panel, and overlays a red warning path on the canvas.
+              <strong>Trajectory Safety Validation:</strong> The HMI includes a safety layer checking all straight-line moves. If a path crosses the inner singularity circle (R &lt; 70 mm), exceeds the outer reach (R &gt; 170 mm), or goes below the horizontal plane (Y &lt; 0), the HMI disables the move command, displays validation warning details in the Control Panel, and overlays a red warning path on the canvas.
             </Callout>
           </section>
 
@@ -646,7 +646,7 @@ export function ReadmeTab() {
               <a href="#pages-nav" onClick={(e) => { e.preventDefault(); handleScrollTo('#pages-nav') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              The HMI features multiple routes sharing a single Web Serial connection and state context. Navigate using the settings sidebar (☰) or search the Command Palette (<InlineCode>Ctrl + K</InlineCode> or <InlineCode>Cmd + K</InlineCode>).
+              The HMI features multiple routes sharing a single Web Serial connection and state context. Switch between pages by searching the Command Palette (<InlineCode>Ctrl + K</InlineCode> or <InlineCode>Cmd + K</InlineCode>).
             </p>
             <PropertyList>
               <Property name="/  (Home)" type="SCARA MODE" description="Monitor, Analysis, Rest Analysis, and README tabs. Primary dashboard for Cartesian moves and post-run diagnostics." />
@@ -716,8 +716,8 @@ export function ReadmeTab() {
             </p>
             <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400 leading-relaxed mb-4">
               <li><strong>EXP-1 to EXP-6</strong> — tests tracking differentiator (TD) filters, inertia/Coriolis/gravity feedforward compensations, trapezoidal trajectory profiles, and PID variations.</li>
-              <li><strong>State-Machine Execution</strong> — moves the SCARA arm to starting coordinates, synchronizes gains/parameters, triggers the move, logs 50 Hz telemetry, saves data, and schedules a <strong>30s motor cooldown phase</strong> between runs to protect the hardware.</li>
-              <li><strong>Offline Queue Fallback</strong> — caches runs locally on the browser client if internet is disconnected, syncing them automatically once the network returns online.</li>
+              <li><strong>State-Machine Execution</strong> — moves the SCARA arm to starting coordinates, synchronizes gains/parameters, triggers the move, logs 50 Hz telemetry, saves data, and schedules a <strong>30s motor cooldown phase</strong> between runs to protect the hardware from thermal strain.</li>
+              <li><strong>Database Offline Queue</strong> — caches runs locally if the network drops, retrying up to <strong>2 times spaced by 2 seconds</strong>, before saving to a local backup file and automatically syncing once online again.</li>
             </ul>
             <p className="text-xs text-zinc-400 leading-relaxed">
               Open the <strong>Visualisasi Hasil Eksperimen</strong> route (/hasil-eksperimen) to view comparison charts, error metrics tables, settling times, and filter/compile metrics across completed automated sequences.
@@ -1017,8 +1017,8 @@ export function ReadmeTab() {
               The ☰ button in the header opens the settings sidebar with four sections:
             </p>
             <PropertyList>
-              <Property name="Page Navigation" description="Switch between Home (/), ZN Tuner (/zn), and Test Page (/test) without disconnecting." />
               <Property name="Dashboard Preferences" description="Toggle angular units (radians/degrees) and adjust ghost trail opacity on the XY canvas." />
+              <Property name="Help &amp; Onboarding" description="Re-launch the interactive step-by-step onboarding tour guide at any time." />
               <Property name="Graph Exports" description="Download individual charts as PNG/JPEG at 1×, 2×, or 3× DPI, or package all graphs + CSV + params report into a ZIP." />
               <Property name="Keyboard Shortcuts" description="View and rebind hotkeys for tab switching, E-STOP, ghost toggle, serial connect, and more." />
             </PropertyList>
@@ -1077,6 +1077,14 @@ export function ReadmeTab() {
             </p>
 
             <PropertyList>
+              <Property
+                name="Computed Torque Control (CTC)"
+                description="A model-based feedforward control scheme compensating for SCARA dynamics: M(q)·ddq + C(q,dq)·dq + G(q) = torque, blending inertia, Coriolis, and gravity calculations."
+              />
+              <Property
+                name="Tracking Differentiator (TD)"
+                description="A second-order nonlinear filter estimating clean angular positions (v1) and angular velocities (v2) from raw noisy ADC potentiometer signals."
+              />
               <Property
                 name="End-Effector (EEF)"
                 description="The tool tip point of the SCARA arm. The HMI tracks movement in the Cartesian coordinates (X, Y) of this point."

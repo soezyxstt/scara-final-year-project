@@ -31,7 +31,7 @@ All routes share a single `HMIProvider` serial session. Switch pages via the **�
 ## Home Page Tabs (`/`)
 
 ### 1. Monitor Tab
-* **XY Workspace Trace (`XYTrace`)**: Canvas-based 2D workspace with link segments ($l_1 = 100$ mm, $l_2 = 70$ mm), reach boundaries ($R = 170$ mm), inner singularity zone ($r = 45$ mm), ideal vs actual paths, ghost trail, and pick-point targeting.
+* **XY Workspace Trace (`XYTrace`)**: Canvas-based 2D workspace with link segments ($l_1 = 100$ mm, $l_2 = 70$ mm), reach boundaries ($R = 170$ mm), inner singularity zone ($r = 70$ mm), ideal vs actual paths, ghost trail, and pick-point targeting.
 * **Telemetry Charts (`ChartPanel`)**: Seven chart tabs — **CTE** (cross-tracking error), **ATE** (along-tracking error), joint **Position**, **Velocity**, **PID breakdown**, **J1 control**, and **J2 velocity**.
 * **Run Metrics (`MetricsPanel`)**: Post-run summary grid — Accuracy Index, MCTE, RMS ATE, error bias, RMSE per joint, control variance, jitter, and settling time.
 * **Tuning & Control Panel (`ControlPanel`)**: Coordinate moves, elbow configuration, dual-joint PID gains, feedforward blend factors, and microstepping.
@@ -76,7 +76,7 @@ Engineering mode with four tabs: Monitor, Analysis (includes `RawSignalSection`)
 * **Connect / Disconnect** — Web Serial port management with auto-reconnect
 * **Serial Monitor** — toggle bottom-sheet log panel
 * **E-STOP / RESUME** — emergency stop and motor re-enable
-* **☰ Settings Menu (`CaptureMenu`)** — page navigation, display preferences, keyboard shortcuts, graph exports, and ZIP packaging
+* **☰ Settings Menu (`CaptureMenu`)** — display preferences, keyboard shortcuts, graph exports, and ZIP packaging
 
 ---
 
@@ -127,7 +127,7 @@ bun dev
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in Chrome or Edge.
+Open [http://localhost:3000](http://localhost:3000) or navigate to the live hosted site at **[tugasakhir.adihnursyam.com](https://tugasakhir.adihnursyam.com)** in Chrome or Edge.
 
 ### Connect to Microcontroller
 1. Plug the ESP32 into a USB port.

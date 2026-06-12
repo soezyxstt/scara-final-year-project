@@ -1,73 +1,178 @@
 # SCARA Robot Project Monorepo
 
-Welcome to the 2-DOF Planar SCARA Robot Project. This repository is organized as a monorepo containing both the hardware control firmware and the web-based Human-Machine Interface (HMI).
+Welcome to the 2-DOF Planar SCARA Robot Project. This repository is organized as a monorepo containing both the hardware control firmware and the web-based Human-Machine Interface (HMI). 
 
-## Project Structure
+This documentation serves as a complete, self-contained overview of the codebase. By reading this and the associated documentation in `/docs`, both developers and AI assistants can fully understand and operate the system without scanning the entire source code.
 
-* **`/hmi`**: Next.js Human-Machine Interface for real-time monitoring, trajectory analysis, Ziegler-Nichols tuning, and telemetry visualizations.
-* **`/firmware`**: PlatformIO ESP32 firmware utilizing Computed Torque Control (CTC) + PID loop controls.
-* **`/docs`**: Centralized documentation folder.
+---
 
-## HMI Pages
+## 1. Monorepo Overview
 
-The web dashboard is split into multiple routes sharing a single Web Serial connection and state context:
+This monorepo integrates embedded control systems with a modern web dashboard:
 
-| Route | Firmware mode | Purpose / Access |
+```
+                  ┌─────────────────────────────────────┐
+                  │      HMI Web Client (Next.js)       │
+                  │   Real-time plotting, ZN tuner,     │
+                  │   analytics, and DB experiment runs │
+                  └──────────────────┬──────────────────┘
+                                     │ USB Serial Connection
+                                     │ (Baud Rate: 921600)
+                                     ▼
+                  ┌─────────────────────────────────────┐
+                  │     ESP32 Control Firmware (C++)    │
+                  │  500 Hz control loop, Computed      │
+                  │  Torque Control, PID feedback       │
+                  └───────┬─────────────────────┬───────┘
+                          │                     │
+                          ▼                     ▼
+                  ┌───────────────┐     ┌───────────────┐
+                  │ Joint 1 (DC)  │     │ Joint 2 (Step)│
+                  │ GM25-370 motor│     │ NEMA 8 motor  │
+                  └───────────────┘     └───────────────┘
+```
+
+* **`/hmi`**: Next.js v16.2.6 (App Router) & React v19.2.4 application. Manages Web Serial ingestion, telemetry state, databases, auth, and automated experiments.
+* **`/firmware`**: PlatformIO C++ firmware targetting the ESP32 DevKit V1. Implements computed torque feedforward control (CTC) plus PID feedback controls.
+* **`/docs`**: Centralized, highly-specific sub-system documentation.
+
+---
+
+## 2. Directory Layout & Key File Map
+
+```text
+/
+├── README.md                 # Root directory documentation index (This file)
+├── AGENTS.md                 # System instructions for AI coding agents
+│
+├── docs/                     # Sub-system documentation folder
+│   ├── firmware/
+│   │   └── readme.md         # ESP32 pinouts, modes, commands, and telemetry details
+│   └── hmi/
+│       ├── stack-and-architecture.md  # Tech stack, routes, nextauth boundary, serial loop
+│       ├── features-and-data-flow.md  # UI specifications, experiments EXP-1..6, local cache
+│       └── scara-hmi-context.md       # Deep technical details for reducer actions & symbols
+│
+├── firmware/                 # PlatformIO ESP32 Project
+│   ├── include/config.h      # COMPILE-TIME physical constants, geometry, and pin numbers
+│   ├── src/
+│   │   ├── main.cpp          # Setup and loop entry points
+│   │   ├── scheduler/        # 500 Hz loop scheduling & watchdog logic
+│   │   ├── control/          # CTC + Joint 1/2 controller calculations
+│   │   ├── sensors/          # ADC reading & Tracking Differentiator (TD) noise filter
+│   │   ├── kinematics/       # Forward & Inverse Kinematics, Jacobian calculations
+│   │   ├── trajectory/       # Straight-line trajectory generator (Trapezoidal profile)
+│   │   └── comms/            # Command parser and serial packet formatting
+│   ├── platformio.ini        # PlatformIO configuration
+│   └── scara.bat             # Compile and upload scripts
+│
+└── hmi/                      # Next.js Web Application
+    ├── app/                  # App Router entry pages and API endpoints
+    ├── components/           # UI elements (Monitor, ZN Tuner, Analytics, console)
+    │   └── hmi/
+    │       └── readme-tab.tsx # In-app copy of documentation viewer
+    ├── lib/
+    │   ├── hmi-context.tsx   # Serial read loop, parser, global reducer state
+    │   ├── hmi-types.ts      # Telemetry interfaces
+    │   └── db/               # Turso connection, Drizzle schemas, database queries
+    ├── package.json          # Node dependencies list
+    └── drizzle.config.ts     # Drizzle ORM config
+```
+
+---
+
+## 3. Web HMI Features & Routes
+
+The web interface is split into public and protected (Google OAuth required) routes. They share a single Web Serial connection held in the global client context:
+
+| Path | Firmware Mode | Purpose / Access Control |
 | :--- | :--- | :--- |
-| **`/`** (Home) | `SCARA` | Live monitoring, post-run analysis, rest/step analysis, and in-app user guide |
-| **`/zn`** | `ZN` | Dedicated Ziegler-Nichols joint tuning workspace |
-| **`/test`** | `TEST` | Full parameter tuning, raw signal inspection, and advanced diagnostics |
-| **`/login`** | — | Authentication portal using NextAuth (Google account login) |
-| **`/dashboard`** | — | Historical run workspace: search, select, compare, and analyze saved runs (auth required) |
-| **`/eksperimen`** | `TEST` | Automation suite: execute automated sequences with offline queue fallback (auth required) |
-| **`/hasil-eksperimen`** | — | Automated experiment visualization, filtering, and comparative results viewer |
+| **`/`** (Home) | `SCARA` | Live trajectory tracking, post-run diagnostics, rest analysis, and user guide. (Public) |
+| **`/zn`** | `ZN` | Joint-level Ziegler-Nichols auto-recommendation tuning workspace. (Public) |
+| **`/test`** | `TEST` | 26 runtime parameter editor and raw unfiltered sensor ADC visualizer. (Public) |
+| **`/login`** | — | NextAuth Google sign-in portal. (Public) |
+| **`/hasil-eksperimen`**| — | Comparative data analytics table for completed sequences. (Public) |
+| **`/dashboard`** | — | Saved Runs History: overlay multiple trajectories & compare metrics. (Protected) |
+| **`/eksperimen`** | `TEST` | Automation Suite: execute pre-coded EXP-1 to EXP-6 scripts. (Protected) |
 
-Open the settings menu (☰) or search the Command Palette (`Ctrl + K` or `Cmd + K`) from any page to switch between routes. The HMI automatically sends the correct `mode,<name>` command when you navigate.
+---
 
-## Quick Start (HMI)
+## 4. Environment & Database Configuration
 
-1. Create a `.env` file in the root directory (copying from `.env.example` if available) with the following environment variables:
-   ```env
-   # Database Configuration (Turso/LibSQL)
-   TURSO_DATABASE_URL="your-turso-database-url"
-   TURSO_AUTH_TOKEN="your-turso-auth-token"
+To unlock historical run visualization, authentication, and automated experiments, configure the database and auth client.
 
-   # Authentication Configuration (NextAuth with Google Provider)
-   GOOGLE_CLIENT_ID="your-google-client-id"
-   GOOGLE_CLIENT_SECRET="your-google-client-secret"
-   AUTH_SECRET="your-random-nextauth-secret" # Run openssl rand -base64 33
-   AUTH_URL="http://localhost:3000"
-   ```
+### Step 1: Set Up Environment Variables
+Create a file named `.env` in the root workspace directory:
 
-2. Install dependencies and run Drizzle push to synchronize the database schema:
-   ```bash
-   cd hmi
-   npm install
-   npm run db:push
-   ```
+```env
+# Database Configuration (Turso/LibSQL)
+TURSO_DATABASE_URL="libsql://your-database-name.turso.io"
+TURSO_AUTH_TOKEN="your-turso-auth-token"
 
-3. Start the local development server:
+# Authentication Configuration (Google OAuth + NextAuth)
+GOOGLE_CLIENT_ID="your-google-oauth-client-id"
+GOOGLE_CLIENT_SECRET="your-google-oauth-client-secret"
+AUTH_SECRET="your-32-character-random-secret" # Generate via: openssl rand -base64 33
+AUTH_URL="http://localhost:3000"
+```
+
+### Step 2: Sync Schema using Drizzle
+The DB tables are declared in `hmi/lib/db/schema.ts` and `experiment.ts`. Push the schemas to Turso:
+```bash
+cd hmi
+npm install
+npm run db:push
+```
+
+---
+
+## 5. Quick Start Developer Guide
+
+### HMI Launch
+The HMI dashboard is hosted live at **[tugasakhir.adihnursyam.com](https://tugasakhir.adihnursyam.com)** for direct access by students. Alternatively, to run the HMI locally:
+1. Ensure Node.js and npm are installed.
+2. In the `hmi/` directory, start the development server:
    ```bash
    npm run dev
    ```
+3. Open [http://localhost:3000](http://localhost:3000) or the hosted live link using **Google Chrome** or **Microsoft Edge**.
+4. Connect the robot using the **Connect** button in the header (Baud: **921600**).
+5. Open the user menu (user avatar) to authenticate and access `/dashboard` or `/eksperimen`.
 
-4. Open [http://localhost:3000](http://localhost:3000) in **Chrome** or **Edge**.
-5. Connect the ESP32 via USB and click **Connect** in the header.
-6. Select the COM port (baud rate **921600**).
-7. Sign in using the user icon/login page to save runs and view the research dashboard.
-8. Use the **README** tab on the home page for a full walkthrough.
+### Firmware Compilation & Upload
+1. Ensure VS Code and the **PlatformIO IDE** extension are installed.
+2. Open the `/firmware` directory in VS Code.
+3. Connect the ESP32 to the PC.
+4. Execute building scripts via terminal:
+   ```bat
+   # Compile only
+   scara.bat compile
+   
+   # Compile and upload to ESP32
+   scara.bat upload
+   
+   # Upload and open serial monitor
+   scara.bat all
+   ```
 
-## Documentation Index
+---
 
-Detailed documentation is organized under the **[`/docs`](./docs)** directory:
+## 6. Offline Support & Sync Lifecycles
 
-### Human-Machine Interface (HMI)
-* **[HMI Context Guide](./docs/hmi/scara-hmi-context.md)**: File layout, state management, component map, and developer conventions.
-* **[Features and Data Flow](./docs/hmi/features-and-data-flow.md)**: Web Serial integration, tabs, plotting, and serial protocol.
-* **[Stack and Architecture](./docs/hmi/stack-and-architecture.md)**: Tech stack, directory layout, and connection lifecycle.
+If the network connection drops during telemetry recording or automated experiments:
+1. **Local Backup**: The Next.js server caches data in `hmi/local-backup/` as `.jsonl` files (e.g. `runs.jsonl`, `samples-{id}.jsonl`).
+2. **Client Offline Queue**: In-progress runs are cached in the browser's memory queue.
+3. **Automatic Synchronization**: Once the window `online` event fires, the HMI automatically uploads cached items to Turso.
 
-### ESP32 Control Firmware
-* **[Firmware Manual](./docs/firmware/readme.md)**: Wiring guides, pinout maps, operating modes, tuning, and full serial command references.
+---
+
+## 7. Documentation Index
+
+To modify or study specific mechanisms, consult the sub-system guides under `/docs`:
+- **[Firmware Manual](./docs/firmware/readme.md)**: Physical calculations, pinouts, wiring diagrams, commands, and telemetry layouts.
+- **[HMI Context Guide](./docs/hmi/scara-hmi-context.md)**: Reducer state actions, file layouts, component map, and developer conventions.
+- **[HMI Features and Data Flow](./docs/hmi/features-and-data-flow.md)**: Web Serial lifecycles, automated experiment procedures, database schema mapping, and serialization protocols.
+- **[Stack and Architecture](./docs/hmi/stack-and-architecture.md)**: App routes, middleware boundaries, chart downsampling, and styling tokens.
 
 ---
 *Adi Haditya Nursyam — Tugas Sarjana, ITB 2026*

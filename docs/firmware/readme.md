@@ -1,33 +1,36 @@
-# SCARA Robot Firmware
-**2-DOF Planar SCARA | CTC + PID | ESP32 DevKit V1**  
-Adi Haditya Nursyam — Tugas Sarjana, ITB 2026
+# SCARA Robot Firmware Manual
+**2-DOF Planar SCARA | Computed Torque Control (CTC) + PID | ESP32 DevKit V1**  
+*Adi Haditya Nursyam — Tugas Sarjana, ITB 2026*
 
 ---
 
 ## Table of Contents
 1. [What This Is](#1-what-this-is)
-2. [Hardware You Need](#2-hardware-you-need)
-3. [Wiring Guide](#3-wiring-guide)
-4. [Software Setup](#4-software-setup)
-5. [Build & Upload](#5-build--upload)
-6. [First Boot Checklist](#6-first-boot-checklist)
-7. [Operating Modes](#7-operating-modes)
-8. [Moving the Robot](#8-moving-the-robot)
-9. [All Serial Commands](#9-all-serial-commands)
-10. [Tuning the Robot (Non-control Version)](#10-tuning-the-robot-non-control-version)
-11. [Reading the Telemetry](#11-reading-the-telemetry)
-12. [Project File Structure](#12-project-file-structure)
-13. [Troubleshooting](#13-troubleshooting)
+2. [Actuator Kinematics & Mechanics](#2-actuator-kinematics--mechanics)
+3. [Computed Torque Control (CTC) Dynamic Model](#3-computed-torque-control-ctc-dynamic-model)
+4. [Tracking Differentiator (TD) Noise Filter](#4-tracking-differentiator-td-noise-filter)
+5. [Hardware You Need](#5-hardware-you-need)
+6. [Wiring Guide & Pinout Maps](#6-wiring-guide--pinout-maps)
+7. [ADC Calibration & Position Mapping](#7-adc-calibration--position-mapping)
+8. [Software Setup](#8-software-setup)
+9. [Build & Upload Scripts](#9-build--upload-scripts)
+10. [First Boot Checklist](#10-first-boot-checklist)
+11. [Operating State Machine & Transition Rules](#11-operating-state-machine--transition-rules)
+12. [Cartesian & Joint Movement Logic](#12-cartesian--joint-movement-logic)
+13. [Ziegler-Nichols & Deadband Tuning Workflow](#13-ziegler-nichols--deadband-tuning-workflow)
+14. [All Serial Commands Reference](#14-all-serial-commands-reference)
+15. [Upstream Telemetry Packet Formats](#15-upstream-telemetry-packet-formats)
+16. [Troubleshooting & Diagnostics](#16-troubleshooting--diagnostics)
 
 ---
 
 ## 1. What This Is
 
-This is the embedded firmware for a 2-joint planar SCARA robot arm.
+This directory contains the PlatformIO-based C++ firmware targetting the ESP32 DevKit V1 microcontroller for a 2-joint planar SCARA robot arm.
 
 ```
       ┌──────────┐
-      │  Joint 2 │── Link 2 (70 mm) ──► End Effector
+      │  Joint 2 │── Link 2 (70 mm) ──► End Effector (EEF)
       │ (Stepper)│
       └──────────┘
            │
@@ -38,463 +41,314 @@ This is the embedded firmware for a 2-joint planar SCARA robot arm.
       │ (DC Motor│
       └──────────┘
            │
-         Base
+          Base
 ```
 
-**Joint 1** — driven by a GM25-370 DC motor + L298N H-bridge  
-**Joint 2** — driven by a NEMA 8 stepper + A4988 driver  
-Both joints use B10K potentiometers as position sensors.
-
-The robot can move its end-effector in a straight line from point A to point B in 2D space. You send it a target coordinate (X, Y in mm) over USB serial and it goes there.
+The system coordinates trajectory execution in Cartesian space ($X, Y$ in mm) and translates them to joint space ($\theta_1, \theta_2$) utilizing Inverse Kinematics. Feedback position mapping is acquired at 500 Hz from potentiometer sensors, filtered via a Tracking Differentiator (TD), and controlled using a combination of dynamic feedforward model compensation and PID feedback.
 
 ---
 
-## 2. Hardware You Need
+## 2. Actuator Kinematics & Mechanics
 
-| Component | Part | Qty |
-|-----------|------|-----|
-| Microcontroller | ESP32 DevKit V1 | 1 |
+The robot is driven by two different actuator types:
+- **Joint 1 (Inner Link)**: Powered by a **GM25-370 DC Brushed Motor** driven by an **L298N H-bridge**.
+  - Internal Gearbox: $103:1$
+  - External Belt/Pulley Ratio: $2:1$
+  - Effective Gear Ratio ($N_{eff1}$): $206.0$
+- **Joint 2 (Outer Link)**: Powered by a **NEMA 8 Stepper Motor** driven by an **A4988 driver**.
+  - External Timing Belt/Pulley Ratio ($N_{eff2}$): $2.0$
+  - Step Resolution: $1.8^\circ$ per full step (200 steps/rev). Microstepping configured to **1/16** yielding an effective $3200$ steps per revolution at the motor shaft, translating to $6400$ steps per revolution of the outer link.
+
+---
+
+## 3. Computed Torque Control (CTC) Dynamic Model
+
+To compensate for physical system dynamics (link inertia, Coriolis forces, and gravity loading), the firmware implements a model-based **Computed Torque Control (CTC)** feedforward algorithm.
+
+The general dynamic equation of the planar SCARA robot is:
+$$M(q)\ddot{q} + C(q, \dot{q})\dot{q} + G(q) = \tau$$
+
+Where:
+- $q = [\theta_1, \theta_2]^T$ represents the joint angle coordinates.
+- $\dot{q} = [\dot{\theta}_1, \dot{\theta}_2]^T$ represents joint angular velocities.
+- $\ddot{q} = [\ddot{\theta}_1, \ddot{\theta}_2]^T$ represents joint angular accelerations.
+- $\tau = [\tau_1, \tau_2]^T$ represents joint torque control outputs.
+
+### A. Inertia Matrix $M(q)$
+The inertia matrix represents the configuration-dependent mass properties of the robot structure:
+$$M(q) = \begin{bmatrix} M_{11} & M_{12} \\ M_{12} & M_{22} \end{bmatrix}$$
+
+- $M_{11} = m_1 d_1^2 + m_2 (L_1^2 + d_2^2 + 2 L_1 d_2 \cos(\theta_2)) + I_{zz1} + I_{zz2}$
+- $M_{12} = m_2 (d_2^2 + L_1 d_2 \cos(\theta_2)) + I_{zz2}$
+- $M_{22} = m_2 d_2^2 + I_{zz2}$
+
+Where:
+- $L_1 = 0.100\text{ m}$, $L_2 = 0.070\text{ m}$ (Link lengths).
+- $m_1 = 0.360\text{ kg}$, $m_2 = 0.15546\text{ kg}$ (Link masses).
+- $d_1 = 0.04454\text{ m}$, $d_2 = 0.01478\text{ m}$ (Centroid positions from joints).
+- $I_{zz1} = 1.357 \times 10^{-5}\text{ kg}\cdot\text{m}^2$, $I_{zz2} = 1.264 \times 10^{-6}\text{ kg}\cdot\text{m}^2$ (Mass moment of inertia about pivot axes).
+- $I_{zz1}$ and $I_{zz2}$ are scaled by the square of their gear ratios to include motor rotor inertia:
+  - $I_{zz1} = I_{zz1,\text{link}} + N_{eff1}^2 J_{m,\text{DC}}$
+  - $I_{zz2} = I_{zz2,\text{link}} + N_{eff2}^2 J_{m,\text{step}}$
+
+### B. Coriolis & Centrifugal Terms $C(q, \dot{q})\dot{q}$
+These represent the dynamic forces acting on the joints when links are rotating:
+- $C_1 = -m_2 L_1 d_2 \sin(\theta_2) \dot{\theta}_2 (2 \dot{\theta}_1 + \dot{\theta}_2)$
+- $C_2 = m_2 L_1 d_2 \sin(\theta_2) \dot{\theta}_1^2$
+
+### C. Gravity Matrix $G(q)$
+For a strictly horizontal planar SCARA, gravity torque is zero. However, if the robot base is tilted by a pitch/roll angle $\alpha_{\text{tilt}}$ relative to the horizontal plane, gravity acts on the link centroids:
+- $G_1 = (m_1 d_1 + m_2 L_1) g \sin(\alpha_{\text{tilt}}) \cos(\theta_1) + m_2 d_2 g \sin(\alpha_{\text{tilt}}) \cos(\theta_1 + \theta_2)$
+- $G_2 = m_2 d_2 g \sin(\alpha_{\text{tilt}}) \cos(\theta_1 + \theta_2)$
+
+### D. Control Torques
+The model-based feedforward efforts are blended into the final motor outputs using parameters `ffi` (inertia), `ffc` (Coriolis), and `ffg` (gravity) spanning from $0.0$ (no model feedback, pure PID) to $1.0$ (full model-based compensation).
+
+---
+
+## 4. Tracking Differentiator (TD) Noise Filter
+
+Due to high noise in analog ADC readings from the potentiometers, a second-order nonlinear **Tracking Differentiator (TD)** is used to extract clean, filtered joint angles ($v_1$) and their derivatives/velocities ($v_2$).
+
+The discrete-time algorithm updates as follows for each joint:
+1. Compute the tracking error and command parameters:
+   $$d = h \cdot r$$
+   $$y = v_1 - x_0 + h \cdot v_2$$
+   $$a_0 = \sqrt{d^2 + 8 \cdot r \cdot |y|}$$
+2. Determine the nonlinear control factor $a$:
+   $$a = \begin{cases} v_2 + \frac{y}{h}, & \text{if } |y| \le d \cdot h \\ v_2 + 0.5 (a_0 - d) \text{sgn}(y), & \text{if } |y| > d \cdot h \end{cases}$$
+3. Compute the output force function $fh$:
+   $$fh = \begin{cases} \frac{a}{d}, & \text{if } |a| \le d \\ \text{sgn}(a), & \text{if } |a| > d \end{cases}$$
+4. Integrate states:
+   $$v_1 \leftarrow v_1 + dt \cdot v_2$$
+   $$v_2 \leftarrow v_2 - r \cdot dt \cdot fh$$
+
+Where:
+- $x_0$ is the raw joint angle input parsed from the ADC calibration scale.
+- $r$ is the filter bandwidth (default: `50.0`). Higher values track faster but let more noise pass.
+- $h$ is the filter integration step size, dynamically locked to the control loop period $dt$ ($0.002\text{ s}$) to prevent discretization instabilities.
+
+---
+
+## 5. Hardware You Need
+
+| Component | Specifications | Qty |
+|-----------|----------------|-----|
+| MCU | ESP32 DevKit V1 | 1 |
 | DC motor driver | L298N H-bridge module | 1 |
 | Stepper driver | A4988 module | 1 |
 | DC motor | GM25-370 (with encoder, 103:1 gearbox) | 1 |
 | Stepper motor | NEMA 8 (JK20HS42-0804) | 1 |
 | Position sensors | B10K potentiometer | 2 |
-| RC filter (J1) | 20 kΩ resistor + 1 µF capacitor | 1 set |
-| Power supply | 12 V / 3 A adapter | 1 |
+| RC filter (J1) | $20\text{ k}\Omega$ resistor + $1\ \mu\text{F}$ capacitor | 1 set |
+| Power supply | 12 V / 3 A AC-DC adapter | 1 |
 | Voltage regulator | LM2596 step-down (12 V → 5 V) | 1 |
-| USB cable | Micro-USB (for ESP32) | 1 |
-| PC | Any OS, with USB port | 1 |
+| USB cable | Micro-USB (for ESP32 data link) | 1 |
 
 ---
 
-## 3. Wiring Guide
+## 6. Wiring Guide & Pinout Maps
 
 ### ESP32 Pin Assignments
 
-| ESP32 GPIO | Connected To | Description |
-|-----------|-------------|-------------|
-| **GPIO 36** | Stepper pot (wiper) | Joint 2 position sensor |
-| **GPIO 39** | DC motor pot (wiper, through RC filter) | Joint 1 position sensor |
-| **GPIO 14** | A4988 STEP pin | Stepper step pulses |
-| **GPIO 12** | A4988 DIR pin | Stepper direction |
-| **GPIO 16** | L298N IN3 | DC motor direction A |
-| **GPIO 17** | L298N IN4 | DC motor direction B |
-| **GPIO 18** | L298N EN (PWM) | DC motor speed |
-| **GPIO 33** | A4988 MS1 | Microstepping bit 1 |
-| **GPIO 32** | A4988 MS2 | Microstepping bit 2 |
-| **GPIO 35** | A4988 MS3 | Microstepping bit 3 ⚠️ |
+| ESP32 Pin | Connected To | Type | Description |
+|-----------|-------------|------|-------------|
+| **GPIO 36** | Stepper pot wiper | Analog Input (ADC1_CH0) | Joint 2 position sensor |
+| **GPIO 39** | DC motor pot wiper | Analog Input (ADC1_CH3) | Joint 1 position sensor (needs RC filter) |
+| **GPIO 14** | A4988 STEP pin | Digital Output | Stepper pulse trigger |
+| **GPIO 12** | A4988 DIR pin | Digital Output | Stepper direction selection |
+| **GPIO 16** | L298N IN3 | Digital Output | DC motor direction polarity A |
+| **GPIO 17** | L298N IN4 | Digital Output | DC motor direction polarity B |
+| **GPIO 18** | L298N EN | PWM Output (LEDC) | DC motor speed control (duty 0-255) |
+| **GPIO 33** | A4988 MS1 | Digital Output | Microstepping state bit 1 |
+| **GPIO 32** | A4988 MS2 | Digital Output | Microstepping state bit 2 |
+| **GPIO 35** | A4988 MS3 | Digital Output (⚠️ Input Only) | Microstepping state bit 3 |
 
-> ⚠️ **GPIO 35 is input-only** on DevKit V1. MS3 is set HIGH at boot via software but if A4988 needs active drive during operation, rewire MS3 to GPIO 25, 26, or 27.
+> ⚠️ **IMPORTANT WARNING:** GPIO 35 is input-only on the ESP32 DevKit V1. If MS3 must be driven actively during execution to dynamically adjust step configurations, rewire MS3 to a general-purpose IO such as GPIO 25, 26, or 27.
 
-### Microstepping (A4988)
-MS1=HIGH, MS2=HIGH, MS3=HIGH → **1/16 microstep** (set automatically at boot).
-
-### Potentiometer Wiring
+### Potentiometer Filtering Circuit (Joint 1)
+DC motor brush sparks introduce high electromagnetic interference (EMI). A hardware RC low-pass filter must be installed on the J1 analog line:
 ```
-3.3V ──┬── [Pot end A]
+3.3V ──┬── [Pot End A]
        │
-       └── [RC filter: 20kΩ + 1µF] ──► GPIO 39  (Joint 1 only)
-                                        GPIO 36  (Joint 2, no filter needed)
-GND ───── [Pot end B]
-```
-Both pot wipers go to their GPIO with a 3.3 V reference. **Do not use 5 V** — the ESP32 ADC is 3.3 V max.
-
-### Power Distribution
-```
-12V adapter ──► L298N VCC (motors)
-            └──► LM2596 IN ──► LM2596 OUT (5V) ──► ESP32 VIN
+       └── [20 kΩ Resistor] ──┬──► GPIO 39 (ADC Pin)
+                              │
+                      [1 µF Capacitor]
+                              │
+GND ───── [Pot End B] ────────┴──► GND
 ```
 
 ---
 
-## 4. Software Setup
+## 7. ADC Calibration & Position Mapping
 
-You only need to do this once.
+The 12-bit ADC of the ESP32 maps physical potentiometer voltages (0.0 to 3.3V) into raw integer values (0 to 4095). These integers are mapped to joint angles in radians inside `src/hal/hal_adc.cpp` using the following boundaries:
 
-### Step 1 — Install VS Code
-Download from [code.visualstudio.com](https://code.visualstudio.com)
-
-### Step 2 — Install PlatformIO Extension
-In VS Code: Extensions (Ctrl+Shift+X) → search **PlatformIO IDE** → Install.
-
-### Step 3 — Open This Project
-File → Open Folder → select the `code/` folder (the one containing `platformio.ini`).
-
-PlatformIO will automatically download the ESP32 Arduino core and toolchain on first build (~500 MB, one-time).
-
-### Step 4 — Install a Serial Terminal (optional but recommended)
-- **CoolTerm** (Windows/Mac/Linux) — simple, reliable
-- **PuTTY** (Windows) — lightweight
-- Or use PlatformIO's built-in monitor: `scara.bat monitor`
-
-Set baud rate to **921600** in whichever terminal you use.
+- **Joint 1 (DC Motor)**:
+  - $0^\circ$ (0.0 rad) = `851` counts
+  - $90^\circ$ ($\pi/2$ rad) = `2301` counts
+  - $180^\circ$ ($\pi$ rad) = `4095` counts
+- **Joint 2 (Stepper)**:
+  - $-90^\circ$ ($-\pi/2$ rad) = `198` counts
+  - $0^\circ$ (0.0 rad) = `1522` counts
+  - $90^\circ$ ($\pi/2$ rad) = `2852` counts
 
 ---
 
-## 5. Build & Upload
+## 8. Software Setup
 
-Open a **Command Prompt** (not PowerShell) in the `code/` folder, or use the VS Code terminal.
+1. Install **Visual Studio Code**.
+2. Install the **PlatformIO IDE** extension from the VS Code Extensions panel (Ctrl+Shift+X).
+3. Open VS Code, select **File → Open Folder**, and open the `/firmware` directory.
+4. PlatformIO will download compile toolchains and the Espressif 32 framework automatically on first run.
+
+---
+
+## 9. Build & Upload Scripts
+
+Compile and flashing commands are executed using `scara.bat` in the `/firmware` folder:
 
 ```bat
-REM Compile only — check for errors without touching the robot
+# Compile code to verify compilation
 scara.bat compile
 
-REM Compile + upload to ESP32 (robot must be connected via USB)
+# Compile and flash target ESP32 via serial link
 scara.bat upload
 
-REM Upload last compiled binary immediately (fastest, skips file checks)
+# Flash already compiled binaries immediately
 scara.bat upload-only
 
-REM Compile + upload + open serial monitor in one command
+# Compile, flash, and launch serial monitor at 921600 baud
 scara.bat all
 ```
 
-> **First upload takes ~2 minutes** because PlatformIO compiles the Arduino framework from source. Subsequent builds take ~6 seconds (only changed files recompile).
-
-### What "success" looks like
-```
-RAM:   [=         ]   7.0% (used 22996 bytes from 327680 bytes)
-Flash: [==        ]  23.4% (used 306721 bytes from 1310720 bytes)
-========================= [SUCCESS] Took 6.12 seconds =========================
-```
-
 ---
 
-## 6. First Boot Checklist
+## 10. First Boot Checklist
 
-After uploading, open the serial monitor (921600 baud) and you should see:
-
-```
+Upon initial upload, launch the serial monitor at **921600** baud and verify the following startup logs:
+```text
 ==========================================
   SCARA Robot   |  Experiment Mode        
   Adi Haditya Nursyam — ITB 2026           
 ==========================================
 INFO: Boot state = MODE_IDLE.
 INFO: Kirim 'mode,scara', 'mode,zn', atau 'mode,test'.
-P,<x_mm>,<y_mm>,<th1>,<th2>
+P,0.000,120.000,0.000,0.000
 X,IDLE
 ```
 
-**Before doing anything else, verify:**
-
-- [ ] `P,` shows reasonable X/Y values (not `nan` or `0.000,0.000` constantly)
-- [ ] Both potentiometers physically move joints and the `P,` values change
-- [ ] No smoke from the L298N or A4988 🙂
-- [ ] Power LED on ESP32 is solid (not blinking rapidly)
+Ensure:
+- [ ] Potentiometers read actual values. Gently rotate joints manually and verify the telemetry angles change.
+- [ ] Keep the serial watchdog from resetting by sending a command or `ping`.
 
 ---
 
-## 7. Operating Modes
+## 11. Operating State Machine & Transition Rules
 
-The robot has 4 modes. You switch between them by typing commands in the serial terminal.
+The firmware transitions between 4 software modes:
 
-| Mode | Command | What it does |
-|------|---------|-------------|
-| **IDLE** | `mode,idle` | All motors off. Safe default. Boot state. |
-| **SCARA** | `mode,scara` | Full operation. Send `move,X,Y` to drive the robot. |
-| **ZN** | `mode,zn` | Ziegler-Nichols tuning. Move joints individually to find PID gains. |
-| **TEST** | `mode,test` | Like SCARA but all internal parameters are adjustable live. |
+```
+            ┌─────────────────┐
+            │    MODE_IDLE    │ ◄─────────────────────────┐
+            │ (Motors Disabled│                           │ Watchdog Timeout
+            └────────┬────────┘                           │ (No Serial 8s)
+                     │                                    │ or 'mode,idle'
+      ┌──────────────┼──────────────┐                     │
+      │ 'mode,scara' │ 'mode,zn'    │ 'mode,test'         │
+      ▼              ▼              ▼                     │
+┌───────────┐  ┌───────────┐  ┌───────────┐               │
+│MODE_SCARA │  │  MODE_ZN  │  │ MODE_TEST │ ──────────────┘
+│(Cartesian)│  │(Joint Step│  │ (Param    │
+└───────────┘  └───────────┘  └───────────┘
+```
 
-### Mode transition rules
-- You can always go back to `mode,idle` — it cuts all motor power.
-- SCARA → TEST or TEST → SCARA is allowed.
-- Any active movement is stopped safely when you change modes.
-- The robot **auto-returns to IDLE** after 8 seconds of serial silence (watchdog). Just send `ping` to keep it alive.
+- **MODE_IDLE**: Safe default mode. Actuator outputs are disabled.
+- **MODE_SCARA**: Standard operational mode. Trajectory planning is executed in Cartesian coordinate inputs.
+- **MODE_ZN**: Ziegler-Nichols tuning mode. Bypasses Cartesian paths, enabling raw step commands to be sent directly to individual joints (`t1,angle` or `t2,angle`).
+- **MODE_TEST**: Engineering mode. Same as SCARA, but unlocks live adjustments of 26 control constants (e.g. speed, bandwidths, deadbands).
 
 ---
 
-## 8. Moving the Robot
+## 12. Cartesian & Joint Movement Logic
 
-### Basic move (SCARA or TEST mode)
-```
-mode,scara
-move,120,50
-```
-This moves the end-effector to X=120 mm, Y=50 mm from the robot's base origin.
+Moves are commanded in two ways depending on the mode:
 
-### Workspace limits
-The reachable area is a ring (not a full circle):
-
-```
-Minimum reach: |L1 - L2| = |100 - 70| = 30 mm from center
-Maximum reach: L1 + L2   = 100 + 70   = 170 mm from center
-```
-
-If your target is outside this ring you'll get:
-```
-ERR: Di luar workspace. R valid: 30.0 – 170.0
-```
-
-### Queuing a second move
-You can send a second `move,` while the robot is still moving. It will be queued and executed automatically when the first move finishes:
-```
-move,150,0
-move,100,80      ← queued, starts after first move settles
-```
-
-### Stop immediately
-```
-estop            ← cuts all motor power, keeps position in memory
-resume           ← re-enables motor output (does NOT move)
-```
+1. **Cartesian Trajectory (`move,X,Y` in SCARA/TEST)**:
+   - Uses Inverse Kinematics to calculate target joint angles.
+   - Generates straight-line paths from coordinate $A$ to $B$ using a Trapezoidal Velocity Profile.
+   - Constrained by Cartesian physical limits: Outer reach $R_{max} = 170\text{ mm}$, Inner Singularity $R_{min} = 70\text{ mm}$.
+2. **Joint Step Command (`t1,deg` or `t2,deg` in ZN/TEST)**:
+   - Drives joints directly to target angles, bypassing Cartesian path generation.
 
 ---
 
-## 9. All Serial Commands
+## 13. Ziegler-Nichols & Deadband Tuning Workflow
 
-Type these exactly (lowercase, no spaces) into the serial terminal and press Enter.
-
-### Always available (any mode)
-| Command | Effect |
-|---------|--------|
-| `ping` | Resets the 8-second watchdog timer. Send periodically to keep the robot active. |
-| `estop` | Emergency stop — cuts all motor outputs immediately. |
-| `resume` | Clears the ESTOP flag. Motors re-engage but robot does not move. |
-| `getgains` | Prints all current PID gains and FF settings. |
-| `getparams` | Prints all current runtime parameters. |
-| `clrgraph` | Tells the HMI to clear its graph (acknowledged only). |
-
-### Mode switching
-```
-mode,idle    mode,scara    mode,zn    mode,test
-```
-
-### Movement (SCARA and TEST modes)
-| Command | Example | Effect |
-|---------|---------|--------|
-| `move,X,Y` | `move,130,60` | Move end-effector to (X, Y) in mm |
-
-### PID gains (SCARA, TEST, and ZN modes)
-| Command | Example | What it adjusts |
-|---------|---------|-----------------|
-| `kp1,value` | `kp1,0.8` | Joint 1 proportional gain |
-| `ki1,value` | `ki1,0.02` | Joint 1 integral gain |
-| `kd1,value` | `kd1,0.03` | Joint 1 derivative gain |
-| `kp2,value` | `kp2,5.0` | Joint 2 proportional gain |
-| `ki2,value` | `ki2,0.01` | Joint 2 integral gain |
-| `kd2,value` | `kd2,0.15` | Joint 2 derivative gain |
-
-### Feedforward blend (SCARA and TEST modes)
-These scale how much model-based prediction helps each motor. `0.0` = pure PID, `1.0` = full model assist.
-| Command | Example | Effect |
-|---------|---------|--------|
-| `ffi,value` | `ffi,0.5` | Inertia feedforward blend (0.0–1.0) |
-| `ffc,value` | `ffc,0.3` | Coriolis feedforward blend (0.0–1.0) |
-| `ffg,value` | `ffg,0.8` | Gravity feedforward blend (0.0–1.0) |
-
-### ZN mode only
-| Command | Example | Effect |
-|---------|---------|--------|
-| `t1,degrees` | `t1,45` | Set Joint 1 target angle directly |
-| `t2,degrees` | `t2,30` | Set Joint 2 target angle directly |
-| `dbtest` | | Pulse DC motor at PWM=200 for 400 ms (tests wiring) |
-
-### TEST mode only (physical parameter tuning)
-| Command | Example | What it changes |
-|---------|---------|-----------------|
-| `vmax,value` | `vmax,0.05` | Max Cartesian speed [m/s] |
-| `amax,value` | `amax,0.08` | Max Cartesian acceleration [m/s²] |
-| `tden,0` or `tden,1` | `tden,0` | Disable/enable noise filter (TD). Off = raw ADC. |
-| `trapen,0` or `trapen,1` | `trapen,0` | Disable/enable trapezoidal profile. Off = constant velocity. |
-| `atilt,degrees` | `atilt,5.0` | Base tilt angle correction for gravity compensation |
-| `t1,degrees` | `t1,60` | Manually set Joint 1 desired angle (no trajectory) |
-| `t2,degrees` | `t2,-20` | Manually set Joint 2 desired angle (no trajectory) |
-| `u1max,value` | `u1max,0.9` | DC motor maximum effort (0.0–1.0) |
-| `db,value` | `db,65` | DC motor PWM deadband (integer, 0–255) |
-| `td1r,value` | `td1r,50.0` | Joint 1 filter bandwidth (higher = faster but noisier) |
-| `td2r,value` | `td2r,50.0` | Joint 2 filter bandwidth |
-| `cfreq,value` | `cfreq,500` | Control loop frequency [Hz] |
+1. **Find DC Motor Deadband**: In `MODE_ZN`, type `dbtest`. Increment `db,N` (default: 70) until the motor moves smoothly without buzzing at rest.
+2. **Establish Joint 1 Feedback**: Set proportional gain `kp1,0.2`. Execute steps using `t1,45`. Gradually raise `kp1` until constant oscillations appear. This defines Ultimate Gain ($K_u$).
+3. **Analyze Period ($T_u$)**: Extract the oscillation period from HMI charts to calculate derivative (`kd1`) and integral (`ki1`) coefficients using Ziegler-Nichols tuning rules.
 
 ---
 
-## 10. Tuning the Robot (Non-control Version)
+## 14. All Serial Commands Reference
 
-You don't need to understand control theory to get the robot working. Follow this sequence.
-
-### Step 1 — Verify sensors first
-```
-mode,zn
-t1,0
-t1,45
-t1,90
-```
-Watch the `P,` telemetry line. The `th1` value should increase roughly as you send increasing angles. If it goes the wrong way, your potentiometer wiring is reversed.
-
-### Step 2 — Find the DC motor deadband
-```
-mode,zn
-dbtest
-```
-If the DC motor twitches, it's wired. If nothing happens, check IN3/IN4/EN connections.
-
-Now increase `db,` until the motor just barely moves:
-```
-db,50    db,60    db,70    db,80
-```
-Send `t1,45` and observe. The right deadband value is the lowest number where the motor responds without buzzing at rest.
-
-### Step 3 — Basic Joint 1 PID (start low, go slow)
-```
-mode,zn
-kp1,0.3
-t1,0
-t1,45
-```
-Watch if it reaches 45°. If it overshoots and oscillates, lower `kp1`. If it moves too slowly or doesn't reach the target, raise `kp1`. Once it reaches the target without oscillation, add a little derivative:
-```
-kd1,0.015
-```
-
-### Step 4 — Basic Joint 2 PID
-```
-mode,zn
-kp2,3.0
-t2,0
-t2,30
-```
-Same process. Joint 2 is a stepper — it tends to be more stable, so you can use higher `kp2`.
-
-### Step 5 — Try a Cartesian move
-```
-mode,scara
-move,130,0
-```
-If it reaches the target smoothly, try:
-```
-move,100,80
-move,130,0
-```
-If it oscillates during the move, reduce `vmax,` and `amax,`.
-
-### Step 6 — Enable gravity compensation (optional)
-If the arm drifts when holding a pose (especially with the arm extended horizontally), try:
-```
-ffg,0.5
-```
-Increase gradually until drift reduces. If the robot becomes unstable, reduce it back.
+| Command | Action | Valid Modes |
+| :--- | :--- | :--- |
+| `ping` | Resets watchdog timer. | All |
+| `estop` | Cuts all motor power immediately. | All |
+| `resume` | Clears E-STOP state. | All |
+| `mode,scara` | Switch to SCARA mode. | All |
+| `mode,zn` | Switch to ZN mode. | All |
+| `mode,test` | Switch to TEST mode. | All |
+| `mode,idle` | Switch to IDLE mode. | All |
+| `move,X,Y` | Coordinates end-effector target move. | SCARA, TEST |
+| `t1,deg` | Direct step drive Joint 1 (degrees). | ZN, TEST |
+| `t2,deg` | Direct step drive Joint 2 (degrees). | ZN, TEST |
+| `kp1,val` / `kd1,val` | Sets Joint 1 gains. | SCARA, ZN, TEST |
+| `kp2,val` / `kd2,val` | Sets Joint 2 gains. | SCARA, ZN, TEST |
+| `ffi,val` / `ffc,val` / `ffg,val` | Adjusts dynamic feedforward gains (0.0 to 1.0). | SCARA, TEST |
+| `dbtest` | Emits a 400ms PWM pulse to test J1 wiring. | ZN |
+| `getgains` | Requests current PID and feedforward states. | All |
+| `getparams` | Requests parameter block parameters. | All |
+| `clrgraph` | Commands HMI to erase chart plots. | All |
 
 ---
 
-## 11. Reading the Telemetry
+## 15. Upstream Telemetry Packet Formats
 
-The robot continuously sends data packets over serial. Here's what they mean:
+The firmware streams CSV telemetry packets at defined rates:
 
-| Packet | Rate | Format | Meaning |
-|--------|------|--------|---------|
-| `D` | 500 Hz | `D,ms,th1,th2,th1d,th2d,dth1,dth2,dth1d,dth2d,pwm1,th1raw,th2raw` | Full real-time state (HMI downsamples to 50 Hz) |
-| `E` | 50 Hz | `E,ms,P_pwm,I_pwm,D_pwm,loop_us` | Joint 1 PID components + loop time |
-| `F` | 50 Hz | `F,ms,inertia1,coriolis1,gravity1,inertia2,coriolis2,gravity2,ff1,u1,integral1,dω_ff,ω2_raw,integral2` | Feedforward component breakdown |
-| `T` | 50 Hz | `T,x_cmd,y_cmd,x_act,y_act` | Cartesian command vs actual position |
-| `P` | On request | `P,x_mm,y_mm,th1,th2` | Current end-effector position |
-| `M` | On move start | `M,x0,y0,xf,yf` | Trajectory start point and target |
-| `S` | On move end | `S,xf,yf` | Trajectory finished |
-| `G` | On request | `G,Kp1,Ki1,Kd1,Kp2,Ki2,Kd2,mstep,ffi,ffc,ffg` | Current gains and feedforward blends |
-| `K` | On request | 26 parameters | All runtime settings |
-| `X` | On mode change | `X,MODENAME` | Current operating mode |
-| `Q` | On queue change | `Q,pending,px,py` | Move queue status |
+### A. Real-time Dynamics (`D`) — 500 Hz (Downsampled to 50 Hz on HMI)
+`D,t,th1,th2,th1d,th2d,dth1,dth2,dth1d,dth2d,pwm1,th1raw,th2raw`
+- `t`: Timestamp (ms).
+- `th1` / `th2`: Potentiometer-measured joint angles (rad).
+- `th1d` / `th2d`: Trajectory-desired target angles (rad).
+- `dth1` / `dth2`: Measured joint velocities (rad/s).
+- `dth1d` / `dth2d`: Desired velocities (rad/s).
+- `pwm1`: Actuator output effort J1 (-255 to 255).
+- `th1raw` / `th2raw`: Unfiltered raw ADC values mapped to radians.
 
-**Quick sanity check** — in your serial terminal, look for the `T,` line during a move:
-```
-T,130.000,0.000,128.431,1.203
-```
-`x_cmd`=130, `y_cmd`=0 is where you asked it to go. `x_act`=128.4, `y_act`=1.2 means it's almost there (2 mm short — good!).
+### B. Feedforward Components (`F`) — 50 Hz
+`F,t,inertia1,coriolis1,gravity1,inertia2,coriolis2,gravity2,ff1_contrib,u1_total,integral1,delta_omega_ff,omega2_raw,integral2`
 
----
+### C. PID Tuning Diagnostics (`E`) — 50 Hz
+`E,t,p1_out,i1_out,d1_out,loop_duration_us`
+- `loop_duration_us`: Time taken to run the 500 Hz loop, typically $\sim80\ \mu\text{s}$.
 
-## 12. Project File Structure
-
-```
-code/
-├── include/
-│   └── config.h              ← Physical constants, pin numbers (edit if you change hardware)
-│
-├── src/
-│   ├── main.cpp              ← setup() and loop() only
-│   │
-│   ├── state/
-│   │   └── robot_state.*     ← All shared variables (angles, gains, flags)
-│   │
-│   ├── hal/
-│   │   ├── hal_dc.*          ← DC motor PWM output
-│   │   ├── hal_stepper.*     ← Stepper pulse generation
-│   │   └── hal_adc.*         ← Potentiometer reading + angle mapping
-│   │
-│   ├── kinematics/
-│   │   └── kinematics.*      ← FK, IK, Jacobian (pure math, no hardware)
-│   │
-│   ├── sensors/
-│   │   └── sensors.*         ← Noise filter (Tracking Differentiator)
-│   │
-│   ├── trajectory/
-│   │   └── trajectory.*      ← Trapezoidal path planning
-│   │
-│   ├── control/
-│   │   ├── ctc.*             ← Computed Torque Control (feedforward model)
-│   │   ├── joint1.*          ← DC motor PID + feedforward
-│   │   └── joint2.*          ← Stepper PID + feedforward
-│   │
-│   ├── comms/
-│   │   ├── serial_protocol.* ← Telemetry packet emitters
-│   │   └── cmd_parser.*      ← Serial command handler
-│   │
-│   └── scheduler/
-│       └── scheduler.*       ← Control loop orchestrator, mode transitions
-│
-├── platformio.ini            ← Build configuration
-├── scara.bat                 ← Build/upload shortcuts
-└── old_integrated_program.ino ← Original monolithic source (reference only)
-```
-
-### "I want to change X" — where to look
-
-| What you want to change | File |
-|------------------------|------|
-| Pin numbers | `include/config.h` |
-| Link lengths, masses | `include/config.h` |
-| ADC calibration values | `include/config.h` |
-| Default PID gains | `src/state/robot_state.cpp` (namespace Params) |
-| Default speed/acceleration | `src/state/robot_state.cpp` (V_MAX, A_MAX) |
-| DC motor control logic | `src/control/joint1.cpp` |
-| Stepper control logic | `src/control/joint2.cpp` |
-| Trajectory shape | `src/trajectory/trajectory.cpp` |
-| Add a new serial command | `src/comms/cmd_parser.cpp` |
-| Change telemetry format | `src/comms/serial_protocol.cpp` |
+### D. Cartesian Path tracking (`T`) — 50 Hz
+`T,xi,yi,xa,ya`
+- Coordinates in mm. `xi, yi` (desired target), `xa, ya` (actual position).
 
 ---
 
-## 13. Troubleshooting
+## 16. Troubleshooting & Diagnostics
 
-### Robot doesn't respond to serial commands
-- Check baud rate is **921600** (not 9600 or 115200)
-- Check `monitor_filters = direct` in `platformio.ini` (no line ending conversion)
-- Send `ping` — if you get no response at all, try re-uploading
-
-### `ERR: IK failed` during movement
-The arm hit a singular configuration (fully extended or folded). Try:
-1. Move to a position closer to the center of the workspace
-2. Lower `vmax,` — the arm may be going too fast through a singular point
-
-### DC motor oscillates / buzzes at rest
-- Increase `db,` by 5 at a time until buzzing stops
-- Lower `kp1,` slightly
-- Increase `kd1,` slightly
-
-### Stepper motor skips steps or makes grinding noise
-- Lower `vmax,` — you're exceeding the motor's torque at speed
-- Check A4988 current limit potentiometer (should be set for ~0.8 A)
-- Check 12 V power supply is rated for ≥ 3 A
-
-### Robot auto-returns to IDLE unexpectedly
-The **serial watchdog** fired (no data received for 8 seconds). Keep the serial terminal open, or send `ping` periodically from your HMI script. To disable the watchdog temporarily, you can increase `SERIAL_WATCHDOG_MS` in `src/state/robot_state.cpp` and rebuild.
-
-### Position sensor reads wrong / jumpy values
-- Check potentiometer wiper is connected to the correct GPIO
-- Verify 3.3 V (not 5 V) on pot ends
-- For Joint 1: verify the RC filter (20 kΩ + 1 µF) is present between wiper and GPIO 39
-- Run `tden,0` in TEST mode to see raw ADC — if it's stable raw but jumpy with TD, re-tune `td1r,`
-
-### `build` fails with permission error
-Run VS Code or Command Prompt as Administrator, or exclude the `code/` folder from Windows Defender real-time scanning.
+- **Watcher Auto-Returns to IDLE**: The 8-second watchdog timer fired. Ensure the HMI is sending periodic `ping` commands (usually handled by the active serial tab heartbeat).
+- **ADC Readings fluctuate wildly**: Potentiometer EMI noise. Confirm that the RC low-pass filter (20 kΩ + 1 µF) is wired close to the ESP32 input pin.
+- **Grinding/Grating Noises on Joint 2**: Stepper motor is skipping steps. Lower the maximum velocity (`vmax`) or acceleration (`amax`) settings via the Test parameter tuner, or increase the stepper driver current limits.
+- **Inverse Kinematics Failures**: Target coordinate falls outside the physical boundary or inside the singular zone. Make Cartesian movements within valid workspace boundaries.
+ folder from Windows Defender real-time scanning.
 
 ---
 

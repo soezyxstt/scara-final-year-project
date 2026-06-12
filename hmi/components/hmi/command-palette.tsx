@@ -8,21 +8,21 @@ import {
   Search,
   Monitor,
   LineChart,
-  Compass,
   BookOpen,
-  Binary,
   Settings,
-  Cpu,
-  Database,
   ArrowRight,
-  Sparkles,
   Link as LinkIcon,
   Play,
   RotateCcw,
   Zap,
   ZapOff,
   AlertOctagon,
-  X
+  X,
+  Activity,
+  Sliders,
+  FolderClock,
+  PlayCircle,
+  BarChart3
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -31,7 +31,7 @@ interface CommandItem {
   id: string
   title: string
   subtitle: string
-  category: 'Navigasi Halaman' | 'Aksi Cepat HMI'
+  category: 'Page Navigation' | 'HMI Quick Actions'
   icon: React.ReactNode
   action: () => void
   keywords?: string[]
@@ -95,141 +95,141 @@ export function CommandPalette() {
     {
       id: 'nav-monitor',
       title: 'HMI Monitor',
-      subtitle: 'Memantau telemetry, gerak trajectory, dan 2D XY trace.',
-      category: 'Navigasi Halaman',
-      icon: <Monitor className="w-4 h-4 text-hmi-ideal" />,
+      subtitle: 'Monitor telemetry, trajectory motion, and 2D XY trace.',
+      category: 'Page Navigation',
+      icon: <Monitor className="w-4 h-4 text-sky-400" />,
       action: () => navigateTo('/?tab=monitor'),
-      keywords: ['monitor', 'hmi', 'home', 'utama', 'xy', 'trace', 'trajectory']
+      keywords: ['monitor', 'hmi', 'home', 'main', 'xy', 'trace', 'trajectory']
     },
     {
       id: 'nav-analysis',
-      title: 'Analisis Trajectory',
-      subtitle: 'Grafik galat rinci (CTE, ATE, dan error posisi sendi).',
-      category: 'Navigasi Halaman',
-      icon: <LineChart className="w-4 h-4 text-hmi-ideal" />,
+      title: 'Trajectory Analysis',
+      subtitle: 'Detailed error charts (CTE, ATE, and joint position errors).',
+      category: 'Page Navigation',
+      icon: <LineChart className="w-4 h-4 text-emerald-400" />,
       action: () => navigateTo('/?tab=analysis'),
-      keywords: ['analysis', 'analisis', 'error', 'cte', 'ate', 'gains']
+      keywords: ['analysis', 'error', 'cte', 'ate', 'gains']
     },
     {
       id: 'nav-rest',
       title: 'Ziegler-Nichols Step Response (Rest)',
-      subtitle: 'Grafik step response dan saran parameter penalaan PID.',
-      category: 'Navigasi Halaman',
-      icon: <Compass className="w-4 h-4 text-hmi-ideal" />,
+      subtitle: 'Step response charts and PID tuning suggestions.',
+      category: 'Page Navigation',
+      icon: <Activity className="w-4 h-4 text-amber-400" />,
       action: () => navigateTo('/?tab=rest'),
       keywords: ['rest', 'step', 'response', 'zn', 'tuning', 'advisor']
     },
     {
       id: 'nav-readme',
-      title: 'Dokumentasi & README',
-      subtitle: 'Panduan kinematika robot SCARA, parameter, dan wiring.',
-      category: 'Navigasi Halaman',
-      icon: <BookOpen className="w-4 h-4 text-hmi-ideal" />,
+      title: 'Documentation & README',
+      subtitle: 'SCARA robot kinematics guide, parameters, and wiring.',
+      category: 'Page Navigation',
+      icon: <BookOpen className="w-4 h-4 text-indigo-400" />,
       action: () => navigateTo('/?tab=readme'),
-      keywords: ['readme', 'manual', 'panduan', 'bantuan', 'dokumen']
+      keywords: ['readme', 'manual', 'guide', 'help', 'document']
     },
     {
       id: 'nav-zn',
       title: 'ZN Tuner Workspace',
-      subtitle: 'Tuning PID real-time dengan visualisasi ZN.',
-      category: 'Navigasi Halaman',
-      icon: <Binary className="w-4 h-4 text-hmi-ideal" />,
+      subtitle: 'Real-time PID tuning with ZN visualization.',
+      category: 'Page Navigation',
+      icon: <Sliders className="w-4 h-4 text-purple-400" />,
       action: () => navigateTo('/zn'),
       keywords: ['zn', 'tuner', 'tuning', 'pid', 'ziegler', 'nichols']
     },
     {
       id: 'nav-test',
       title: 'Testing & Parameter Playground',
-      subtitle: 'Uji gerak manual, sinyal kontrol, dan Advanced Tuner.',
-      category: 'Navigasi Halaman',
-      icon: <Settings className="w-4 h-4 text-hmi-ideal" />,
+      subtitle: 'Manual motion test, control signals, and Advanced Tuner.',
+      category: 'Page Navigation',
+      icon: <Settings className="w-4 h-4 text-teal-400" />,
       action: () => navigateTo('/test'),
       keywords: ['testing', 'test', 'playground', 'advanced', 'tuner', 'params']
     },
     {
       id: 'nav-dashboard',
-      title: 'Dashboard Sejarah Run',
-      subtitle: 'Perbandingan performa run lama dan data trajectory.',
-      category: 'Navigasi Halaman',
-      icon: <Cpu className="w-4 h-4 text-hmi-ideal" />,
+      title: 'Run History Dashboard',
+      subtitle: 'Performance comparison of past runs and trajectory data.',
+      category: 'Page Navigation',
+      icon: <FolderClock className="w-4 h-4 text-pink-400" />,
       action: () => navigateTo('/dashboard'),
-      keywords: ['dashboard', 'sejarah', 'history', 'run', 'gains']
+      keywords: ['dashboard', 'history', 'run', 'gains']
     },
     {
       id: 'nav-eksperimen',
-      title: 'Otomasi Eksperimen',
-      subtitle: 'Jalankan sekuens uji coba otomatis EXP-1 s.d EXP-6.',
-      category: 'Navigasi Halaman',
-      icon: <Sparkles className="w-4 h-4 text-hmi-ideal" />,
+      title: 'Experiment Automation',
+      subtitle: 'Run automated test sequences from EXP-1 to EXP-6.',
+      category: 'Page Navigation',
+      icon: <PlayCircle className="w-4 h-4 text-rose-400" />,
       action: () => navigateTo('/eksperimen'),
-      keywords: ['eksperimen', 'experiment', 'automation', 'otomasi', 'run', 'turso']
+      keywords: ['experiment', 'automation', 'run', 'turso']
     },
     {
       id: 'nav-hasil',
-      title: 'Visualisasi Hasil Eksperimen',
-      subtitle: 'Grafik rata-rata, standard deviasi, dan statistik database.',
-      category: 'Navigasi Halaman',
-      icon: <Database className="w-4 h-4 text-hmi-ideal" />,
+      title: 'Experiment Results Visualization',
+      subtitle: 'Average, standard deviation charts, and database statistics.',
+      category: 'Page Navigation',
+      icon: <BarChart3 className="w-4 h-4 text-fuchsia-400" />,
       action: () => navigateTo('/hasil-eksperimen'),
-      keywords: ['hasil', 'results', 'data', 'statistiks', 'charts', 'recharts']
+      keywords: ['results', 'data', 'statistics', 'charts', 'recharts']
     },
 
     // --- AKSI CEPAT HMI ---
     {
       id: 'action-estop',
       title: '🚨 EMERGENCY STOP (E-STOP)',
-      subtitle: 'Hentikan seketika seluruh gerakan trajectory robot.',
-      category: 'Aksi Cepat HMI',
+      subtitle: 'Immediately stop all robot trajectory motion.',
+      category: 'HMI Quick Actions',
       icon: <AlertOctagon className="w-4 h-4 text-hmi-estop" />,
       action: () => {
         setOpen(false)
         serial.sendCommand('estop')
-          .then(() => toast.error('🛑 E-STOP dikirim!'))
-          .catch(() => toast.error('Gagal mengirim E-STOP'))
+          .then(() => toast.error('🛑 E-STOP Sent!'))
+          .catch(() => toast.error('Failed to send E-STOP'))
       },
-      keywords: ['estop', 'stop', 'darurat', 'emergency', 'kill', 'halt']
+      keywords: ['estop', 'stop', 'emergency', 'kill', 'halt']
     },
     {
       id: 'action-resume',
       title: '🔄 Resume Motors',
-      subtitle: 'Pulihkan robot dan lepaskan status E-STOP.',
-      category: 'Aksi Cepat HMI',
+      subtitle: 'Recover the robot and clear E-STOP status.',
+      category: 'HMI Quick Actions',
       icon: <RotateCcw className="w-4 h-4 text-hmi-pwm-pos" />,
       action: () => {
         setOpen(false)
         serial.sendCommand('resume')
-          .then(() => toast.success('🔄 Status dipulihkan.'))
-          .catch(() => toast.error('Gagal memulihkan status'))
+          .then(() => toast.success('🔄 Status recovered.'))
+          .catch(() => toast.error('Failed to recover status'))
       },
-      keywords: ['resume', 'mulai', 'reset', 'clear', 'estop']
+      keywords: ['resume', 'start', 'reset', 'clear', 'estop']
     },
     {
       id: 'action-connect',
-      title: '🔌 Hubungkan Serial Port',
-      subtitle: 'Inisialisasi koneksi Web Serial dengan robot.',
-      category: 'Aksi Cepat HMI',
+      title: '🔌 Connect Serial Port',
+      subtitle: 'Initialize Web Serial connection with the robot.',
+      category: 'HMI Quick Actions',
       icon: <Zap className="w-4 h-4 text-hmi-pwm-pos" />,
       action: () => {
         setOpen(false)
         serial.connect()
-          .then(() => toast.success('🔌 Mencoba menyambungkan...'))
-          .catch(() => toast.error('Gagal menyambungkan port'))
+          .then(() => toast.success('🔌 Attempting to connect...'))
+          .catch(() => toast.error('Failed to connect port'))
       },
-      keywords: ['connect', 'sambung', 'serial', 'port', 'webserial', 'baudrate']
+      keywords: ['connect', 'serial', 'port', 'webserial', 'baudrate']
     },
     {
       id: 'action-disconnect',
-      title: '🔌 Putuskan Serial Port',
-      subtitle: 'Tutup koneksi serial yang sedang aktif.',
-      category: 'Aksi Cepat HMI',
+      title: '🔌 Disconnect Serial Port',
+      subtitle: 'Close the currently active serial connection.',
+      category: 'HMI Quick Actions',
       icon: <ZapOff className="w-4 h-4 text-hmi-muted" />,
       action: () => {
         setOpen(false)
         serial.disconnect()
-          .then(() => toast.info('🔌 Port diputuskan.'))
-          .catch(() => toast.error('Gagal memutuskan port'))
+          .then(() => toast.info('🔌 Port disconnected.'))
+          .catch(() => toast.error('Failed to disconnect port'))
       },
-      keywords: ['disconnect', 'putus', 'serial', 'port', 'close']
+      keywords: ['disconnect', 'serial', 'port', 'close']
     }
   ]
 
@@ -279,7 +279,7 @@ export function CommandPalette() {
   }
 
   // Render group list
-  const renderItemsByCategory = (category: 'Navigasi Halaman' | 'Aksi Cepat HMI') => {
+  const renderItemsByCategory = (category: 'Page Navigation' | 'HMI Quick Actions') => {
     const items = filtered.filter(item => item.category === category)
     if (items.length === 0) return null
 
@@ -340,8 +340,8 @@ export function CommandPalette() {
           onKeyDown={handleKeyDown}
           className="fixed left-1/2 top-[15vh] z-50 w-full max-w-xl -translate-x-1/2 rounded-xl border border-hmi-grid bg-hmi-panel shadow-2xl overflow-hidden focus:outline-none flex flex-col max-h-[60vh] animate-in fade-in-0 zoom-in-95 duration-150"
         >
-          <DialogPrimitive.Title className="sr-only">Navigasi & Aksi HMI</DialogPrimitive.Title>
-          <DialogPrimitive.Description className="sr-only">Cari halaman navigasi dan aksi cepat HMI</DialogPrimitive.Description>
+          <DialogPrimitive.Title className="sr-only">HMI Navigation & Actions</DialogPrimitive.Title>
+          <DialogPrimitive.Description className="sr-only">Search navigation pages and HMI quick actions</DialogPrimitive.Description>
 
           {/* Search Input Bar */}
           <div className="flex items-center gap-3 px-4 border-b border-hmi-grid bg-hmi-bg shrink-0 relative">
@@ -349,7 +349,7 @@ export function CommandPalette() {
             <input
               ref={inputRef}
               type="text"
-              placeholder="Ketik untuk mencari halaman atau aksi robot... (misal: 'monitor', 'estop')"
+              placeholder="Type to search pages or robot actions... (e.g. 'monitor', 'estop')"
               value={query}
               onChange={e => setQuery(e.target.value)}
               className="w-full h-14 bg-transparent text-xs text-hmi-text placeholder-hmi-muted focus:outline-none"
@@ -371,12 +371,12 @@ export function CommandPalette() {
           >
             {filtered.length === 0 ? (
               <div className="py-12 text-center text-xs text-hmi-muted italic">
-                Tidak ada hasil pencarian untuk "{query}"
+                No search results for "{query}"
               </div>
             ) : (
               <>
-                {renderItemsByCategory('Navigasi Halaman')}
-                {renderItemsByCategory('Aksi Cepat HMI')}
+                {renderItemsByCategory('Page Navigation')}
+                {renderItemsByCategory('HMI Quick Actions')}
               </>
             )}
           </div>
@@ -385,13 +385,13 @@ export function CommandPalette() {
           <div className="px-4 py-2 border-t border-hmi-grid bg-hmi-bg/50 flex items-center justify-between text-[9px] text-hmi-muted font-mono shrink-0">
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-0.5 border border-hmi-grid bg-hmi-bg px-1 rounded">↑↓</span>
-              <span>Navigasi</span>
+              <span>Navigation</span>
               <span className="w-1.5 h-1.5 rounded-full bg-hmi-grid mx-1" />
               <span className="flex items-center gap-0.5 border border-hmi-grid bg-hmi-bg px-1 rounded">Esc</span>
-              <span>Tutup</span>
+              <span>Close</span>
             </div>
             <div className="flex items-center gap-1">
-              <span>Status Koneksi:</span>
+              <span>Connection Status:</span>
               <span className={cn(
                 'w-2 h-2 rounded-full inline-block',
                 serialStatus === 'connected' ? 'bg-hmi-ok' : 'bg-hmi-off'
@@ -422,7 +422,7 @@ export function CommandPaletteTrigger() {
     <button
       onClick={handleOpen}
       className="flex items-center gap-1.5 px-2 py-1 text-xs text-hmi-muted hover:text-hmi-text hover:bg-hmi-grid/30 rounded-md transition-colors cursor-pointer group shrink-0"
-      title="Buka Command Palette"
+      title="Open Command Palette"
     >
       <Search className="w-4 h-4 group-hover:text-hmi-ideal transition-colors shrink-0" />
       <kbd className="text-[9px] px-1 py-0.5 rounded bg-hmi-panel border border-hmi-grid font-mono text-hmi-muted select-none shrink-0">

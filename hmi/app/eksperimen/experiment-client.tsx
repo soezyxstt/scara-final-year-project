@@ -25,12 +25,12 @@ interface RunResultCard {
 }
 
 const EXPERIMENTS = [
-  { id: 'EXP-1', name: 'TD Filter', desc: 'Evaluasi performa filter Tracking Differentiator J1 & J2' },
-  { id: 'EXP-2', name: 'Inertia Comp', desc: 'Uji kontribusi kompensasi inersia dynamic model feedforward' },
-  { id: 'EXP-3', name: 'Coriolis Comp', desc: 'Uji kontribusi kompensasi gaya Coriolis & Centrifugal' },
-  { id: 'EXP-4', name: 'Gravity Comp', desc: 'Uji kompensasi gaya gravitasi pada berbagai sudut kemiringan (tilt)' },
-  { id: 'EXP-5', name: 'Trap Profile', desc: 'Evaluasi profil trapesium (Trapezoidal trajectory profile) vs raw' },
-  { id: 'EXP-6', name: 'PID Variation', desc: 'Uji performa dengan variasi gain proporsional, integral, dan derivatif' },
+  { id: 'EXP-1', name: 'TD Filter', desc: 'Evaluate Tracking Differentiator filter performance for J1 & J2' },
+  { id: 'EXP-2', name: 'Inertia Comp', desc: 'Test inertia compensation contribution in dynamic model feedforward' },
+  { id: 'EXP-3', name: 'Coriolis Comp', desc: 'Test Coriolis & Centrifugal force compensation contribution' },
+  { id: 'EXP-4', name: 'Gravity Comp', desc: 'Test gravity force compensation at various tilt angles' },
+  { id: 'EXP-5', name: 'Trap Profile', desc: 'Evaluate trapezoidal trajectory profile vs raw' },
+  { id: 'EXP-6', name: 'PID Variation', desc: 'Test performance with varying proportional, integral, and derivative gains' },
 ] as const
 
 // ─── Shared Direction Helper ────────────────────────────────────────────────
@@ -122,17 +122,17 @@ export function ExperimentClient() {
     const handleOnline = async () => {
       const queue = [...offlineQueueRef.current]
       if (queue.length === 0) return
-      addLog(`🔌 Koneksi online terdeteksi! Mensinkronisasikan ${queue.length} run yang tertunda ke database...`)
+      addLog(`🔌 Online connection detected! Syncing ${queue.length} pending runs to database...`)
       toast.info(`Syncing ${queue.length} offline runs to Turso...`)
 
       const failedQueue: any[] = []
       for (const item of queue) {
-        addLog(`Sinkronisasi run ${item.run.id}...`)
+        addLog(`Syncing run ${item.run.id}...`)
         const res = await saveRun(item.run, item.metrics, item.samples, false)
         if (res.ok) {
-          addLog(`✓ Run ${item.run.id} berhasil sinkron.`)
+          addLog(`✓ Run ${item.run.id} successfully synced.`)
         } else {
-          addLog(`❌ Gagal sinkron run ${item.run.id}.`)
+          addLog(`❌ Failed to sync run ${item.run.id}.`)
           failedQueue.push(item)
         }
       }
@@ -271,7 +271,7 @@ export function ExperimentClient() {
     isProcessingRef.current = false
 
     addLog(`-------------------- RUN (success ${successCountRef.current}/${totalRuns - 1}, attempt ${totalAttemptsRef.current}) --------------------`)
-    addLog(`Direction: ${runDir.toUpperCase()} | Slot success berikutnya: #${nextSuccessSlot}`)
+    addLog(`Direction: ${runDir.toUpperCase()} | Next success slot: #${nextSuccessSlot}`)
 
     // 1. Determine setup commands based on condition
     const commands: string[] = []
@@ -417,10 +417,10 @@ export function ExperimentClient() {
     if (runRetryCountRef.current < 3) {
       runRetryCountRef.current += 1
       runNeedRetryRef.current = true
-      addLog(`⚠️ Run gagal. Retry attempt ${runRetryCountRef.current}/3 setelah cooldown...`)
+      addLog(`⚠️ Run failed. Retry attempt ${runRetryCountRef.current}/3 after cooldown...`)
       toast.warning(`Run failed. Retrying (Attempt ${runRetryCountRef.current}/3)...`)
     } else {
-      addLog(`❌ Run gagal setelah 3 percobaan. Pindah ke run berikutnya (sukses slot tidak berubah).`)
+      addLog(`❌ Run failed after 3 attempts. Moving on without incrementing success count.`)
       toast.error(`Run failed after 3 attempts. Moving on without incrementing success count.`)
       runRetryCountRef.current = 0
       runNeedRetryRef.current = false
@@ -931,24 +931,24 @@ export function ExperimentClient() {
     let activeGains = `Kp1=${baseKp.toFixed(2)}, Ki1=${baseKi.toFixed(3)}, Kd1=${baseKd.toFixed(3)}`
 
     if (tab === 'EXP-1') {
-      desc = 'Mengevaluasi efek filter Tracking Differentiator (TD) pada feedback loop. J1/J2 TD Bandwidth diletakkan pada parameter td1r/td2r.'
+      desc = 'Evaluate the effect of the Tracking Differentiator (TD) filter in the feedback loop. J1/J2 TD Bandwidth is configured via parameters td1r/td2r.'
       cmds = 'tden,1 (Runs 1-10, Cond A) | tden,0 (Runs 11-20, Cond B)'
     } else if (tab === 'EXP-2') {
-      desc = 'Mengevaluasi kompensasi momen inersia dynamic model. Membandingkan performa inersia feedforward aktif vs non-aktif.'
+      desc = 'Evaluate the inertia moment compensation in the dynamic model. Compare the performance of active vs inactive inertia feedforward.'
       cmds = 'ffi,1.0 (Runs 1-10) | ffi,0.0 (Runs 11-20)'
     } else if (tab === 'EXP-3') {
-      desc = 'Mengevaluasi kontribusi feedforward kompensasi gaya Coriolis & Centrifugal pada kecepatan tinggi.'
+      desc = 'Evaluate the contribution of the Coriolis & Centrifugal force compensation feedforward at high speeds.'
       cmds = 'ffc,1.0 (Runs 1-10) | ffc,0.0 (Runs 11-20)'
     } else if (tab === 'EXP-4') {
-      desc = `Mengevaluasi kompensasi gravitasi model pada kemiringan tilt α = ${exp4Alpha}°. Membandingkan ffg aktif (runs 1-3) vs non-aktif (runs 4-6).`
+      desc = `Evaluate the model gravity compensation at tilt angle α = ${exp4Alpha}°. Compare active ffg (runs 1-3) vs inactive ffg (runs 4-6).`
       cmds = `atilt,${exp4Alpha} & ffg,1.0 (Runs 1-3) | ffg,0.0 (Runs 4-6)`
     } else if (tab === 'EXP-5') {
-      desc = 'Menguji filter lintasan masukan. Membandingkan Trapezoidal profile (Runs 1-10) vs Raw Step input (Runs 11-20).'
+      desc = 'Test the input trajectory filter. Compare Trapezoidal profile (Runs 1-10) vs Raw Step input (Runs 11-20).'
       cmds = 'trapen,1 (Runs 1-10) | trapen,0 (Runs 11-20)'
     } else if (tab === 'EXP-6') {
       const scale = parseFloat(exp6Level)
       const subLabel = exp6Sub === '6A' ? 'Kp1' : exp6Sub === '6B' ? 'Ki1' : 'Kd1'
-      desc = `Menganalisis variasi gain ${subLabel} sebesar ${exp6Level}x baseline. Baseline: Kp1=${baseKp.toFixed(2)}, Ki1=${baseKi.toFixed(3)}, Kd1=${baseKd.toFixed(3)}.`
+      desc = `Analyze the variation of gain ${subLabel} by ${exp6Level}x baseline. Baseline: Kp1=${baseKp.toFixed(2)}, Ki1=${baseKi.toFixed(3)}, Kd1=${baseKd.toFixed(3)}.`
       cmds = `${subLabel.toLowerCase()},${(subLabel === 'Kp1' ? baseKp * scale : subLabel === 'Ki1' ? baseKi * scale : baseKd * scale).toFixed(3)}`
       activeGains = `Kp1=${(exp6Sub === '6A' ? baseKp * scale : baseKp).toFixed(3)}, Ki1=${(exp6Sub === '6B' ? baseKi * scale : baseKi).toFixed(3)}, Kd1=${(exp6Sub === '6C' ? baseKd * scale : baseKd).toFixed(3)}`
     }
@@ -973,7 +973,7 @@ export function ExperimentClient() {
             </div>
             <div>
               <p className="text-xs font-bold text-hmi-text">SCARA Robot</p>
-              <p className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold">Otomasi Eksperimen</p>
+              <p className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold">Experiment Automation</p>
             </div>
           </div>
 
@@ -1010,7 +1010,7 @@ export function ExperimentClient() {
               state !== 'idle' && 'opacity-50 cursor-not-allowed pointer-events-none'
             )}
           >
-            ← Kembali ke HMI
+            ← Back to HMI
           </a>
         </div>
       </aside>
@@ -1140,9 +1140,9 @@ export function ExperimentClient() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="bg-hmi-panel border-hmi-grid col-span-2">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-bold text-hmi-ideal">Parameter & Rencana Eksekusi</CardTitle>
+                <CardTitle className="text-sm font-bold text-hmi-ideal">Parameters & Execution Plan</CardTitle>
                 <CardDescription className="text-xs text-hmi-muted">
-                  {mounted ? paramDesc : 'Evaluasi performa filter Tracking Differentiator J1 & J2'}
+                  {mounted ? paramDesc : 'Evaluate Tracking Differentiator filter performance for J1 & J2'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 text-xs">
@@ -1153,7 +1153,7 @@ export function ExperimentClient() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-hmi-muted">Gains Diterapkan:</span>
+                  <span className="text-hmi-muted">Applied Gains:</span>
                   <span className="font-mono text-hmi-text font-bold">
                     {mounted ? paramGains : 'Kp1=0.60, Ki1=0.05, Kd1=0.07'}
                   </span>
@@ -1163,8 +1163,8 @@ export function ExperimentClient() {
 
             <Card className="bg-hmi-panel border-hmi-grid flex flex-col justify-between">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-bold text-hmi-text">Mulai Sequence</CardTitle>
-                <CardDescription className="text-xs text-hmi-muted">Jalankan trajectory loop otomatis.</CardDescription>
+                <CardTitle className="text-sm font-bold text-hmi-text">Start Sequence</CardTitle>
+                <CardDescription className="text-xs text-hmi-muted">Run automated trajectory loop.</CardDescription>
               </CardHeader>
               <CardContent className="pb-4 flex flex-col gap-3">
                 {state === 'idle' || state === 'complete' ? (
@@ -1174,7 +1174,7 @@ export function ExperimentClient() {
                     className="w-full bg-hmi-ok hover:bg-hmi-ok-hover text-white font-bold text-xs"
                   >
                     <Play className="w-3.5 h-3.5 mr-2" />
-                    ▶ Mulai Eksperimen
+                    ▶ Start Experiment
                   </Button>
                 ) : (
                   <Button
@@ -1182,7 +1182,7 @@ export function ExperimentClient() {
                     className="w-full bg-hmi-estop hover:bg-hmi-estop-hover text-white font-bold text-xs animate-pulse"
                   >
                     <Square className="w-3.5 h-3.5 mr-2" />
-                    ⏹ Stop Eksperimen
+                    ⏹ Stop Experiment
                   </Button>
                 )}
 
@@ -1204,8 +1204,8 @@ export function ExperimentClient() {
                       <span className="absolute text-[10px] font-bold text-hmi-warn">{cooldownTime}s</span>
                     </div>
                     <div className="flex-1 text-left">
-                      <p className="text-[11px] font-bold text-hmi-warn uppercase tracking-wider animate-pulse">Penyejukan Motor</p>
-                      <p className="text-[9px] text-hmi-muted leading-tight">Menunggu motor beristirahat sejenak</p>
+                      <p className="text-[11px] font-bold text-hmi-warn uppercase tracking-wider animate-pulse">Motor Cooldown</p>
+                      <p className="text-[9px] text-hmi-muted leading-tight">Waiting for motor to rest briefly</p>
                     </div>
                   </div>
                 )}
@@ -1219,7 +1219,7 @@ export function ExperimentClient() {
               <CardContent className="py-4 space-y-3">
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-bold uppercase text-hmi-muted">
-                    Progress: <span className="text-hmi-ok">{successCount}</span> / {totalRuns} run tersimpan
+                    Progress: <span className="text-hmi-ok">{successCount}</span> / {totalRuns} runs saved
                   </span>
                   <div className="flex items-center gap-2 font-mono">
                     <span className="text-hmi-muted">Direction:</span>
@@ -1252,7 +1252,7 @@ export function ExperimentClient() {
                   />
                 </div>
                 <p className="text-[9px] text-hmi-muted">
-                  <span className="inline-block w-2 h-1 bg-hmi-ok rounded mr-1" />sukses tersimpan
+                  <span className="inline-block w-2 h-1 bg-hmi-ok rounded mr-1" />successfully saved
                   <span className="inline-block w-2 h-1 bg-hmi-warn/60 rounded ml-3 mr-1" />total attempts
                 </p>
               </CardContent>
@@ -1269,7 +1269,7 @@ export function ExperimentClient() {
               </CardHeader>
               <CardContent className="flex-1 overflow-y-auto font-mono text-[11px] p-4 bg-hmi-bg/50 space-y-1">
                 {logs.length === 0 ? (
-                  <div className="text-hmi-muted italic">Log status eksperimen akan muncul di sini...</div>
+                  <div className="text-hmi-muted italic">Experiment status logs will appear here...</div>
                 ) : (
                   logs.map((log, idx) => (
                     <div key={idx} className="flex gap-3 leading-relaxed">
@@ -1296,7 +1296,7 @@ export function ExperimentClient() {
               </CardHeader>
               <CardContent className="flex-1 overflow-y-auto p-4 space-y-2 bg-hmi-bg/20">
                 {results.length === 0 ? (
-                  <div className="text-hmi-muted italic text-xs text-center py-12">Belum ada hasil run yang terekam.</div>
+                  <div className="text-hmi-muted italic text-xs text-center py-12">No run results recorded yet.</div>
                 ) : (
                   results.map((res, idx) => (
                     <div

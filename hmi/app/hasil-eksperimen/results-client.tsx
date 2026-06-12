@@ -98,12 +98,12 @@ const EXPERIMENT_NAMES: Record<string, string> = {
   'EXP-6': 'PID Variation',
 }
 const EXPERIMENT_DESC: Record<string, string> = {
-  'EXP-1': 'Evaluasi performa filter Tracking Differentiator J1 & J2',
-  'EXP-2': 'Uji kontribusi kompensasi inersia dynamic model feedforward',
-  'EXP-3': 'Uji kontribusi kompensasi gaya Coriolis & Centrifugal',
-  'EXP-4': 'Uji kompensasi gaya gravitasi pada berbagai sudut kemiringan',
-  'EXP-5': 'Evaluasi profil trapesium vs raw step input',
-  'EXP-6': 'Uji performa dengan variasi gain PID',
+  'EXP-1': 'Evaluate Tracking Differentiator filter performance for J1 & J2',
+  'EXP-2': 'Test inertia compensation contribution in dynamic model feedforward',
+  'EXP-3': 'Test Coriolis & Centrifugal force compensation contribution',
+  'EXP-4': 'Test gravity force compensation at various tilt angles',
+  'EXP-5': 'Evaluate trapezoidal profile vs raw step input',
+  'EXP-6': 'Test performance with various PID gains',
 }
 const RAD2DEG = 180 / Math.PI
 
@@ -663,35 +663,35 @@ export function ResultsClient({ initialRuns }: Props) {
 
   // ── Delete handlers ─────────────────────────────────────────────────────────
   const handleDeleteRun = (runId: string) => {
-    if (!confirm(`Hapus run ${runId}?\nSemua sample & metrik terkait akan dihapus permanen.`)) return
+    if (!confirm(`Delete run ${runId}?\nAll associated samples & metrics will be permanently deleted.`)) return
     setDeletingRunId(runId)
     startTransition(async () => {
       const res = await deleteExperimentRun(runId)
       setDeletingRunId(null)
       if (res.ok) {
-        toast.success(`Run ${runId} berhasil dihapus.`)
+        toast.success(`Run ${runId} successfully deleted.`)
         if (expandedRunId === runId) setExpandedRunId(null)
         refreshData()
         setAllRuns(prev => prev.filter(r => r.id !== runId))
       } else {
-        toast.error(`Gagal menghapus run: ${res.error}`)
+        toast.error(`Failed to delete run: ${res.error}`)
       }
     })
   }
 
   const handleDeleteExperiment = () => {
-    if (!confirm(`Hapus SEMUA run untuk ${selectedExp} (${EXPERIMENT_NAMES[selectedExp]})?\n\nTindakan ini tidak dapat dibatalkan.`)) return
+    if (!confirm(`Delete ALL runs for ${selectedExp} (${EXPERIMENT_NAMES[selectedExp]})?\n\nThis action cannot be undone.`)) return
     setDeletingExp(true)
     startTransition(async () => {
       const res = await deleteExperiment(selectedExp)
       setDeletingExp(false)
       if (res.ok) {
-        toast.success(`Berhasil menghapus ${res.deletedCount} run untuk ${selectedExp}.`)
+        toast.success(`Successfully deleted ${res.deletedCount} runs for ${selectedExp}.`)
         setData({ runs: [], metrics: [], samples: [] })
         setExpandedRunId(null)
         setAllRuns(prev => prev.filter(r => !r.experimentId.startsWith(selectedExp)))
       } else {
-        toast.error(`Gagal: ${res.error}`)
+        toast.error(`Failed: ${res.error}`)
       }
     })
   }
@@ -711,7 +711,7 @@ export function ResultsClient({ initialRuns }: Props) {
             </div>
             <div>
               <p className="text-xs font-bold text-hmi-text">SCARA Robot</p>
-              <p className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold">Hasil Eksperimen</p>
+              <p className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold">Experiment Results</p>
             </div>
           </div>
 
@@ -772,11 +772,11 @@ export function ResultsClient({ initialRuns }: Props) {
               )}
             >
               {deletingExp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-              Hapus Semua {selectedExp}
+              Delete All {selectedExp}
             </button>
           )}
           <a href="/" className="w-full text-center text-xs py-1.5 rounded border border-hmi-grid text-hmi-muted hover:text-hmi-text hover:border-hmi-grid/80 transition-colors block">
-            ← Kembali ke HMI
+            ← Back to HMI
           </a>
         </div>
       </aside>
@@ -835,14 +835,14 @@ export function ResultsClient({ initialRuns }: Props) {
           {loading ? (
             <div className="h-64 flex flex-col items-center justify-center text-xs text-slate-500 gap-3">
               <Loader2 className="w-7 h-7 animate-spin text-hmi-ideal" />
-              <span className="uppercase tracking-widest font-semibold">Memuat data...</span>
+              <span className="uppercase tracking-widest font-semibold">Loading data...</span>
             </div>
           ) : !data || data.runs.length === 0 ? (
             <div className="h-96 flex flex-col items-center justify-center text-center p-8 bg-hmi-panel/40 border border-hmi-grid rounded-xl max-w-lg mx-auto mt-12">
               <Database className="w-12 h-12 text-slate-700 mb-3" />
-              <h3 className="text-sm font-bold text-hmi-text uppercase tracking-wider">Belum ada data</h3>
+              <h3 className="text-sm font-bold text-hmi-text uppercase tracking-wider">No Data Available</h3>
               <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                Eksperimen ini belum memiliki data yang tersimpan. Selesaikan minimal satu sequence di menu Eksperimen.
+                This experiment has no saved data yet. Please complete at least one sequence in the Experiment menu.
               </p>
             </div>
           ) : (
@@ -853,7 +853,7 @@ export function ResultsClient({ initialRuns }: Props) {
                 <div className="px-4 py-2.5 border-b border-hmi-grid/60 flex items-center gap-2">
                   <FileText className="w-3.5 h-3.5 text-hmi-ideal" />
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    Ringkasan Metrik Kinerja ({selectedExp}) — {filteredRuns.length} run
+                    Performance Metrics Summary ({selectedExp}) — {filteredRuns.length} runs
                   </span>
                 </div>
                 <div className="overflow-x-auto">
@@ -988,10 +988,10 @@ export function ResultsClient({ initialRuns }: Props) {
               <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-hmi-grid/60">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    Daftar Hasil Run Individual — {filteredRuns.length} runs
+                    Individual Run Results List — {filteredRuns.length} runs
                   </p>
                   <p className="text-[9px] text-slate-600 mt-0.5">
-                    Klik baris untuk melihat 9 chart telemetri. ⤢ pada setiap chart untuk fullscreen.
+                    Click row to view 9 telemetry charts. Click ⤢ on any chart to fullscreen.
                   </p>
                 </div>
                 <Table>
@@ -999,10 +999,10 @@ export function ResultsClient({ initialRuns }: Props) {
                     <TableRow className="border-hmi-grid/60 hover:bg-transparent">
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 w-36">Run ID</TableHead>
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-16">Run #</TableHead>
-                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-24">Arah</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-24">Direction</TableHead>
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center">Gains J1</TableHead>
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-24">Status</TableHead>
-                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-right pr-6 w-40">Waktu</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-right pr-6 w-40">Timestamp</TableHead>
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-12">Del</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1052,7 +1052,7 @@ export function ResultsClient({ initialRuns }: Props) {
                               </span>
                             </TableCell>
                             <TableCell className="text-right font-mono text-[10px] text-slate-500 py-2.5 pr-6" onClick={() => setExpandedRunId(isExpanded ? null : r.id)}>
-                              {new Date(r.createdAt).toLocaleString('id-ID')}
+                              {new Date(r.createdAt).toLocaleString('en-US')}
                             </TableCell>
                             <TableCell className="text-center py-2.5">
                               <button
@@ -1062,9 +1062,9 @@ export function ResultsClient({ initialRuns }: Props) {
                                   'p-1.5 rounded transition-colors text-slate-600 hover:text-red-400 hover:bg-red-950/40',
                                   (isDeleting || isPending) && 'opacity-30 cursor-not-allowed'
                                 )}
-                                title={`Hapus ${r.id}`}
+                                title={`Delete ${r.id}`}
                               >
-                                {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                               </button>
                             </TableCell>
                           </TableRow>

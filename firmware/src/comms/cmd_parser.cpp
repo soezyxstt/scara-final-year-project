@@ -242,13 +242,13 @@ void processSerialCommand(const char *cmd_raw) {
     }
     if (input.startsWith("td1r,")) {
       TD1_R = input.substring(5).toFloat();
-      td1.r = TD1_R; td1.h = 3.0f * DT;
+      td1.r = TD1_R; td1.h = DT;
       Serial.print("INFO: TD1_R="); Serial.println(TD1_R, 2);
       emitParams(); return;
     }
     if (input.startsWith("td2r,")) {
       TD2_R = input.substring(5).toFloat();
-      td2.r = TD2_R; td2.h = 3.0f * DT;
+      td2.r = TD2_R; td2.h = DT;
       Serial.print("INFO: TD2_R="); Serial.println(TD2_R, 2);
       emitParams(); return;
     }
@@ -338,8 +338,8 @@ void processSerialCommand(const char *cmd_raw) {
       if (val > 0) {
         CONTROL_FREQ = val;
         DT = 1.0f / CONTROL_FREQ;
-        td1.h = 3.0f * DT;
-        td2.h = 3.0f * DT;
+        td1.h = DT;
+        td2.h = DT;
         Serial.print("INFO: CONTROL_FREQ="); Serial.println(CONTROL_FREQ);
         emitParams();
       }

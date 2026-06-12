@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { useHMI } from '@/lib/hmi-context'
 import {
@@ -32,6 +33,9 @@ import {
   Activity,
   Gauge,
   TestTube,
+  Monitor,
+  Database,
+  Play,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -47,6 +51,8 @@ import {
 } from '@/lib/keybindings-store'
 export function CaptureMenu() {
   const { state } = useHMI()
+  const router = useRouter()
+  const [, startTransition] = useTransition()
   const [isOpen, setIsOpen] = useState(false)
   const [isGraphsOpen, setIsGraphsOpen] = useState(false)
   const [exportState, setExportState] = useState<string | null>(null)
