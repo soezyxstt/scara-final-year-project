@@ -13,7 +13,7 @@
 // Compute trajectory parameters and arm the trajectory.
 // new_x, new_y in meters.
 // Seeds dTheta_d_prev_acc for spike-free ddθ on tick 0.
-void startTrajectory(float new_x, float new_y);
+void startTrajectory(float new_x, float new_y, bool allow_split = true);
 
 // Evaluate Cartesian position along trajectory at time t [s].
 // Formula degenerates correctly when TRAP_ENABLED=false

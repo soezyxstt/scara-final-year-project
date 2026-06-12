@@ -18,7 +18,7 @@ using namespace Params;
 //  startTrajectory
 // ============================================================
 
-void startTrajectory(float new_x, float new_y) {
+void startTrajectory(float new_x, float new_y, bool allow_split) {
   // Determine elbow config from current measured theta2
   if      (theta2 >  0.009f) elbow_config =  1;
   else if (theta2 < -0.009f) elbow_config = -1;
@@ -27,7 +27,7 @@ void startTrajectory(float new_x, float new_y) {
   FK(theta1, theta2, traj_x0, traj_y0);
 
   // Check if trajectory intersects inner singularity dead zone
-  if (checkPathCrossesInnerRadius(traj_x0, traj_y0, new_x, new_y, L_INNER)) {
+  if (allow_split && checkPathCrossesInnerRadius(traj_x0, traj_y0, new_x, new_y, L_INNER)) {
     float x_int, y_int;
     calculateIntermediatePoint(traj_x0, traj_y0, new_x, new_y, L_INNER, (L1 + L2), x_int, y_int);
 
@@ -204,7 +204,7 @@ void checkTrajectoryDone() {
     emitStopPacket();
     if (pending_move) {
       pending_move = false;
-      startTrajectory(pending_x, pending_y);
+      startTrajectory(pending_x, pending_y, false);
     }
     return;
   }
@@ -230,7 +230,7 @@ void checkTrajectoryDone() {
     emitStopPacket();
     if (pending_move) {
       pending_move = false;
-      startTrajectory(pending_x, pending_y);
+      startTrajectory(pending_x, pending_y, false);
     }
   }
 }

@@ -14,7 +14,7 @@ import { downloadSingleGraph } from '@/lib/capture-utils'
 import { useTheme } from '@/components/hmi/theme-provider'
 
 export const L_OUTER = 170   // mm — outer workspace radius
-export const L_INNER = 45    // mm — inner workspace radius (dead zone)
+export const L_INNER = 70.7  // mm — inner workspace radius (dead zone)
 const WS_THETA_START = 0          // rad — workspace start angle
 const WS_THETA_END   = Math.PI    // rad — workspace end angle (180°)
 
@@ -152,7 +152,7 @@ export function drawTrace(
   ctx.fillStyle = COLORS.panel
   ctx.fillRect(LM, TM, plotW, plotH)
 
-  // ── Workspace: Annular Sector (r: 45–170mm, θ: 0–180°) ─────────────────
+  // ── Workspace: Annular Sector (r: 70.7–170mm, θ: 0–180°) ─────────────────
   // Visual priority: boundary is background context. Fills are solid/distinct.
   const outerR = L_OUTER * scale
   const innerR = L_INNER * scale
@@ -644,7 +644,7 @@ export function drawTrace(
     // Check reachability
     const r2 = x * x + y * y
     const safety = checkStraightLineTrajectory(currentPos, state.previewTarget, L_INNER, L_OUTER)
-    const isReachable = r2 >= 45 * 45 && r2 <= 170 * 170 && y >= 0 && safety.isValid
+    const isReachable = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && y >= 0 && safety.isValid
     const dotColor = isReachable ? COLORS.ok : COLORS.actual
     
     ctx.save()
@@ -683,7 +683,7 @@ export function drawTrace(
     // Check reachability and path safety
     const r2 = x * x + y * y
     const safety = checkStraightLineTrajectory(currentPos, hoverPoint, L_INNER, L_OUTER)
-    const isPathSafe = r2 >= 45 * 45 && r2 <= 170 * 170 && y >= 0 && safety.isValid
+    const isPathSafe = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && y >= 0 && safety.isValid
     const color = isPathSafe 
       ? (isLight ? 'rgba(22, 163, 74, 0.6)' : 'rgba(34, 197, 94, 0.7)') 
       : (isLight ? 'rgba(220, 38, 38, 0.6)' : 'rgba(248, 113, 113, 0.7)')
@@ -964,10 +964,10 @@ export function XYTrace() {
     const coords = getRobotCoords(canvas, e.clientX, e.clientY, zoomRef.current, centerXRef.current, centerYRef.current)
     
     const r2 = coords.x * coords.x + coords.y * coords.y
-    const isReachable = r2 >= 45 * 45 && r2 <= 170 * 170 && coords.y >= 0
+    const isReachable = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && coords.y >= 0
     
     if (!isReachable) {
-      alert(`Invalid Point: Coordinate (${coords.x.toFixed(1)}, ${coords.y.toFixed(1)}) is outside the reachable workspace (45 - 170 mm).`)
+      alert(`Invalid Point: Coordinate (${coords.x.toFixed(1)}, ${coords.y.toFixed(1)}) is outside the reachable workspace (${L_INNER} - ${L_OUTER} mm).`)
       return
     }
     
@@ -976,7 +976,7 @@ export function XYTrace() {
     if (!safety.isValid) {
       if (safety.reason === 'inner_violation') {
         const minD = safety.minDistance ? safety.minDistance.toFixed(1) : 'unknown'
-        alert(`Invalid Trajectory: The straight-line path passes through the inner dead zone (passes at ${minD} mm, minimum is 45.0 mm).`)
+        alert(`Invalid Trajectory: The straight-line path passes through the inner dead zone (passes at ${minD} mm, minimum is ${L_INNER} mm).`)
       } else {
         alert('Invalid Trajectory: Path is outside the reachable workspace.')
       }
