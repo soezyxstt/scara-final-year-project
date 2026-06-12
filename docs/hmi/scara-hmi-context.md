@@ -589,11 +589,11 @@ To prevent mechanical damage and inverse kinematics failure modes (resulting fro
 
 ### Checked Safety Rules
 Every straight-line trajectory planned from the robot's current Cartesian position $P_1(x_1, y_1)$ to target position $P_2(x_2, y_2)$ is checked for the following violations:
-1.  **Lower Plane Limit**: Target coordinate endpoint must lie in the positive Y workspace ($Y_2 \ge 0$). Violating this yields an `angle_violation`.
+1.  **Angular Sector Limit**: Target coordinate endpoint and straight-line path must lie within the valid angular workspace sector ($-30^\circ \le \phi \le 210^\circ$). Violating this yields an `angle_violation`.
 2.  **Outer Reach Limit**: Target coordinate endpoint must lie within the maximum physical reach radius of the linkages:
     $$\sqrt{x_2^2 + y_2^2} \le 170\text{ mm}$$
     Violating this yields an `outer_violation`.
-3.  **Inner Singularity Dead Zone Limit**: The trajectory line segment between $P_1$ and $P_2$ must not cross or enter the inner singularity circle of radius $r_{min} = 70\text{ mm}$. The minimum distance $d_{min}$ of the segment to the origin is computed analytically. If $d_{min} < 70\text{ mm}$, the move yields an `inner_violation`.
+3.  **Inner Singularity Dead Zone Limit**: The trajectory line segment between $P_1$ and $P_2$ must not cross or enter the inner singularity circle of radius $r_{min} = 70.7\text{ mm}$. The minimum distance $d_{min}$ of the segment to the origin is computed analytically. If $d_{min} < 70.7\text{ mm}$, the move yields an `inner_violation`.
 
 ### Frontend Integration & Previews
 *   **Coordinate Move Input Fields**: In `ControlPanel`, when typing or updating $X_f$ or $Y_f$, the validation function `checkStraightLineTrajectory` runs reactively. If invalid, the "Send Move" button is disabled and a warning card displays the violation details.

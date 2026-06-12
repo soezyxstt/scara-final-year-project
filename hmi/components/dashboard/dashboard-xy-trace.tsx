@@ -12,7 +12,7 @@ export const L_INNER = 70.7  // mm
 
 // Canvas margins
 const LM = 55, RM = 10, TM = 30, BM = 42
-const YMIN = -55, YMAX = 205
+const YMIN = -105, YMAX = 205
 const TICK = 50
 
 interface RunData {
@@ -178,11 +178,15 @@ export function DashboardXYTrace({ runs }: Props) {
     ctx.fillStyle = isLight ? '#FAF0F0' : '#251919'
     ctx.fillRect(LM, TM, plotW, plotH)
 
+    // Canvas angles corresponding to robot -30 deg to 210 deg (mirrored Y axis)
+    const startAng = 5 * Math.PI / 6  // 150 deg (robot 210 deg)
+    const endAng   = Math.PI / 6      // 30 deg (robot -30 deg)
+
     // Reachable Workspace fill
     ctx.fillStyle = colors.panel
     ctx.beginPath()
-    ctx.arc(originPx, originPy, outerR, 0, Math.PI, true)
-    ctx.arc(originPx, originPy, innerR, Math.PI, 0, false)
+    ctx.arc(originPx, originPy, outerR, startAng, endAng, false)
+    ctx.arc(originPx, originPy, innerR, endAng, startAng, true)
     ctx.closePath()
     ctx.fill()
 
@@ -190,13 +194,20 @@ export function DashboardXYTrace({ runs }: Props) {
     ctx.setLineDash([5, 4])
     ctx.strokeStyle = isLight ? 'rgba(6, 182, 212, 0.45)' : 'rgba(100, 210, 220, 0.35)'
     ctx.lineWidth = 1
-    ctx.beginPath(); ctx.arc(originPx, originPy, outerR, 0, Math.PI, true); ctx.stroke()
-    ctx.beginPath(); ctx.arc(originPx, originPy, innerR, 0, Math.PI, true); ctx.stroke()
+    ctx.beginPath(); ctx.arc(originPx, originPy, outerR, startAng, endAng, false); ctx.stroke()
+    ctx.beginPath(); ctx.arc(originPx, originPy, innerR, startAng, endAng, false); ctx.stroke()
 
     // Radial boundaries
+    const cos30 = Math.cos(Math.PI / 6)
+    const sin30 = Math.sin(Math.PI / 6)
+
     ctx.beginPath()
-    ctx.moveTo(originPx + innerR, originPy); ctx.lineTo(originPx + outerR, originPy)
-    ctx.moveTo(originPx - innerR, originPy); ctx.lineTo(originPx - outerR, originPy)
+    // Radial edge at -30 deg (canvas angle 30 deg)
+    ctx.moveTo(originPx + innerR * cos30, originPy + innerR * sin30)
+    ctx.lineTo(originPx + outerR * cos30, originPy + outerR * sin30)
+    // Radial edge at 210 deg (canvas angle 150 deg)
+    ctx.moveTo(originPx - innerR * cos30, originPy + innerR * sin30)
+    ctx.lineTo(originPx - outerR * cos30, originPy + outerR * sin30)
     ctx.stroke()
 
     ctx.setLineDash([])

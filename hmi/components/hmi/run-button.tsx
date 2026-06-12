@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { SaveRunDialog } from './save-run-dialog'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { checkStraightLineTrajectory, getCurrentPosition, calculateIntermediatePoint } from '@/lib/trajectory-safety'
+import { checkStraightLineTrajectory, getCurrentPosition, calculateIntermediatePoint, isAngleValid } from '@/lib/trajectory-safety'
 import { L_INNER, L_OUTER } from './xy-trace'
 import { ChevronDown } from 'lucide-react'
 
@@ -107,8 +107,8 @@ export function RunButton() {
   async function executeRun(x: number, y: number) {
     // Workspace validation
     const r2 = x * x + y * y
-    if (r2 < L_INNER * L_INNER || r2 > L_OUTER * L_OUTER || y < 0) {
-      toast.error(`Target (${x}, ${y}) is outside the reachable workspace.`)
+    if (r2 < L_INNER * L_INNER || r2 > L_OUTER * L_OUTER || !isAngleValid(x, y)) {
+      toast.error(`Target (${x}, ${y}) is outside the reachable workspace (${L_INNER} to ${L_OUTER} mm, -30 to 210 deg).`)
       return
     }
     const currentPos = getCurrentPosition(state)

@@ -29,11 +29,41 @@ export function getCurrentPosition(state: {
 }
 
 /**
+ * Checks if the polar angle phi of (x, y) is within -30 and 210 degrees.
+ * Invalid range is (-150, -30) degrees.
+ * In Cartesian, this invalid region is defined by: y < -0.577350269 * abs(x).
+ */
+export function isAngleValid(x: number, y: number): boolean {
+  return !(y < -0.577350269 * Math.abs(x))
+}
+
+function ccw(A: Point2D, B: Point2D, C: Point2D): boolean {
+  return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x)
+}
+
+function intersect(A: Point2D, B: Point2D, C: Point2D, D: Point2D): boolean {
+  return ccw(A, C, D) !== ccw(B, C, D) && ccw(A, B, C) !== ccw(A, B, D)
+}
+
+/**
+ * Checks if a straight segment between p1 and p2 crosses the forbidden angular zone.
+ */
+export function pathCrossesForbiddenAngle(p1: Point2D, p2: Point2D): boolean {
+  if (!isAngleValid(p1.x, p1.y) || !isAngleValid(p2.x, p2.y)) {
+    return true
+  }
+  const ray1End = { x: 200, y: -115.4700538 }
+  const ray2End = { x: -200, y: -115.4700538 }
+  const origin = { x: 0, y: 0 }
+  return intersect(p1, p2, origin, ray1End) || intersect(p1, p2, origin, ray2End)
+}
+
+/**
  * Checks if a straight-line trajectory between p1 and p2 is safe,
  * meaning it does not violate workspace boundaries:
  * 1. Coordinates remain inside the outer boundary (R <= rMax).
  * 2. Coordinates remain outside the inner dead zone (R >= rMin).
- * 3. Coordinates remain within angular limits (Y >= 0).
+ * 3. Coordinates remain within angular limits (-30 <= phi <= 210 deg).
  */
 export function checkStraightLineTrajectory(
   p1: Point2D,
@@ -49,7 +79,7 @@ export function checkStraightLineTrajectory(
   const r1Sq = p1.x * p1.x + p1.y * p1.y
   const r2Sq = p2.x * p2.x + p2.y * p2.y
   
-  if (p2.y < 0) {
+  if (!isAngleValid(p2.x, p2.y)) {
     return { isValid: false, reason: 'angle_violation' }
   }
   if (r2Sq < rMin * rMin) {
@@ -57,6 +87,11 @@ export function checkStraightLineTrajectory(
   }
   if (r2Sq > rMax * rMax) {
     return { isValid: false, reason: 'outer_violation' }
+  }
+  
+  // Check path crossing forbidden angle
+  if (pathCrossesForbiddenAngle(p1, p2)) {
+    return { isValid: false, reason: 'angle_violation' }
   }
 
   // 2. Check inner boundary crossing along the segment

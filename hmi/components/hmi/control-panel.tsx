@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { checkStraightLineTrajectory, getCurrentPosition, calculateIntermediatePoint } from '@/lib/trajectory-safety'
+import { checkStraightLineTrajectory, getCurrentPosition, calculateIntermediatePoint, isAngleValid } from '@/lib/trajectory-safety'
 import { L_INNER, L_OUTER } from './xy-trace'
 import { usePathname } from 'next/navigation'
 import { toast } from 'sonner'
@@ -488,8 +488,8 @@ export function ControlPanel() {
     const x = parseFloat(xf), y = parseFloat(yf)
     if (!isNaN(x) && !isNaN(y)) {
       const r2 = x * x + y * y
-      if (r2 < L_INNER * L_INNER || r2 > L_OUTER * L_OUTER || y < 0) {
-        alert(`Move Target Rejected: Target (${x}, ${y}) is outside the reachable workspace (${L_INNER} to ${L_OUTER} mm, Y >= 0).`)
+      if (r2 < L_INNER * L_INNER || r2 > L_OUTER * L_OUTER || !isAngleValid(x, y)) {
+        alert(`Move Target Rejected: Target (${x}, ${y}) is outside the reachable workspace (${L_INNER} to ${L_OUTER} mm, -30 to 210 deg).`)
         return
       }
 

@@ -8,7 +8,7 @@ import { Maximize2, Minimize2, Crosshair, ZoomIn, ZoomOut, RefreshCw } from 'luc
 import { cn } from '@/lib/utils'
 import { Tooltip } from '@/components/ui/tooltip'
 import type { TPoint, HMIState } from '@/lib/hmi-types'
-import { checkStraightLineTrajectory, getCurrentPosition } from '@/lib/trajectory-safety'
+import { checkStraightLineTrajectory, getCurrentPosition, isAngleValid } from '@/lib/trajectory-safety'
 import { toast } from 'sonner'
 import { downloadSingleGraph } from '@/lib/capture-utils'
 import { useTheme } from '@/components/hmi/theme-provider'
@@ -22,7 +22,7 @@ const WS_THETA_END   = Math.PI    // rad — workspace end angle (180°)
 const LM = 55, RM = 10, TM = 30, BM = 42
 
 // Robot-space Y extent shown
-const YMIN = -55, YMAX = 205  // mm
+const YMIN = -105, YMAX = 205  // mm
 const TICK = 50                // mm per grid division
 
 // Colors are dynamically set per theme inside drawTrace
@@ -152,7 +152,7 @@ export function drawTrace(
   ctx.fillStyle = COLORS.panel
   ctx.fillRect(LM, TM, plotW, plotH)
 
-  // ── Workspace: Annular Sector (r: 70.7–170mm, θ: 0–180°) ─────────────────
+  // ── Workspace: Annular Sector (r: 70.7–170mm, θ: -30–210°) ─────────────────
   // Visual priority: boundary is background context. Fills are solid/distinct.
   const outerR = L_OUTER * scale
   const innerR = L_INNER * scale
@@ -166,11 +166,15 @@ export function drawTrace(
   ctx.fillStyle = isLight ? '#FAF0F0' : '#251919'
   ctx.fillRect(LM, TM, plotW, plotH)
 
+  // Canvas angles corresponding to robot -30 deg to 210 deg (mirrored Y axis)
+  const startAng = 5 * Math.PI / 6  // 150 deg (robot 210 deg)
+  const endAng   = Math.PI / 6      // 30 deg (robot -30 deg)
+
   // Layer 2 — reachable annular sector: clean white or dark panel
   ctx.fillStyle = COLORS.panel
   ctx.beginPath()
-  ctx.arc(originPx, originPy, outerR, 0, Math.PI, true)
-  ctx.arc(originPx, originPy, innerR, Math.PI, 0, false)
+  ctx.arc(originPx, originPy, outerR, startAng, endAng, false)
+  ctx.arc(originPx, originPy, innerR, endAng, startAng, true)
   ctx.closePath()
   ctx.fill()
 
@@ -181,20 +185,25 @@ export function drawTrace(
 
   // Outer arc
   ctx.beginPath()
-  ctx.arc(originPx, originPy, outerR, 0, Math.PI, true)
+  ctx.arc(originPx, originPy, outerR, startAng, endAng, false)
   ctx.stroke()
 
   // Inner arc
   ctx.beginPath()
-  ctx.arc(originPx, originPy, innerR, 0, Math.PI, true)
+  ctx.arc(originPx, originPy, innerR, startAng, endAng, false)
   ctx.stroke()
 
-  // Radial edges at θ=0° and θ=180°
+  // Radial edges
+  const cos30 = Math.cos(Math.PI / 6)
+  const sin30 = Math.sin(Math.PI / 6)
+
   ctx.beginPath()
-  ctx.moveTo(originPx + innerR, originPy)
-  ctx.lineTo(originPx + outerR, originPy)
-  ctx.moveTo(originPx - innerR, originPy)
-  ctx.lineTo(originPx - outerR, originPy)
+  // Radial edge at -30 deg (canvas angle 30 deg)
+  ctx.moveTo(originPx + innerR * cos30, originPy + innerR * sin30)
+  ctx.lineTo(originPx + outerR * cos30, originPy + outerR * sin30)
+  // Radial edge at 210 deg (canvas angle 150 deg)
+  ctx.moveTo(originPx - innerR * cos30, originPy + innerR * sin30)
+  ctx.lineTo(originPx - outerR * cos30, originPy + outerR * sin30)
   ctx.stroke()
 
   ctx.setLineDash([])
@@ -644,7 +653,7 @@ export function drawTrace(
     // Check reachability
     const r2 = x * x + y * y
     const safety = checkStraightLineTrajectory(currentPos, state.previewTarget, L_INNER, L_OUTER)
-    const isReachable = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && y >= 0 && safety.isValid
+    const isReachable = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && isAngleValid(x, y) && safety.isValid
     const dotColor = isReachable ? COLORS.ok : COLORS.actual
     
     ctx.save()
@@ -683,7 +692,7 @@ export function drawTrace(
     // Check reachability and path safety
     const r2 = x * x + y * y
     const safety = checkStraightLineTrajectory(currentPos, hoverPoint, L_INNER, L_OUTER)
-    const isPathSafe = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && y >= 0 && safety.isValid
+    const isPathSafe = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && isAngleValid(x, y) && safety.isValid
     const color = isPathSafe 
       ? (isLight ? 'rgba(22, 163, 74, 0.6)' : 'rgba(34, 197, 94, 0.7)') 
       : (isLight ? 'rgba(220, 38, 38, 0.6)' : 'rgba(248, 113, 113, 0.7)')
@@ -964,10 +973,10 @@ export function XYTrace() {
     const coords = getRobotCoords(canvas, e.clientX, e.clientY, zoomRef.current, centerXRef.current, centerYRef.current)
     
     const r2 = coords.x * coords.x + coords.y * coords.y
-    const isReachable = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && coords.y >= 0
+    const isReachable = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && isAngleValid(coords.x, coords.y)
     
     if (!isReachable) {
-      alert(`Invalid Point: Coordinate (${coords.x.toFixed(1)}, ${coords.y.toFixed(1)}) is outside the reachable workspace (${L_INNER} - ${L_OUTER} mm).`)
+      alert(`Invalid Point: Coordinate (${coords.x.toFixed(1)}, ${coords.y.toFixed(1)}) is outside the reachable workspace (${L_INNER} - ${L_OUTER} mm, -30 - 210 deg).`)
       return
     }
     
