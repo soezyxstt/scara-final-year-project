@@ -118,21 +118,26 @@ void controlJoint1() {
   float frac_abs   = fabsf(total_frac);
   int   pwm_out    = 0;
 
-  // Select active fractional threshold: reduced only during the accel ramp
-  // (t_traj <= traj_ta). When TRAP_ENABLED=false, traj_ta=0 so this is never
-  // triggered — kickstart is a trapezoid-only feature.
-  float active_frac_thresh = FRAC_ZERO_THRESH;
-  if (KICKSTART_ENABLED && is_moving && t_traj <= traj_ta)
-  {
-    active_frac_thresh = FRAC_ZERO_THRESH * FRAC_ZERO_KICK_PCT;
-  }
+  // Select active fractional threshold: reduced during the accel ramp
+  // (t_traj <= traj_ta), once the planned trajectory duration has elapsed
+  // (t_traj > traj_tf — robot should be there, stiction is the obstacle),
+  // and in hold mode after trajectory ends.
+  bool in_kickstart    = KICKSTART_ENABLED && is_moving && t_traj <= traj_ta;
+  bool past_deadline   = t_traj > traj_tf;
+  float active_frac_thresh = (in_kickstart || past_deadline)
+      ? FRAC_ZERO_THRESH * FRAC_ZERO_KICK_PCT
+      : FRAC_ZERO_THRESH;
 
   if (frac_abs >= active_frac_thresh)
   {
     float frac_eff = (frac_abs - active_frac_thresh) / (1.0f - active_frac_thresh);
     frac_eff = constrain(frac_eff, 0.0f, 1.0f);
 
-    // Dynamic deadband: base + 18*sin²(θ1) to compensate gravity load variation
+    // Dynamic deadband: base + amp*sin²(θ1). This is NOT gravity compensation
+    // (gravity comp is the signed CTC FF term ctc_gravity1, gated on alpha_tilt).
+    // It is an empirical correction for a hardware constraint — the effective
+    // stiction/PWM-to-motion threshold varies with θ1 and needs more base drive
+    // away from θ1≈0/π. Tuned by hand; keep it independent of alpha_tilt.
     float db_amp = 21.0f * ((float)PWM_DEADBAND / 68.0f);
     float s = sinf(theta1);
     int dynamic_db_hold = PWM_DEADBAND + (int)roundf(db_amp * s * s);

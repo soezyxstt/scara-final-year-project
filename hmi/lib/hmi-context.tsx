@@ -313,6 +313,18 @@ function reducer(state: HMIState, action: HMIAction): HMIState {
         lastSavedRunId: null,
       }
     }
+    case 'MOVE_CONTINUE': {
+      // L-shape second leg: update final target without resetting buffers
+      if (!state.currentMove) return state
+      return {
+        ...state,
+        currentMove: {
+          ...state.currentMove,
+          xf: action.info.xf,
+          yf: action.info.yf,
+        },
+      }
+    }
     case 'MOVE_END': {
       const stats = computeStats(state.tBuffer, state.dBuffer)
       return {
@@ -535,9 +547,29 @@ export function useHMISlow() {
   return ctx
 }
 
+// ── Live queue refs (for zero-lag canvas rendering) ──────────────────────────
+// Bypasses the 100ms React flush cycle: canvas merges state.tBuffer + tQueueRef
+// at draw time to always show the most current data without waiting for dispatch.
+export interface HMILiveRefs {
+  tQueueRef: { current: TPoint[] }
+  dQueueRef: { current: DSample[] }
+}
+
+const HMILiveRefsContext = createContext<HMILiveRefs | null>(null)
+
+export function useHMILiveRefs(): HMILiveRefs {
+  const ctx = useContext(HMILiveRefsContext)
+  if (!ctx) throw new Error('useHMILiveRefs must be used within HMIProvider')
+  return ctx
+}
+
 const recentToasts = new Map<string, number>()
 
-function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
+function useSerial(
+  dispatch: Dispatch<HMIAction>,
+  tQueueRef: { current: TPoint[] },
+  dQueueRef: { current: DSample[] },
+): SerialController {
   const portRef = useRef<SerialPort | null>(null)
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const writerRef = useRef<WritableStreamDefaultWriter<Uint8Array> | null>(null)
@@ -546,9 +578,7 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
   const sampleIdxRef = useRef(0)
   const startReconnPollRef = useRef<() => void>(() => {})
 
-  // High performance telemetry queues
-  const tQueueRef = useRef<TPoint[]>([])
-  const dQueueRef = useRef<DSample[]>([])
+  // fQueue and eQueue remain local — canvas doesn't need them for rendering
   const fQueueRef = useRef<FSample[]>([])
   const eQueueRef = useRef<ESample[]>([])
 
@@ -654,6 +684,14 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
           const [, x0, y0, xf, yf] = parts.map(Number)
           const info: MoveInfo = { x0, y0, xf, yf }
           dispatch({ type: 'MOVE_START', info })
+          break
+        }
+        case 'MC': {
+          // L-shape continuation: second leg started, keep existing buffers
+          flushQueues()
+          const [, mcX0, mcY0, mcXf, mcYf] = parts.map(Number)
+          const mcInfo: MoveInfo = { x0: mcX0, y0: mcY0, xf: mcXf, yf: mcYf }
+          dispatch({ type: 'MOVE_CONTINUE', info: mcInfo })
           break
         }
         case 'S': {
@@ -1056,7 +1094,14 @@ function useSerial(dispatch: Dispatch<HMIAction>): SerialController {
 
 export function HMIProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, buildInitialState)
-  const serial = useSerial(dispatch)
+
+  // Owned at provider level so the canvas context can access them directly,
+  // bypassing the 100ms React flush cycle for real-time rendering.
+  const tQueueRef = useRef<TPoint[]>([])
+  const dQueueRef = useRef<DSample[]>([])
+  const liveRefs = useMemo<HMILiveRefs>(() => ({ tQueueRef, dQueueRef }), [])
+
+  const serial = useSerial(dispatch, tQueueRef, dQueueRef)
   const pathname = usePathname()
   const [currentSearch, setCurrentSearch] = useState('')
 
@@ -1218,10 +1263,12 @@ export function HMIProvider({ children }: { children: ReactNode }) {
   }), [slowState, dispatch, serial])
 
   return (
-    <HMISlowContext.Provider value={slowContextValue}>
-      <HMIContext.Provider value={{ state, dispatch, serial }}>
-        {children}
-      </HMIContext.Provider>
-    </HMISlowContext.Provider>
+    <HMILiveRefsContext.Provider value={liveRefs}>
+      <HMISlowContext.Provider value={slowContextValue}>
+        <HMIContext.Provider value={{ state, dispatch, serial }}>
+          {children}
+        </HMIContext.Provider>
+      </HMISlowContext.Provider>
+    </HMILiveRefsContext.Provider>
   )
 }

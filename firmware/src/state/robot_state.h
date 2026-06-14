@@ -132,6 +132,9 @@ namespace TrajState {
   extern float pending_x;
   extern float pending_y;
 
+  extern bool  is_resting;
+  extern int   rest_ticks;
+
   // dTheta_d_prev_acc: used inside trajectory/scheduler for ddTheta seeding
   extern float dTheta1_d_prev_acc;
   extern float dTheta2_d_prev_acc;

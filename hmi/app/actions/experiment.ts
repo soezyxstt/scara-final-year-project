@@ -1,5 +1,6 @@
 'use server'
 
+import { eq } from 'drizzle-orm'
 import { db } from '../../lib/db'
 import { experimentRuns, experimentMetrics, experimentSamples } from '../../lib/db/schema/experiment'
 import { backupRun, backupMetrics, backupSamples } from '../../lib/db/backup'
@@ -24,6 +25,13 @@ export async function saveRun(
     }
 
     if (!backupOnly) {
+      // 0. Idempotency: a previous attempt may have partially succeeded
+      //    (e.g. runs row inserted, metrics insert failed). Clear any rows
+      //    for this runId so retries don't hit the UNIQUE constraint.
+      await db.delete(experimentSamples).where(eq(experimentSamples.runId, runId))
+      await db.delete(experimentMetrics).where(eq(experimentMetrics.runId, runId))
+      await db.delete(experimentRuns).where(eq(experimentRuns.id, runId))
+
       // 1. Insert experiment_runs row
       await db.insert(experimentRuns).values(run)
 

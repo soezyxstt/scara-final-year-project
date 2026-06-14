@@ -138,7 +138,8 @@ void processSerialCommand(const char *cmd_raw) {
       return;
     }
 
-    // alpha_tilt
+    // alpha_tilt [deg]. Signed: negative is allowed and flips gravity-comp
+    // direction (sinf carries the sign). Positive = +Y/front edge raised.
     if (input.startsWith("atilt,")) {
       alpha_tilt = input.substring(6).toFloat() * (PI / 180.0f);
       Serial.print("INFO: alpha_tilt="); Serial.print(alpha_tilt, 5); Serial.println(" rad");

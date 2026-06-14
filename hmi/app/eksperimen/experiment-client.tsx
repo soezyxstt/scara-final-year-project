@@ -12,7 +12,19 @@ import { cn } from '@/lib/utils'
 import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
 import { ThemeToggle } from '@/components/hmi/theme-toggle'
 
-type State = 'idle' | 'waiting_for_ready' | 'positioning' | 'running' | 'cooldown' | 'complete'
+type State =
+  | 'idle'
+  | 'preflight'
+  | 'waiting_for_ready'
+  | 'positioning'
+  | 'hold'
+  | 'running'
+  | 'settling'
+  | 'saving'
+  | 'cooldown'
+  | 'complete'
+
+type CapturePhase = 'off' | 'hold' | 'move' | 'settle'
 
 interface RunResultCard {
   attemptNumber: number
@@ -20,8 +32,15 @@ interface RunResultCard {
   direction: 'forward' | 'return'
   mate: number
   mcte: number
-  settleTime: number
+  moveDuration: number
+  sigmaHold: number | null
+  eSs: number | null
   status: 'ok' | 'retrying' | 'failed'
+}
+
+interface PreflightCheck {
+  label: string
+  ok: boolean | null // null = pending
 }
 
 const EXPERIMENTS = [
@@ -33,23 +52,44 @@ const EXPERIMENTS = [
   { id: 'EXP-6', name: 'PID Variation', desc: 'Test performance with varying proportional, integral, and derivative gains' },
 ] as const
 
+// ─── Standard test path (Rancangan Eksperimen) ─────────────────────────────
+const P0 = { x: 140, y: 45 }   // mm
+const PF = { x: 60, y: 155 }   // mm
+const PATH_D = Math.hypot(PF.x - P0.x, PF.y - P0.y) // 136.0 mm
+
+// ─── Workspace limits (mirror of firmware cmd_parser.cpp check) ────────────
+const WS_R_MIN = 70.7   // mm
+const WS_R_MAX = 170.0  // mm
+// Valid sector: phi >= -30° OR phi <= -150° (i.e. -30°…210°)
+function isInWorkspace(xMm: number, yMm: number): boolean {
+  const r = Math.hypot(xMm, yMm)
+  if (r < WS_R_MIN || r > WS_R_MAX) return false
+  const phi = Math.atan2(yMm, xMm)
+  return phi >= -0.5235988 || phi <= -2.6179939
+}
+
+// ─── Timing budgets ─────────────────────────────────────────────────────────
+const HOLD_DURATION_MS = 3000      // pre-move hold (σ_θ1 from last 2 s)
+const HOLD_SIGMA_WINDOW_MS = 2000
+const SETTLE_CAPTURE_MS = 2000     // post-S-packet capture for e_ss
+const COOLDOWN_S = 5
+const WD_SETUP_MS = 5000           // setup command batch
+const WD_POSITIONING_MS = 20000    // positioning move → S-packet
+const WD_M_PACKET_MS = 5000        // trajectory move sent → M-packet
+const WD_RUNNING_MS = 15000        // M-packet → S-packet (traj ≈ 3.4 s + margin)
+const TELEMETRY_STALL_MS = 1500    // max gap between D-packets while moving
+const ALIGN_MAX_GAP_MS = 100       // max timestamp gap when aligning T/F/E to D
+const POSITION_SKIP_TOL_MM = 2.0   // skip positioning move if already this close
+const MAX_RUN_RETRIES = 3          // per-slot retries before aborting sequence
+
 // ─── Shared Direction Helper ────────────────────────────────────────────────
 // successCount is 1-based (the upcoming run's target success index)
 // For EXP-4: 3 runs per condition (6 total), so indexInCond cycles 1-3 then 1-3
-// For EXP-6: 5 runs per condition (10 total), cycle 1-5 then 1-5 then 1-5 (x3 subs×3 levels = actually 10 per sub-exp)
+// For EXP-6: single condition of 10 runs (sub/level fixed by UI)
 // For standard: 10 runs per condition (20 total), cycle 1-10 then 1-10
 function computeIndexInCond(successCount: number, tab: string): number {
-  // successCount is 1-based index of the next success slot we are filling
-  if (tab === 'EXP-4') {
-    const condSize = 3
-    return ((successCount - 1) % condSize) + 1
-  } else if (tab === 'EXP-6') {
-    const condSize = 5
-    return ((successCount - 1) % condSize) + 1
-  } else {
-    const condSize = 10
-    return ((successCount - 1) % condSize) + 1
-  }
+  const condSize = tab === 'EXP-4' ? 3 : (tab === 'EXP-6' ? 10 : 10)
+  return ((successCount - 1) % condSize) + 1
 }
 
 // odd indexInCond → forward, even → return
@@ -63,16 +103,63 @@ function computeIsConditionA(successCount: number, tab: string): boolean {
   return successCount <= 10
 }
 
+function computeTotalRuns(tab: string): number {
+  return tab === 'EXP-4' ? 6 : (tab === 'EXP-6' ? 10 : 20)
+}
+
+// ─── OFAT baseline-lock commands per experiment ─────────────────────────────
+// One factor varies per experiment; all others are locked at the values
+// specified in the Rancangan Eksperimen document.
+function buildConditionCommands(
+  tab: string,
+  isConditionA: boolean,
+  alpha: string,
+  sub6: '6A' | '6B' | '6C',
+  level6: string,
+  baseGains: { kp1: number; ki1: number; kd1: number },
+): string[] {
+  const cmds: string[] = []
+  if (tab === 'EXP-1') {
+    // Isolate velocity-estimation effect: all feedforward off
+    cmds.push('trapen,1', 'ffi,0.0', 'ffc,0.0', 'ffg,0.0')
+    cmds.push(isConditionA ? 'tden,1' : 'tden,0')
+  } else if (tab === 'EXP-2') {
+    cmds.push('tden,1', 'trapen,1', 'ffc,0.0', 'ffg,0.0')
+    cmds.push(isConditionA ? 'ffi,1.0' : 'ffi,0.0')
+  } else if (tab === 'EXP-3') {
+    cmds.push('tden,1', 'trapen,1', 'ffi,1.0', 'ffg,0.0')
+    cmds.push(isConditionA ? 'ffc,1.0' : 'ffc,0.0')
+  } else if (tab === 'EXP-4') {
+    cmds.push('tden,1', 'trapen,1', 'ffi,1.0', 'ffc,1.0')
+    if (isConditionA) {
+      cmds.push(`atilt,${alpha}`)
+      cmds.push('ffg,1.0')
+    } else {
+      cmds.push('ffg,0.0')
+    }
+  } else if (tab === 'EXP-5') {
+    cmds.push('tden,1', 'ffi,1.0', 'ffc,1.0', 'ffg,1.0')
+    cmds.push(isConditionA ? 'trapen,1' : 'trapen,0')
+  } else if (tab === 'EXP-6') {
+    cmds.push('tden,1', 'trapen,1', 'ffi,1.0', 'ffc,1.0', 'ffg,1.0')
+    const scale = parseFloat(level6)
+    if (sub6 === '6A') cmds.push(`kp1,${(baseGains.kp1 * scale).toFixed(3)}`)
+    else if (sub6 === '6B') cmds.push(`ki1,${(baseGains.ki1 * scale).toFixed(3)}`)
+    else cmds.push(`kd1,${(baseGains.kd1 * scale).toFixed(3)}`)
+  }
+  return cmds
+}
+
 export function ExperimentClient() {
   const { state: hmiState, serial } = useHMISlow()
   const { serialStatus, gains, online, estopped } = hmiState
 
   // UI Selection State
   const [activeTab, setActiveTab] = useState<'EXP-1' | 'EXP-2' | 'EXP-3' | 'EXP-4' | 'EXP-5' | 'EXP-6'>('EXP-1')
-  
+
   // EXP-4 specific state
   const [exp4Alpha, setExp4Alpha] = useState<'0' | '15' | '30' | '45'>('0')
-  
+
   // EXP-6 specific state
   const [exp6Sub, setExp6Sub] = useState<'6A' | '6B' | '6C'>('6A')
   const [exp6Level, setExp6Level] = useState<'0.5' | '1.0' | '1.5'>('0.5')
@@ -89,21 +176,17 @@ export function ExperimentClient() {
   const [cooldownTime, setCooldownTime] = useState(0)
   const [logs, setLogs] = useState<{ time: string; text: string }[]>([])
   const [results, setResults] = useState<RunResultCard[]>([])
-  
+  const [preflightChecks, setPreflightChecks] = useState<PreflightCheck[]>([])
+  const [abortReason, setAbortReason] = useState<string | null>(null)
+
   // Stats summary
   const [summary, setSummary] = useState<{ meanMate: number; stdMate: number; meanMcte: number; stdMcte: number } | null>(null)
 
   const [mounted, setMounted] = useState(false)
-  // Capture baseline gains from context on mount or when gains are first received
+  // Baseline gains snapshot — re-captured at every sequence start (preflight)
   const [baseGains, setBaseGains] = useState<{ kp1: number; ki1: number; kd1: number } | null>(null)
 
   useEffect(() => { setMounted(true) }, [])
-
-  useEffect(() => {
-    if (gains && !baseGains) {
-      setBaseGains({ kp1: gains.kp1, ki1: gains.ki1, kd1: gains.kd1 })
-    }
-  }, [gains, baseGains])
 
   // Helper to add timestamped status logs
   const addLog = useCallback((text: string) => {
@@ -111,10 +194,22 @@ export function ExperimentClient() {
     setLogs(prev => [...prev, { time, text }])
   }, [])
 
+  const setCheck = useCallback((label: string, ok: boolean | null) => {
+    setPreflightChecks(prev => {
+      const idx = prev.findIndex(c => c.label === label)
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = { label, ok }
+        return next
+      }
+      return [...prev, { label, ok }]
+    })
+  }, [])
+
   // In-memory offline queue state
   const [offlineQueue, setOfflineQueue] = useState<any[]>([])
   const offlineQueueRef = useRef<any[]>([])
-  
+
   useEffect(() => { offlineQueueRef.current = offlineQueue }, [offlineQueue])
 
   // Sync offline queued runs to Turso when online
@@ -148,26 +243,39 @@ export function ExperimentClient() {
   const totalAttemptsRef = useRef(0)       // mirrors totalAttempts state
   const runRetryCountRef = useRef(0)
   const runNeedRetryRef = useRef(false)
-  const isTrajectoryRunningRef = useRef(false)
+  const runFailureLatchRef = useRef(false) // guards double failure handling per attempt
   const isProcessingRef = useRef(false)    // guard: prevents double processAndSaveRun
   const activeTabRef = useRef(activeTab)
   const exp4AlphaRef = useRef(exp4Alpha)
   const exp6SubRef = useRef(exp6Sub)
   const exp6LevelRef = useRef(exp6Level)
+  const baseGainsRef = useRef<{ kp1: number; ki1: number; kd1: number } | null>(null)
   const cooldownTimerRef = useRef<NodeJS.Timeout | null>(null)
-  
+
+  // Live firmware state mirrored into refs (async handlers need fresh values)
+  const currentModeRef = useRef(hmiState.currentMode)
+  const estoppedRef = useRef(estopped)
+  const gainsRef = useRef(gains)
+
   // Telemetry buffer refs
   const accumulatedDRef = useRef<any[]>([])
   const accumulatedFRef = useRef<any[]>([])
   const accumulatedERef = useRef<any[]>([])
   const accumulatedTRef = useRef<any[]>([])
-  const lastSeenDTimeRef = useRef<number>(0)
-  
+  const lastSeenDTimeRef = useRef<number>(0)     // firmware ms of last D-line
+  const lastDWallClockRef = useRef<number>(0)    // Date.now() of last D-line (stall detection)
+  const lastActualPosRef = useRef<{ x: number; y: number } | null>(null)
+
+  const capturePhaseRef = useRef<CapturePhase>('off')
+  const awaitingMRef = useRef(false)
   const mPacketReceivedRef = useRef(false)
-  const mPacketTimeRef = useRef<number>(0)
-  
-  const echoCommandRef = useRef<string | null>(null)
-  const echoTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const sigmaHoldRef = useRef<number | null>(null)
+
+  // Timers / watchdogs
+  const watchdogRef = useRef<NodeJS.Timeout | null>(null)
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const settleTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const stallIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Sync state values to refs
   useEffect(() => { stateRef.current = state }, [state])
@@ -177,6 +285,9 @@ export function ExperimentClient() {
   useEffect(() => { exp4AlphaRef.current = exp4Alpha }, [exp4Alpha])
   useEffect(() => { exp6SubRef.current = exp6Sub }, [exp6Sub])
   useEffect(() => { exp6LevelRef.current = exp6Level }, [exp6Level])
+  useEffect(() => { currentModeRef.current = hmiState.currentMode }, [hmiState.currentMode])
+  useEffect(() => { estoppedRef.current = estopped }, [estopped])
+  useEffect(() => { gainsRef.current = gains }, [gains])
 
   // Scroll status logs to bottom
   const logsEndRef = useRef<HTMLDivElement>(null)
@@ -184,7 +295,37 @@ export function ExperimentClient() {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
 
-  // Custom function to find closest sample by timestamp
+  // ─── Timer helpers ─────────────────────────────────────────────────────────
+  const clearWatchdog = useCallback(() => {
+    if (watchdogRef.current) { clearTimeout(watchdogRef.current); watchdogRef.current = null }
+  }, [])
+
+  const clearAllTimers = useCallback(() => {
+    clearWatchdog()
+    if (cooldownTimerRef.current) { clearInterval(cooldownTimerRef.current); cooldownTimerRef.current = null }
+    if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null }
+    if (settleTimerRef.current) { clearTimeout(settleTimerRef.current); settleTimerRef.current = null }
+    if (stallIntervalRef.current) { clearInterval(stallIntervalRef.current); stallIntervalRef.current = null }
+  }, [clearWatchdog])
+
+  const transition = useCallback((next: State) => {
+    clearWatchdog()
+    stateRef.current = next
+    setState(next)
+  }, [clearWatchdog])
+
+  // Poll a ref-backed condition until true or timeout
+  const waitFor = (cond: () => boolean, timeoutMs: number, intervalMs = 100): Promise<boolean> =>
+    new Promise(resolve => {
+      if (cond()) { resolve(true); return }
+      const start = Date.now()
+      const iv = setInterval(() => {
+        if (cond()) { clearInterval(iv); resolve(true) }
+        else if (Date.now() - start > timeoutMs) { clearInterval(iv); resolve(false) }
+      }, intervalMs)
+    })
+
+  // Custom function to find closest sample by timestamp (returns null if gap too large)
   const findClosest = (arr: any[], targetT: number) => {
     if (!arr || arr.length === 0) return null
     let closest = arr[0]
@@ -198,7 +339,7 @@ export function ExperimentClient() {
         break
       }
     }
-    return closest
+    return minDiff <= ALIGN_MAX_GAP_MS ? closest : null
   }
 
   // Custom function to find closest T-packet sample by timestamp
@@ -213,170 +354,98 @@ export function ExperimentClient() {
         closest = arr[i]
       }
     }
-    return closest
+    return minDiff <= ALIGN_MAX_GAP_MS ? closest : null
   }
 
+  // Restore the baseline kp1/ki1/kd1 snapshot after an EXP-6 sequence
+  const restoreBaselineGains = useCallback(() => {
+    if (activeTabRef.current !== 'EXP-6') return
+    const bg = baseGainsRef.current
+    if (!bg) return
+    addLog(`Restoring baseline gains: kp1=${bg.kp1.toFixed(3)}, ki1=${bg.ki1.toFixed(3)}, kd1=${bg.kd1.toFixed(3)}`)
+    serial.sendCommand(`kp1,${bg.kp1.toFixed(3)}`).catch(() => {})
+    serial.sendCommand(`ki1,${bg.ki1.toFixed(3)}`).catch(() => {})
+    serial.sendCommand(`kd1,${bg.kd1.toFixed(3)}`).catch(() => {})
+  }, [serial, addLog])
+
   // Stop sequence and reset
-  const stopSequence = useCallback((reason = 'Sequence stopped by user') => {
-    if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current)
-    if (echoTimeoutRef.current) clearTimeout(echoTimeoutRef.current)
-    
-    isTrajectoryRunningRef.current = false
+  const stopSequence = useCallback((reason = 'Sequence stopped by user', sendEstop = true) => {
+    clearAllTimers()
+
+    capturePhaseRef.current = 'off'
+    awaitingMRef.current = false
+    mPacketReceivedRef.current = false
     isProcessingRef.current = false
     runRetryCountRef.current = 0
     runNeedRetryRef.current = false
-    serial.sendCommand('estop').catch(() => {})
-    setState(prev => {
-      stateRef.current = 'idle'
-      return 'idle'
-    })
+    runFailureLatchRef.current = false
+    if (sendEstop) serial.sendCommand('estop').catch(() => {})
+    restoreBaselineGains()
+    stateRef.current = 'idle'
+    setState('idle')
     addLog(`⚠️ ${reason}`)
     toast.warning(reason)
-  }, [serial, addLog])
+  }, [serial, addLog, clearAllTimers, restoreBaselineGains])
+
+  // Abort = unrecoverable stop with a visible reason banner
+  const abortSequence = useCallback((reason: string) => {
+    setAbortReason(reason)
+    stopSequence(`Sequence ABORTED: ${reason}`)
+    toast.error(`Sequence aborted: ${reason}`)
+  }, [stopSequence])
 
   // Watch serial status changes
   useEffect(() => {
     if (serialStatus === 'disconnected' && stateRef.current !== 'idle' && stateRef.current !== 'complete') {
-      stopSequence('Serial disconnected! Sequence aborted.')
+      stopSequence('Serial disconnected! Sequence aborted.', false)
     }
   }, [serialStatus, stopSequence])
 
-  // Sequence state steps executor — uses successCountRef to determine direction
-  const executeRunStep = useCallback(async () => {
-    const nextSuccessSlot = successCountRef.current + 1  // 1-based index of the run we want to capture
-    const tab = activeTabRef.current
-    const alpha = exp4AlphaRef.current
-    const sub6 = exp6SubRef.current
-    const level6 = exp6LevelRef.current
-
-    const totalRuns = tab === 'EXP-4' ? 6 : (tab === 'EXP-6' ? 10 : 20)
-
-    const isForward = computeIsForward(nextSuccessSlot, tab)
-    const isConditionA = computeIsConditionA(nextSuccessSlot, tab)
-    const runDir = isForward ? 'forward' : 'return'
-    setDirection(runDir)
-
-    // Increment attempt counter
-    setTotalAttempts(prev => {
-      totalAttemptsRef.current = prev + 1
-      return prev + 1
-    })
-
-    // Clear telemetry buffers
-    accumulatedDRef.current = []
-    accumulatedFRef.current = []
-    accumulatedERef.current = []
-    accumulatedTRef.current = []
-    mPacketReceivedRef.current = false
-    isProcessingRef.current = false
-
-    addLog(`-------------------- RUN (success ${successCountRef.current}/${totalRuns - 1}, attempt ${totalAttemptsRef.current}) --------------------`)
-    addLog(`Direction: ${runDir.toUpperCase()} | Next success slot: #${nextSuccessSlot}`)
-
-    // 1. Determine setup commands based on condition
-    const commands: string[] = []
-    if (tab === 'EXP-1') {
-      commands.push(isConditionA ? 'tden,1' : 'tden,0')
-    } else if (tab === 'EXP-2') {
-      commands.push(isConditionA ? 'ffi,1.0' : 'ffi,0.0')
-    } else if (tab === 'EXP-3') {
-      commands.push(isConditionA ? 'ffc,1.0' : 'ffc,0.0')
-    } else if (tab === 'EXP-4') {
-      if (isConditionA) {
-        commands.push(`atilt,${alpha}`)
-        commands.push('ffg,1.0')
-      } else {
-        commands.push('ffg,0.0')
-      }
-    } else if (tab === 'EXP-5') {
-      commands.push(isConditionA ? 'trapen,1' : 'trapen,0')
-    } else if (tab === 'EXP-6') {
-      const scale = parseFloat(level6)
-      const baseKp = baseGains?.kp1 ?? gains?.kp1 ?? 0.60
-      const baseKi = baseGains?.ki1 ?? gains?.ki1 ?? 0.05
-      const baseKd = baseGains?.kd1 ?? gains?.kd1 ?? 0.07
-      
-      if (sub6 === '6A') {
-        commands.push(`kp1,${(baseKp * scale).toFixed(3)}`)
-      } else if (sub6 === '6B') {
-        commands.push(`ki1,${(baseKi * scale).toFixed(3)}`)
-      } else if (sub6 === '6C') {
-        commands.push(`kd1,${(baseKd * scale).toFixed(3)}`)
-      }
+  // Safety: abort if E-STOP engages mid-sequence (hardware button / other tab)
+  useEffect(() => {
+    if (estopped && stateRef.current !== 'idle' && stateRef.current !== 'complete') {
+      stopSequence('E-STOP detected! Sequence aborted.', false)
     }
+  }, [estopped, stopSequence])
 
-    // Send setup commands ONLY ONCE before the first run of the condition block
-    const indexInCond = computeIndexInCond(nextSuccessSlot, tab)
-    const isFirstRunOfCondition = indexInCond === 1
-
-    if (isFirstRunOfCondition && commands.length > 0) {
-      try {
-        setState('waiting_for_ready')
-        stateRef.current = 'waiting_for_ready'
-        for (const cmd of commands) {
-          addLog(`Sending setup command: ${cmd}`)
-          await serial.sendCommand(cmd)
-        }
-        
-        echoCommandRef.current = commands[commands.length - 1]
-
-        if (echoTimeoutRef.current) clearTimeout(echoTimeoutRef.current)
-        echoTimeoutRef.current = setTimeout(() => {
-          addLog('⚠️ Command echo timeout (3s). Proceeding anyway...')
-          proceedToPositioning(isForward)
-        }, 3000)
-
-      } catch (err) {
-        addLog(`❌ Failed to send setup commands: ${err}`)
-        stopSequence('Serial communication failure.')
-      }
-    } else {
-      proceedToPositioning(isForward)
+  // Validated move sender — defense in depth alongside the firmware check
+  const sendMove = useCallback(async (xMm: number, yMm: number) => {
+    if (!isInWorkspace(xMm, yMm)) {
+      throw new Error(`Target (${xMm}, ${yMm}) outside workspace (r ${WS_R_MIN}–${WS_R_MAX} mm, -30°–210°)`)
     }
+    await serial.sendCommand(`move,${xMm},${yMm}`)
+  }, [serial])
 
-    function proceedToPositioning(fwd: boolean) {
-      if (echoTimeoutRef.current) clearTimeout(echoTimeoutRef.current)
-      if (stateRef.current === 'idle') return
-
-      setState('positioning')
-      stateRef.current = 'positioning'
-      // Forward run starts at p0 (140, 45). Return run starts at pf (60, 155).
-      const posX = fwd ? 140 : 60
-      const posY = fwd ? 45 : 155
-      addLog(`Moving to start position (${posX}, ${posY}) for positioning...`)
-      serial.sendCommand(`move,${posX},${posY}`).catch(err => {
-        addLog(`❌ Position command failed: ${err}`)
-        stopSequence('Serial communication failure.')
-      })
-    }
-
-  }, [serial, addLog, stopSequence, baseGains, gains])
+  // Forward declaration pattern: startCooldown/executeRunStep are mutually
+  // recursive across async boundaries, so we route through a ref.
+  const executeRunStepRef = useRef<() => void>(() => {})
 
   // Trigger next run step or finish sequence
   const startCooldown = useCallback(() => {
-    setState('cooldown')
-    setCooldownTime(5)
-    addLog('Entering 5s cooldown phase to let motors rest...')
+    transition('cooldown')
+    setCooldownTime(COOLDOWN_S)
+    addLog(`Entering ${COOLDOWN_S}s cooldown phase to let motors rest...`)
 
     if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current)
     cooldownTimerRef.current = setInterval(() => {
       setCooldownTime(prev => {
         if (prev <= 1) {
           clearInterval(cooldownTimerRef.current!)
+          cooldownTimerRef.current = null
           const tab = activeTabRef.current
-          const totalRuns = tab === 'EXP-4' ? 6 : (tab === 'EXP-6' ? 10 : 20)
-          
+          const totalRuns = computeTotalRuns(tab)
+
           if (runNeedRetryRef.current) {
             // Retry: direction stays the same (successCount unchanged), just re-attempt
             runNeedRetryRef.current = false
             addLog(`Retrying run after cooldown (successCount still ${successCountRef.current})...`)
-            executeRunStep()
+            executeRunStepRef.current()
           } else {
             // Check if sequence is complete based on successCount
             if (successCountRef.current >= totalRuns) {
-              setState('complete')
-              stateRef.current = 'complete'
+              transition('complete')
               addLog('🎉 Experiment sequence completed successfully!')
+              restoreBaselineGains()
 
               setResults(currentResults => {
                 const valid = currentResults.filter(r => r.status === 'ok' || r.status === 'retrying')
@@ -398,7 +467,7 @@ export function ExperimentClient() {
               })
             } else {
               // Continue to next run slot
-              executeRunStep()
+              executeRunStepRef.current()
             }
           }
           return 0
@@ -406,42 +475,184 @@ export function ExperimentClient() {
         return prev - 1
       })
     }, 1000)
-  }, [addLog, executeRunStep])
+  }, [addLog, transition, restoreBaselineGains])
 
-  // Handle run save/recording failure
-  const handleSaveFailure = useCallback((reason: string) => {
-    isTrajectoryRunningRef.current = false
+  // Handle run failure (telemetry loss, timeout, firmware ERR, DB failure).
+  // Retries the same slot up to MAX_RUN_RETRIES, then aborts the sequence —
+  // a slot is never silently skipped (data integrity).
+  const handleRunFailure = useCallback((reason: string) => {
+    if (runFailureLatchRef.current) return  // already handling this attempt
+    runFailureLatchRef.current = true
+
+    clearAllTimers()
+    capturePhaseRef.current = 'off'
+    awaitingMRef.current = false
+    mPacketReceivedRef.current = false
     isProcessingRef.current = false
     addLog(`❌ Run failed: ${reason}`)
-    
-    if (runRetryCountRef.current < 3) {
+
+    if (runRetryCountRef.current < MAX_RUN_RETRIES) {
       runRetryCountRef.current += 1
       runNeedRetryRef.current = true
-      addLog(`⚠️ Run failed. Retry attempt ${runRetryCountRef.current}/3 after cooldown...`)
-      toast.warning(`Run failed. Retrying (Attempt ${runRetryCountRef.current}/3)...`)
+      addLog(`⚠️ Retry attempt ${runRetryCountRef.current}/${MAX_RUN_RETRIES} after cooldown...`)
+      toast.warning(`Run failed. Retrying (Attempt ${runRetryCountRef.current}/${MAX_RUN_RETRIES})...`)
+      startCooldown()
     } else {
-      addLog(`❌ Run failed after 3 attempts. Moving on without incrementing success count.`)
-      toast.error(`Run failed after 3 attempts. Moving on without incrementing success count.`)
-      runRetryCountRef.current = 0
-      runNeedRetryRef.current = false
-      
-      // Record failed card (success slot stays at current successCount, not incremented)
+      // Record failed card, then abort the whole sequence
       const cardResult: RunResultCard = {
         attemptNumber: totalAttemptsRef.current,
         successIndex: successCountRef.current,
         direction: direction,
         mate: 0,
         mcte: 0,
-        settleTime: 0,
+        moveDuration: 0,
+        sigmaHold: null,
+        eSs: null,
         status: 'failed',
       }
       setResults(prev => [...prev, cardResult])
-      // NOTE: We do NOT increment successCount here because run failed.
-      // The next executeRunStep will retry the same success slot.
+      abortSequence(`Run slot #${successCountRef.current + 1} failed ${MAX_RUN_RETRIES} times (${reason})`)
     }
-    
-    startCooldown()
-  }, [direction, startCooldown, addLog])
+  }, [direction, startCooldown, addLog, clearAllTimers, abortSequence])
+
+  const armWatchdog = useCallback((ms: number, reason: string) => {
+    clearWatchdog()
+    watchdogRef.current = setTimeout(() => {
+      watchdogRef.current = null
+      handleRunFailure(`Watchdog timeout: ${reason} (${(ms / 1000).toFixed(0)}s)`)
+    }, ms)
+  }, [clearWatchdog, handleRunFailure])
+
+  // ─── Hold phase: dwell 3 s at start point, capture σ_θ1, then fire move ───
+  const enterHold = useCallback((isForward: boolean) => {
+    transition('hold')
+    capturePhaseRef.current = 'hold'
+    addLog(`Holding at start position for ${HOLD_DURATION_MS / 1000}s (capturing noise floor)...`)
+
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current)
+    holdTimerRef.current = setTimeout(() => {
+      holdTimerRef.current = null
+      if (stateRef.current !== 'hold') return
+
+      // σ_θ1 over the last HOLD_SIGMA_WINDOW_MS of hold-phase D samples
+      const holdD = accumulatedDRef.current.filter(s => s.phase === 'hold')
+      if (holdD.length > 1) {
+        const tEnd = holdD[holdD.length - 1].t
+        const win = holdD.filter(s => s.t >= tEnd - HOLD_SIGMA_WINDOW_MS)
+        const mean = win.reduce((a, s) => a + s.th1, 0) / win.length
+        const variance = win.reduce((a, s) => a + (s.th1 - mean) ** 2, 0) / win.length
+        sigmaHoldRef.current = Math.sqrt(variance)
+        addLog(`σ_θ1 (hold, ${win.length} samples) = ${(sigmaHoldRef.current * 1000).toFixed(4)} mrad`)
+      } else {
+        sigmaHoldRef.current = null
+        addLog('⚠️ No hold-phase D samples captured (plot,1 not active?). σ_θ1 unavailable.')
+      }
+
+      // Fire the trajectory move
+      const targetX = isForward ? PF.x : P0.x
+      const targetY = isForward ? PF.y : P0.y
+      transition('running')
+      awaitingMRef.current = true
+      mPacketReceivedRef.current = false
+      armWatchdog(WD_M_PACKET_MS, 'no M-packet after trajectory move command')
+      addLog(`Executing trajectory: move,${targetX},${targetY}`)
+      sendMove(targetX, targetY).catch(err => {
+        handleRunFailure(`Trajectory command failed: ${err}`)
+      })
+    }, HOLD_DURATION_MS)
+  }, [transition, addLog, armWatchdog, sendMove, handleRunFailure])
+
+  // Sequence state steps executor — uses successCountRef to determine direction
+  const executeRunStep = useCallback(async () => {
+    const nextSuccessSlot = successCountRef.current + 1  // 1-based index of the run we want to capture
+    const tab = activeTabRef.current
+    const alpha = exp4AlphaRef.current
+    const sub6 = exp6SubRef.current
+    const level6 = exp6LevelRef.current
+
+    const totalRuns = computeTotalRuns(tab)
+
+    const isForward = computeIsForward(nextSuccessSlot, tab)
+    const isConditionA = computeIsConditionA(nextSuccessSlot, tab)
+    const runDir = isForward ? 'forward' : 'return'
+    setDirection(runDir)
+
+    // Increment attempt counter
+    setTotalAttempts(prev => {
+      totalAttemptsRef.current = prev + 1
+      return prev + 1
+    })
+
+    // Clear telemetry buffers and per-attempt flags
+    accumulatedDRef.current = []
+    accumulatedFRef.current = []
+    accumulatedERef.current = []
+    accumulatedTRef.current = []
+    capturePhaseRef.current = 'off'
+    awaitingMRef.current = false
+    mPacketReceivedRef.current = false
+    sigmaHoldRef.current = null
+    isProcessingRef.current = false
+    runFailureLatchRef.current = false
+
+    addLog(`-------------------- RUN slot #${nextSuccessSlot}/${totalRuns} (saved ${successCountRef.current}, attempt ${totalAttemptsRef.current}) --------------------`)
+    addLog(`Direction: ${runDir.toUpperCase()} | Condition: ${isConditionA ? 'A' : 'B'}`)
+
+    const proceedToPositioning = (fwd: boolean) => {
+      if (stateRef.current === 'idle') return
+      transition('positioning')
+      // Forward run starts at p0 (140, 45). Return run starts at pf (60, 155).
+      const posX = fwd ? P0.x : PF.x
+      const posY = fwd ? P0.y : PF.y
+
+      // Skip the positioning move if the EEF is already at the start point —
+      // firmware emits NO M/S packets for moves < 1 mm, which would hang us here.
+      const cur = lastActualPosRef.current
+      if (cur && Math.hypot(cur.x - posX, cur.y - posY) < POSITION_SKIP_TOL_MM) {
+        addLog(`Already at start position (${posX}, ${posY}) — skipping positioning move.`)
+        enterHold(fwd)
+        return
+      }
+
+      armWatchdog(WD_POSITIONING_MS, 'no S-packet during positioning')
+      addLog(`Moving to start position (${posX}, ${posY}) for positioning...`)
+      sendMove(posX, posY).catch(err => {
+        handleRunFailure(`Position command failed: ${err}`)
+      })
+    }
+
+    // 1. Setup commands — full OFAT baseline lock + variable, sent once per condition block
+    const indexInCond = computeIndexInCond(nextSuccessSlot, tab)
+    const isFirstRunOfCondition = indexInCond === 1
+
+    if (isFirstRunOfCondition) {
+      const bg = baseGainsRef.current ?? gainsRef.current ?? { kp1: 0.60, ki1: 0.05, kd1: 0.07 }
+      const commands = buildConditionCommands(tab, isConditionA, alpha, sub6, level6, {
+        kp1: bg.kp1, ki1: bg.ki1, kd1: bg.kd1,
+      })
+      try {
+        transition('waiting_for_ready')
+        armWatchdog(WD_SETUP_MS, 'setup command batch')
+        for (const cmd of commands) {
+          addLog(`Sending setup command: ${cmd}`)
+          await serial.sendCommand(cmd)
+          await new Promise(r => setTimeout(r, 60))
+        }
+        // Brief settle window — any ERR reply arriving here fails the run
+        await new Promise(r => setTimeout(r, 500))
+        if (stateRef.current !== 'waiting_for_ready') return  // failed or stopped meanwhile
+        clearWatchdog()
+        proceedToPositioning(isForward)
+      } catch (err) {
+        addLog(`❌ Failed to send setup commands: ${err}`)
+        stopSequence('Serial communication failure.')
+      }
+    } else {
+      proceedToPositioning(isForward)
+    }
+  }, [serial, addLog, stopSequence, transition, armWatchdog, clearWatchdog, sendMove, enterHold, handleRunFailure])
+
+  useEffect(() => { executeRunStepRef.current = executeRunStep }, [executeRunStep])
 
   // Save current recorded run
   const processAndSaveRun = useCallback(async () => {
@@ -451,8 +662,8 @@ export function ExperimentClient() {
       return
     }
     isProcessingRef.current = true
-    isTrajectoryRunningRef.current = false
-    setState('running')
+    capturePhaseRef.current = 'off'
+    transition('saving')
     addLog('Processing telemetry samples...')
 
     const dSamples = accumulatedDRef.current
@@ -460,15 +671,16 @@ export function ExperimentClient() {
     const eSamples = accumulatedERef.current
     const tSamples = accumulatedTRef.current
 
-    if (dSamples.length === 0) {
+    const moveD = dSamples.filter(s => s.phase === 'move')
+    if (moveD.length === 0) {
       addLog('❌ Error: No telemetry samples captured during the trajectory!')
-      handleSaveFailure('No telemetry samples')
+      handleRunFailure('No telemetry samples')
       return
     }
 
-    addLog(`Captured ${dSamples.length} samples. Aligning datasets...`)
+    addLog(`Captured ${dSamples.length} samples (${moveD.length} move-phase). Aligning datasets...`)
 
-    // Align samples by matching timestamps
+    // Align samples by matching timestamps (all phases saved; metrics use 'move')
     const alignedSamples = dSamples.map(d => {
       const f = findClosest(fSamples, d.t)
       const e = findClosest(eSamples, d.t)
@@ -476,6 +688,7 @@ export function ExperimentClient() {
 
       return {
         tMs: d.t,
+        phase: d.phase as string,
         theta1: d.th1 ?? null,
         theta2: d.th2 ?? null,
         theta1D: d.th1d ?? null,
@@ -507,50 +720,75 @@ export function ExperimentClient() {
       }
     })
 
-    // Calculate metrics
-    const N = alignedSamples.length
-    const ux = -80 / 136
-    const uy = 110 / 136
-    const uperp_x = 110 / 136
-    const uperp_y = 80 / 136
+    // The success slot this run will fill
+    const tab = activeTabRef.current
+    const alpha = exp4AlphaRef.current
+    const sub6 = exp6SubRef.current
+    const level6 = exp6LevelRef.current
+    const nextSuccessSlot = successCountRef.current + 1
+    const isForward = computeIsForward(nextSuccessSlot, tab)
+    const isConditionA = computeIsConditionA(nextSuccessSlot, tab)
 
-    let sumAte = 0, sumSqAte = 0
+    // ─── Metrics — per-run direction unit vector û = (target − start)/D ─────
+    // Forward: p0→pf. Return: pf→p0 (û flips, so MATE keeps its lag semantics).
+    const dxPath = (isForward ? PF.x - P0.x : P0.x - PF.x)
+    const dyPath = (isForward ? PF.y - P0.y : P0.y - PF.y)
+    const ux = dxPath / PATH_D
+    const uy = dyPath / PATH_D
+    const upx = -uy  // û rotated +90° (cross-track); MCTE is absolute, sign irrelevant
+    const upy = ux
+
+    const movePhase = alignedSamples.filter(s => s.phase === 'move')
+    let skipped = 0
+    let N = 0
+    let sumAte = 0, sumSqAte = 0, maxAteAbs = 0
     let sumCte = 0, sumSqCte = 0, maxCte = 0
     let sumEef = 0, sumSqEef = 0, maxEef = 0
-    let sumJ1 = 0, sumSqJ1 = 0, maxJ1 = -Infinity, minJ1 = Infinity
-    let sumJ2 = 0, sumSqJ2 = 0, maxJ2 = -Infinity, minJ2 = Infinity
+    let sumSqJ1 = 0, maxJ1 = -Infinity, minJ1 = Infinity
+    let sumSqJ2 = 0, maxJ2 = -Infinity, minJ2 = Infinity
+    let lastEef: number | null = null
 
-    for (const s of alignedSamples) {
-      const dx = (s.xActual ?? 0) - (s.xDesired ?? 0)
-      const dy = (s.yActual ?? 0) - (s.yDesired ?? 0)
+    for (const s of movePhase) {
+      if (s.xActual == null || s.xDesired == null || s.yActual == null || s.yDesired == null) {
+        skipped++
+        continue
+      }
+      const dx = s.xActual - s.xDesired
+      const dy = s.yActual - s.yDesired
 
       const ate = dx * ux + dy * uy
-      const cte = Math.abs(dx * uperp_x + dy * uperp_y)
+      const cte = Math.abs(dx * upx + dy * upy)
       const eef = Math.sqrt(dx * dx + dy * dy)
 
       const ej1 = Math.abs((s.theta1 ?? 0) - (s.theta1D ?? 0))
       const ej2 = Math.abs((s.theta2 ?? 0) - (s.theta2D ?? 0))
 
+      N++
       sumAte += ate; sumSqAte += ate * ate
+      if (Math.abs(ate) > maxAteAbs) maxAteAbs = Math.abs(ate)
       sumCte += cte; sumSqCte += cte * cte
       if (cte > maxCte) maxCte = cte
       sumEef += eef; sumSqEef += eef * eef
       if (eef > maxEef) maxEef = eef
-      sumJ1 += ej1; sumSqJ1 += ej1 * ej1
+      sumSqJ1 += ej1 * ej1
       if (ej1 > maxJ1) maxJ1 = ej1
       if (ej1 < minJ1) minJ1 = ej1
-      sumJ2 += ej2; sumSqJ2 += ej2 * ej2
+      sumSqJ2 += ej2 * ej2
       if (ej2 > maxJ2) maxJ2 = ej2
       if (ej2 < minJ2) minJ2 = ej2
+      lastEef = eef
+    }
+
+    if (skipped > 0) addLog(`⚠️ ${skipped} move-phase samples lacked Cartesian data and were skipped in metrics.`)
+    if (N === 0) {
+      addLog('❌ Error: No move-phase samples with Cartesian (T-packet) data!')
+      handleRunFailure('No Cartesian tracking samples')
+      return
     }
 
     const mate_mean = sumAte / N
     const mate_rms = Math.sqrt(sumSqAte / N)
-    const mate_max = Math.max(...alignedSamples.map(s => {
-      const dx = (s.xActual ?? 0) - (s.xDesired ?? 0)
-      const dy = (s.yActual ?? 0) - (s.yDesired ?? 0)
-      return Math.abs(dx * ux + dy * uy)
-    }))
+    const mate_max = maxAteAbs
     const mcte_mean = sumCte / N
     const mcte_rms = Math.sqrt(sumSqCte / N)
     const mcte_max = maxCte
@@ -559,26 +797,22 @@ export function ExperimentClient() {
     const eef_error_max = maxEef
     const joint1_error_rms = Math.sqrt(sumSqJ1 / N)
     const joint2_error_rms = Math.sqrt(sumSqJ2 / N)
-    const settle_time_ms = Date.now() - mPacketTimeRef.current
-    const final_eef_error = (() => {
-      const last = alignedSamples[alignedSamples.length - 1]
-      const dx = (last.xActual ?? 0) - (last.xDesired ?? 0)
-      const dy = (last.yActual ?? 0) - (last.yDesired ?? 0)
-      return Math.sqrt(dx * dx + dy * dy)
-    })()
+
+    // Move duration from firmware clock (M→S window of D samples)
+    const move_duration_ms = moveD[moveD.length - 1].t - moveD[0].t
+    const final_eef_error = lastEef ?? 0
+
+    // e_ss: mean EEF error over the post-settle capture window
+    const settlePhase = alignedSamples.filter(s =>
+      s.phase === 'settle' && s.xActual != null && s.xDesired != null)
+    const e_ss = settlePhase.length > 0
+      ? settlePhase.reduce((a, s) =>
+          a + Math.hypot(s.xActual! - s.xDesired!, s.yActual! - s.yDesired!), 0) / settlePhase.length
+      : null
+    if (e_ss != null) addLog(`e_ss (${settlePhase.length} settle samples) = ${e_ss.toFixed(4)} mm`)
 
     // Build database payloads
     const runId = generateRunId()
-
-    const tab = activeTabRef.current
-    const alpha = exp4AlphaRef.current
-    const sub6 = exp6SubRef.current
-    const level6 = exp6LevelRef.current
-
-    // The success slot this run will fill
-    const nextSuccessSlot = successCountRef.current + 1
-    const isForward = computeIsForward(nextSuccessSlot, tab)
-    const isConditionA = computeIsConditionA(nextSuccessSlot, tab)
 
     let expId: string = tab
     let expName: string = EXPERIMENTS.find(e => e.id === tab)?.name ?? tab
@@ -590,17 +824,16 @@ export function ExperimentClient() {
       expName = `EXP-${sub6} (${sub6 === '6A' ? 'Kp1' : sub6 === '6B' ? 'Ki1' : 'Kd1'} ${level6}x)`
     }
 
-    let ffg = gains?.ffGravity ? 1 : 0
-    let ffi = gains?.ffInertia ? 1 : 0
-    let ffc = gains?.ffCoriolis ? 1 : 0
-    let tden = hmiState.params?.tdEnabled ? 1 : 0
-    let trap = hmiState.params?.trapEnabled ? 1 : 0
+    // Flags reflect the OFAT baseline locks actually commanded for this run
+    let ffg = 0, ffi = 0, ffc = 0, tden = 1, trap = 1
+    if (tab === 'EXP-1') { tden = isConditionA ? 1 : 0; ffi = 0; ffc = 0; ffg = 0 }
+    else if (tab === 'EXP-2') { ffi = isConditionA ? 1 : 0; ffc = 0; ffg = 0 }
+    else if (tab === 'EXP-3') { ffc = isConditionA ? 1 : 0; ffi = 1; ffg = 0 }
+    else if (tab === 'EXP-4') { ffg = isConditionA ? 1 : 0; ffi = 1; ffc = 1 }
+    else if (tab === 'EXP-5') { trap = isConditionA ? 1 : 0; ffi = 1; ffc = 1; ffg = 1 }
+    else if (tab === 'EXP-6') { ffi = 1; ffc = 1; ffg = 1 }
 
-    if (tab === 'EXP-1') { tden = isConditionA ? 1 : 0 }
-    else if (tab === 'EXP-2') { ffi = isConditionA ? 1 : 0 }
-    else if (tab === 'EXP-3') { ffc = isConditionA ? 1 : 0 }
-    else if (tab === 'EXP-4') { ffg = isConditionA ? 1 : 0 }
-    else if (tab === 'EXP-5') { trap = isConditionA ? 1 : 0 }
+    const bg = baseGainsRef.current ?? { kp1: gains?.kp1 ?? 0.60, ki1: gains?.ki1 ?? 0.05, kd1: gains?.kd1 ?? 0.07 }
 
     const runPayload = {
       id: runId,
@@ -614,28 +847,16 @@ export function ExperimentClient() {
       ffcEnabled: ffc,
       tdEnabled: tden,
       trapEnabled: trap,
-      kp1: (() => {
-        const baseKp = baseGains?.kp1 ?? gains?.kp1 ?? 0.60
-        if (tab === 'EXP-6' && sub6 === '6A') return baseKp * parseFloat(level6)
-        return baseKp
-      })(),
-      ki1: (() => {
-        const baseKi = baseGains?.ki1 ?? gains?.ki1 ?? 0.05
-        if (tab === 'EXP-6' && sub6 === '6B') return baseKi * parseFloat(level6)
-        return baseKi
-      })(),
-      kd1: (() => {
-        const baseKd = baseGains?.kd1 ?? gains?.kd1 ?? 0.07
-        if (tab === 'EXP-6' && sub6 === '6C') return baseKd * parseFloat(level6)
-        return baseKd
-      })(),
+      kp1: tab === 'EXP-6' && sub6 === '6A' ? bg.kp1 * parseFloat(level6) : bg.kp1,
+      ki1: tab === 'EXP-6' && sub6 === '6B' ? bg.ki1 * parseFloat(level6) : bg.ki1,
+      kd1: tab === 'EXP-6' && sub6 === '6C' ? bg.kd1 * parseFloat(level6) : bg.kd1,
       kp2: gains?.kp2 ?? 1.0,
       ki2: gains?.ki2 ?? 0.0,
       kd2: gains?.kd2 ?? 0.0,
-      p0X: 140.0,
-      p0Y: 45.0,
-      pfX: 60.0,
-      pfY: 155.0,
+      p0X: P0.x,
+      p0Y: P0.y,
+      pfX: PF.x,
+      pfY: PF.y,
       createdAt: Date.now(),
       status: 'ok' as 'ok' | 'retrying' | 'failed',
     }
@@ -656,8 +877,11 @@ export function ExperimentClient() {
       joint2ErrorMax: maxJ2,
       joint2ErrorRms: joint2_error_rms,
       joint2ErrorMin: minJ2,
-      settleTimeMs: settle_time_ms,
+      settleTimeMs: move_duration_ms,
       finalEefError: final_eef_error,
+      sigmaTheta1Hold: sigmaHoldRef.current,
+      eSs: e_ss,
+      moveDurationMs: move_duration_ms,
     }
 
     // ─── Offline Fallback ───────────────────────────────────────────────────
@@ -673,7 +897,9 @@ export function ExperimentClient() {
         direction: runPayload.direction,
         mate: mate_mean,
         mcte: mcte_mean,
-        settleTime: settle_time_ms,
+        moveDuration: move_duration_ms,
+        sigmaHold: sigmaHoldRef.current,
+        eSs: e_ss,
         status: 'ok',
       }
       setResults(prev => [...prev, cardResult])
@@ -709,7 +935,7 @@ export function ExperimentClient() {
         saveRes = await saveRun(runPayload, metricsPayload, alignedSamples, false)
 
         if (!saveRes.ok) {
-          addLog('❌ Database save failed after all retries. Continuing sequence.')
+          addLog('❌ Database save failed after all retries. Backing up locally.')
           finalStatus = 'failed'
           runPayload.status = 'failed'
           await saveRun(runPayload, metricsPayload, alignedSamples, true)
@@ -730,7 +956,9 @@ export function ExperimentClient() {
       direction: runPayload.direction,
       mate: mate_mean,
       mcte: mcte_mean,
-      settleTime: settle_time_ms,
+      moveDuration: move_duration_ms,
+      sigmaHold: sigmaHoldRef.current,
+      eSs: e_ss,
       status: finalStatus,
     }
     setResults(prev => [...prev, cardResult])
@@ -744,16 +972,16 @@ export function ExperimentClient() {
       runRetryCountRef.current = 0
       runNeedRetryRef.current = false
     } else {
-      // Failed save: trigger save failure handler (which will retry the same slot)
+      // Failed save: trigger run failure handler (retries the same slot, aborts after cap)
       isProcessingRef.current = false
-      handleSaveFailure('Database save failed after all retries')
+      handleRunFailure('Database save failed after all retries')
       return
     }
 
     isProcessingRef.current = false
     startCooldown()
 
-  }, [gains, hmiState.params, direction, addLog, startCooldown, handleSaveFailure])
+  }, [gains, addLog, startCooldown, handleRunFailure, transition])
 
   // Local helper to generate alphanumeric run IDs
   const generateRunId = () => {
@@ -772,90 +1000,110 @@ export function ExperimentClient() {
 
     const parts = trimmed.split(',')
     const tag = parts[0]
+    const st = stateRef.current
+    const sequenceActive = st !== 'idle' && st !== 'complete'
 
-    // 1. Verify Command Echo (in waiting_for_ready state)
-    if (stateRef.current === 'waiting_for_ready' && echoCommandRef.current) {
-      const isCmdEcho = trimmed.includes(echoCommandRef.current.split(',')[0])
-      if (isCmdEcho) {
-        addLog(`✓ Received echo confirmation: ${trimmed}`)
-        if (echoTimeoutRef.current) clearTimeout(echoTimeoutRef.current)
-        
-        setTimeout(() => {
-          if (stateRef.current === 'waiting_for_ready') {
-            setState('positioning')
-            stateRef.current = 'positioning'
-            // Use successCountRef to derive direction — consistent with executeRunStep
-            const nextSuccessSlot = successCountRef.current + 1
-            const tab = activeTabRef.current
-            const fwd = computeIsForward(nextSuccessSlot, tab)
-            const posX = fwd ? 140 : 60
-            const posY = fwd ? 45 : 155
-            addLog(`Moving to start position (${posX}, ${posY}) for positioning...`)
-            serial.sendCommand(`move,${posX},${posY}`).catch(err => {
-              addLog(`❌ Position command failed: ${err}`)
-              stopSequence('Serial communication failure.')
-            })
-          }
-        }, 150)
+    // 0. Surface firmware errors — a rejected command would otherwise be invisible
+    if (trimmed.startsWith('ERR') && sequenceActive) {
+      addLog(`🔴 Firmware: ${trimmed}`)
+      if (st === 'waiting_for_ready' || st === 'positioning' || st === 'running') {
+        handleRunFailure(`Firmware rejected command: ${trimmed}`)
+        return
       }
     }
 
-    // 2. Capture M-packet (starts trajectory execution)
+    // 1. Capture M-packet (trajectory move accepted and started)
     if (tag === 'M') {
-      if (isTrajectoryRunningRef.current) {
+      if (st === 'running' && awaitingMRef.current) {
+        awaitingMRef.current = false
         mPacketReceivedRef.current = true
-        mPacketTimeRef.current = Date.now()
-        accumulatedDRef.current = []
-        accumulatedFRef.current = []
-        accumulatedERef.current = []
-        accumulatedTRef.current = []
-        addLog('✓ M-packet received. Recording telemetry...')
+        capturePhaseRef.current = 'move'
+        lastDWallClockRef.current = Date.now()
+        armWatchdog(WD_RUNNING_MS, 'no S-packet during trajectory')
+
+        // Telemetry stall detection while moving
+        if (stallIntervalRef.current) clearInterval(stallIntervalRef.current)
+        stallIntervalRef.current = setInterval(() => {
+          if (stateRef.current !== 'running' || !mPacketReceivedRef.current) {
+            clearInterval(stallIntervalRef.current!)
+            stallIntervalRef.current = null
+            return
+          }
+          if (Date.now() - lastDWallClockRef.current > TELEMETRY_STALL_MS) {
+            clearInterval(stallIntervalRef.current!)
+            stallIntervalRef.current = null
+            handleRunFailure(`Telemetry stalled (no D-packet for >${TELEMETRY_STALL_MS} ms)`)
+          }
+        }, 500)
+
+        addLog('✓ M-packet received. Recording trajectory telemetry...')
       }
     }
 
-    // 3. Capture S-packet (trajectory settled)
+    // 1b. MC-packet: L-shape intermediate reached, second leg starting
+    if (tag === 'MC') {
+      if (st === 'running' && mPacketReceivedRef.current) {
+        // Re-arm watchdog for the second leg; keep capture phase as 'move'
+        armWatchdog(WD_RUNNING_MS, 'no S-packet during L-shape second leg')
+        addLog('↪ L-shape intermediate reached — continuing to final target...')
+      }
+    }
+
+    // 2. Capture S-packet (trajectory settled)
     if (tag === 'S') {
-      if (stateRef.current === 'positioning') {
+      if (st === 'positioning') {
+        clearWatchdog()
         addLog('✓ S-packet received. Robot settled at start position.')
-        
+        const nextSuccessSlot = successCountRef.current + 1
+        const fwd = computeIsForward(nextSuccessSlot, activeTabRef.current)
         setTimeout(() => {
-          if (stateRef.current === 'positioning') {
-            isTrajectoryRunningRef.current = true
-            setState('running')
-            stateRef.current = 'running'
-            // Use successCountRef + computeIsForward for consistent direction
-            const nextSuccessSlot = successCountRef.current + 1
-            const tab = activeTabRef.current
-            const fwd = computeIsForward(nextSuccessSlot, tab)
-            const targetX = fwd ? 60 : 140
-            const targetY = fwd ? 155 : 45
-            addLog(`Executing trajectory: move,${targetX},${targetY}`)
-            serial.sendCommand(`move,${targetX},${targetY}`).catch(err => {
-              addLog(`❌ Trajectory command failed: ${err}`)
-              stopSequence('Serial communication failure.')
-            })
-          }
+          if (stateRef.current === 'positioning') enterHold(fwd)
         }, 300)
-      } else if (isTrajectoryRunningRef.current) {
+      } else if (st === 'running') {
         if (mPacketReceivedRef.current) {
-          addLog('✓ S-packet received. Trajectory run finished.')
-          isTrajectoryRunningRef.current = false
-          processAndSaveRun()
+          clearWatchdog()
+          if (stallIntervalRef.current) { clearInterval(stallIntervalRef.current); stallIntervalRef.current = null }
+          addLog(`✓ S-packet received. Capturing ${SETTLE_CAPTURE_MS / 1000}s post-settle window (e_ss)...`)
+          mPacketReceivedRef.current = false
+          capturePhaseRef.current = 'settle'
+          transition('settling')
+          if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
+          settleTimerRef.current = setTimeout(() => {
+            settleTimerRef.current = null
+            if (stateRef.current !== 'settling') return
+            capturePhaseRef.current = 'off'
+            processAndSaveRun()
+          }, SETTLE_CAPTURE_MS)
         } else {
           addLog('⚠️ S-packet received, but M-packet was never seen. Discarding.')
-          handleSaveFailure('M-packet missing')
+          handleRunFailure('M-packet missing')
         }
       }
     }
 
-    // 4. Capture Telemetry Samples (D, T, F, E)
-    if (isTrajectoryRunningRef.current && mPacketReceivedRef.current) {
+    // 3. Capture Telemetry Samples (D, T, F, E)
+    if (tag === 'T') {
+      const [, xi, yi, xa, ya] = parts.map(Number)
+      // Always track latest actual position (used for positioning-skip check)
+      if (Number.isFinite(xa) && Number.isFinite(ya)) {
+        lastActualPosRef.current = { x: xa, y: ya }
+      }
+      if (capturePhaseRef.current !== 'off') {
+        accumulatedTRef.current.push({
+          t_ms: lastSeenDTimeRef.current,
+          xi: xi ?? 0, yi: yi ?? 0, xa: xa ?? 0, ya: ya ?? 0,
+        })
+      }
+    } else if (capturePhaseRef.current !== 'off') {
+      const phase = capturePhaseRef.current
       if (tag === 'D') {
         const partsNum = parts.map(Number)
         const t = partsNum[1] || 0
         lastSeenDTimeRef.current = t
+        lastDWallClockRef.current = Date.now()
         accumulatedDRef.current.push({
           t,
+          phase,
           th1: partsNum[2] ?? 0, th2: partsNum[3] ?? 0,
           th1d: partsNum[4] ?? 0, th2d: partsNum[5] ?? 0,
           dth1: partsNum[6] ?? 0, dth2: partsNum[7] ?? 0,
@@ -863,12 +1111,6 @@ export function ExperimentClient() {
           pwm1: partsNum[10] ?? 0, vff1: partsNum[11] ?? 0,
           th1raw: partsNum[12] ?? 0, th2raw: partsNum[13] ?? 0,
           u1Total: partsNum[14] ?? 0,
-        })
-      } else if (tag === 'T') {
-        const [, xi, yi, xa, ya] = parts.map(Number)
-        accumulatedTRef.current.push({
-          t_ms: lastSeenDTimeRef.current,
-          xi: xi ?? 0, yi: yi ?? 0, xa: xa ?? 0, ya: ya ?? 0,
         })
       } else if (tag === 'F') {
         const [, time_ms, inertia1, coriolis1, gravity1, inertia2, coriolis2, gravity2, ff1_contrib, u1_total, integral1, delta_omega_ff, omega2_raw, integral2] = parts.map(Number)
@@ -887,7 +1129,7 @@ export function ExperimentClient() {
         })
       }
     }
-  }, [handleSaveFailure, processAndSaveRun, serial, stopSequence, addLog])
+  }, [handleRunFailure, processAndSaveRun, enterHold, transition, armWatchdog, clearWatchdog, addLog])
 
   // Attach serial log listener
   useEffect(() => {
@@ -899,56 +1141,135 @@ export function ExperimentClient() {
     return () => window.removeEventListener('hmi_rx', handleRx)
   }, [onLineReceived])
 
-  // Start sequence trigger
-  const startSequence = () => {
+  // ─── Start sequence: preflight checks, then the run loop ──────────────────
+  const startSequence = useCallback(async () => {
     if (serialStatus !== 'connected') {
       toast.error('Connect serial port before running experiments!')
       return
     }
+    // Reset sequence state
     setResults([])
     setSummary(null)
     setLogs([])
+    setAbortReason(null)
+    setPreflightChecks([])
     setSuccessCount(0)
     setTotalAttempts(0)
     successCountRef.current = 0
     totalAttemptsRef.current = 0
     runRetryCountRef.current = 0
+    runNeedRetryRef.current = false
+    runFailureLatchRef.current = false
     isProcessingRef.current = false
-    
-    addLog(`🚀 Starting automated sequence for ${activeTab}...`)
-    executeRunStep()
-  }
+    capturePhaseRef.current = 'off'
+
+    transition('preflight')
+    addLog(`🚀 Starting automated sequence for ${activeTabRef.current}. Running preflight checks...`)
+
+    const fail = (label: string, msg: string) => {
+      setCheck(label, false)
+      addLog(`❌ Preflight failed: ${msg}`)
+      toast.error(`Preflight failed: ${msg}`)
+      transition('idle')
+    }
+    const aborted = () => stateRef.current !== 'preflight'
+
+    try {
+      // 1. E-STOP: auto-resume if engaged (e.g. left over from a previous stop)
+      setCheck('E-STOP clear', null)
+      if (estoppedRef.current) {
+        addLog('E-STOP is active — sending resume...')
+        await serial.sendCommand('resume')
+        const cleared = await waitFor(() => !estoppedRef.current, 2000)
+        if (aborted()) return
+        if (!cleared) return fail('E-STOP clear', 'E-STOP still active after resume command.')
+      }
+      setCheck('E-STOP clear', true)
+
+      // 2. Mode: tden/trapen/atilt/td1r are MODE_TEST-only; move is rejected in IDLE
+      setCheck('Mode TEST', null)
+      if (currentModeRef.current !== 'TEST') {
+        addLog(`Firmware mode is ${currentModeRef.current ?? 'unknown'} — sending mode,test...`)
+        await serial.sendCommand('mode,test')
+        const ok = await waitFor(() => currentModeRef.current === 'TEST', 3000)
+        if (aborted()) return
+        if (!ok) return fail('Mode TEST', 'Firmware did not switch to MODE_TEST.')
+      }
+      setCheck('Mode TEST', true)
+
+      // 3. Plot stream: D-lines are only emitted when plot_enabled or moving —
+      //    required for the pre-move hold capture (σ_θ1)
+      setCheck('Plot stream', null)
+      await serial.sendCommand('plot,1')
+      setCheck('Plot stream', true)
+
+      // 4. Gains snapshot (fresh baseline for EXP-6 scaling + restore-on-exit)
+      setCheck('Gains snapshot', null)
+      await serial.sendCommand('getgains')
+      // Give the fresh G-packet time to arrive (gainsRef may hold a stale snapshot)
+      await new Promise(r => setTimeout(r, 400))
+      await waitFor(() => !!gainsRef.current, 2000)
+      if (aborted()) return
+      const g = gainsRef.current
+      if (g) {
+        const snap = { kp1: g.kp1, ki1: g.ki1, kd1: g.kd1 }
+        baseGainsRef.current = snap
+        setBaseGains(snap)
+        addLog(`Baseline gains: Kp1=${snap.kp1.toFixed(3)}, Ki1=${snap.ki1.toFixed(3)}, Kd1=${snap.kd1.toFixed(3)}`)
+        setCheck('Gains snapshot', true)
+      } else if (activeTabRef.current === 'EXP-6') {
+        return fail('Gains snapshot', 'No G-packet received — EXP-6 needs a gains baseline.')
+      } else {
+        addLog('⚠️ No gains received yet; using firmware defaults for logging.')
+        setCheck('Gains snapshot', true)
+      }
+
+      // 5. Workspace validation of the standard test path
+      setCheck('Workspace', null)
+      if (!isInWorkspace(P0.x, P0.y) || !isInWorkspace(PF.x, PF.y)) {
+        return fail('Workspace', `Test path endpoints outside workspace (r ${WS_R_MIN}–${WS_R_MAX} mm).`)
+      }
+      setCheck('Workspace', true)
+    } catch (err) {
+      return fail('Serial', `Serial write failed: ${err}`)
+    }
+
+    if (aborted()) return
+    addLog('✅ Preflight checks passed.')
+    executeRunStepRef.current()
+  }, [serialStatus, serial, addLog, setCheck, transition])
 
   // Calculate parameters description string for displays
   const getParamDescription = () => {
     const tab = activeTab
+
     let desc = ''
     let cmds = ''
-    
+
     const baseKp = baseGains?.kp1 ?? gains?.kp1 ?? 0.60
     const baseKi = baseGains?.ki1 ?? gains?.ki1 ?? 0.05
     const baseKd = baseGains?.kd1 ?? gains?.kd1 ?? 0.07
     let activeGains = `Kp1=${baseKp.toFixed(2)}, Ki1=${baseKi.toFixed(3)}, Kd1=${baseKd.toFixed(3)}`
 
     if (tab === 'EXP-1') {
-      desc = 'Evaluate the effect of the Tracking Differentiator (TD) filter in the feedback loop. J1/J2 TD Bandwidth is configured via parameters td1r/td2r.'
-      cmds = 'tden,1 (Runs 1-10, Cond A) | tden,0 (Runs 11-20, Cond B)'
+      desc = 'Evaluate the effect of the Tracking Differentiator (TD) filter in the feedback loop. All feedforward locked OFF (ffi=ffc=ffg=0) to isolate velocity estimation.'
+      cmds = 'tden,1 (Runs 1-10, Cond A) | tden,0 (Runs 11-20, Cond B) + lock: ffi,0 ffc,0 ffg,0'
     } else if (tab === 'EXP-2') {
-      desc = 'Evaluate the inertia moment compensation in the dynamic model. Compare the performance of active vs inactive inertia feedforward.'
+      desc = 'Evaluate the inertia moment compensation in the dynamic model. Locks: tden=1, trapen=1, ffc=0, ffg=0.'
       cmds = 'ffi,1.0 (Runs 1-10) | ffi,0.0 (Runs 11-20)'
     } else if (tab === 'EXP-3') {
-      desc = 'Evaluate the contribution of the Coriolis & Centrifugal force compensation feedforward at high speeds.'
+      desc = 'Evaluate the contribution of the Coriolis & Centrifugal force compensation feedforward. Locks: tden=1, trapen=1, ffi=1.0, ffg=0.'
       cmds = 'ffc,1.0 (Runs 1-10) | ffc,0.0 (Runs 11-20)'
     } else if (tab === 'EXP-4') {
-      desc = `Evaluate the model gravity compensation at tilt angle α = ${exp4Alpha}°. Compare active ffg (runs 1-3) vs inactive ffg (runs 4-6).`
+      desc = `Evaluate the model gravity compensation at tilt angle α = ${exp4Alpha}°. Locks: tden=1, trapen=1, ffi=1.0, ffc=1.0.`
       cmds = `atilt,${exp4Alpha} & ffg,1.0 (Runs 1-3) | ffg,0.0 (Runs 4-6)`
     } else if (tab === 'EXP-5') {
-      desc = 'Test the input trajectory filter. Compare Trapezoidal profile (Runs 1-10) vs Raw Step input (Runs 11-20).'
+      desc = 'Test the input trajectory filter. Compare Trapezoidal profile (Runs 1-10) vs Raw Step input (Runs 11-20). Locks: tden=1, all FF on.'
       cmds = 'trapen,1 (Runs 1-10) | trapen,0 (Runs 11-20)'
     } else if (tab === 'EXP-6') {
       const scale = parseFloat(exp6Level)
       const subLabel = exp6Sub === '6A' ? 'Kp1' : exp6Sub === '6B' ? 'Ki1' : 'Kd1'
-      desc = `Analyze the variation of gain ${subLabel} by ${exp6Level}x baseline. Baseline: Kp1=${baseKp.toFixed(2)}, Ki1=${baseKi.toFixed(3)}, Kd1=${baseKd.toFixed(3)}.`
+      desc = `Analyze the variation of gain ${subLabel} by ${exp6Level}x baseline. Baseline gains are re-captured at sequence start and restored afterwards. Locks: tden=1, trapen=1, all FF on.`
       cmds = `${subLabel.toLowerCase()},${(subLabel === 'Kp1' ? baseKp * scale : subLabel === 'Ki1' ? baseKi * scale : baseKd * scale).toFixed(3)}`
       activeGains = `Kp1=${(exp6Sub === '6A' ? baseKp * scale : baseKp).toFixed(3)}, Ki1=${(exp6Sub === '6B' ? baseKi * scale : baseKi).toFixed(3)}, Kd1=${(exp6Sub === '6C' ? baseKd * scale : baseKd).toFixed(3)}`
     }
@@ -958,7 +1279,8 @@ export function ExperimentClient() {
 
   const { desc: paramDesc, cmds: paramCmds, activeGains: paramGains } = getParamDescription()
   const currentExp = EXPERIMENTS.find(e => e.id === activeTab)
-  const totalRuns = activeTab === 'EXP-4' ? 6 : (activeTab === 'EXP-6' ? 10 : 20)
+  const totalRuns = computeTotalRuns(activeTab)
+  const sequenceActive = state !== 'idle' && state !== 'complete'
 
   return (
     <div className="flex h-screen bg-hmi-bg text-hmi-text overflow-hidden">
@@ -981,7 +1303,7 @@ export function ExperimentClient() {
             {EXPERIMENTS.map(e => (
               <button
                 key={e.id}
-                disabled={state !== 'idle' && state !== 'complete'}
+                disabled={sequenceActive}
                 onClick={() => {
                   setActiveTab(e.id)
                   setResults([])
@@ -992,7 +1314,7 @@ export function ExperimentClient() {
                   activeTab === e.id
                     ? 'bg-hmi-tab-active text-hmi-text border-l-2 border-hmi-ideal'
                     : 'text-hmi-muted hover:bg-hmi-grid/30 hover:text-hmi-text',
-                  (state !== 'idle' && state !== 'complete') && 'opacity-50 cursor-not-allowed'
+                  sequenceActive && 'opacity-50 cursor-not-allowed'
                 )}
               >
                 <span>{e.id}: {e.name}</span>
@@ -1074,7 +1396,18 @@ export function ExperimentClient() {
 
         {/* Content panel */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          
+
+          {/* Abort reason banner */}
+          {abortReason && (
+            <div className="bg-hmi-rec-on/10 border border-hmi-rec-on/40 rounded-lg p-3 flex items-center gap-3">
+              <span className="text-base">🛑</span>
+              <div>
+                <p className="text-xs font-bold text-hmi-rec-on uppercase tracking-wider">Sequence Aborted</p>
+                <p className="text-[11px] text-hmi-text">{abortReason}</p>
+              </div>
+            </div>
+          )}
+
           {/* Sub-tabs specific configurations */}
           {activeTab === 'EXP-4' && (
             <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-3 flex items-center justify-between">
@@ -1085,7 +1418,7 @@ export function ExperimentClient() {
                     key={a}
                     size="sm"
                     variant={exp4Alpha === a ? 'default' : 'outline'}
-                    disabled={state !== 'idle' && state !== 'complete'}
+                    disabled={sequenceActive}
                     onClick={() => { setExp4Alpha(a); setResults([]); setSummary(null); }}
                     className="h-7 text-xs font-semibold px-4"
                   >
@@ -1106,7 +1439,7 @@ export function ExperimentClient() {
                       key={sub}
                       size="sm"
                       variant={exp6Sub === sub ? 'default' : 'outline'}
-                      disabled={state !== 'idle' && state !== 'complete'}
+                      disabled={sequenceActive}
                       onClick={() => { setExp6Sub(sub); setResults([]); setSummary(null); }}
                       className="h-7 text-xs font-semibold px-4"
                     >
@@ -1124,7 +1457,7 @@ export function ExperimentClient() {
                       key={lvl}
                       size="sm"
                       variant={exp6Level === lvl ? 'default' : 'outline'}
-                      disabled={state !== 'idle' && state !== 'complete'}
+                      disabled={sequenceActive}
                       onClick={() => { setExp6Level(lvl); setResults([]); setSummary(null); }}
                       className="h-7 text-xs font-semibold px-4"
                     >
@@ -1197,7 +1530,7 @@ export function ExperimentClient() {
                           className="stroke-hmi-warn fill-transparent transition-all duration-1005 ease-linear"
                           strokeWidth="2.5"
                           strokeDasharray={125.6}
-                          strokeDashoffset={125.6 - (cooldownTime / 5) * 125.6}
+                          strokeDashoffset={125.6 - (cooldownTime / COOLDOWN_S) * 125.6}
                           strokeLinecap="round"
                         />
                       </svg>
@@ -1212,6 +1545,23 @@ export function ExperimentClient() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Preflight checklist */}
+          {preflightChecks.length > 0 && state !== 'idle' && (
+            <div className="bg-hmi-panel border border-hmi-grid rounded-lg px-4 py-2.5 flex items-center gap-4 flex-wrap">
+              <span className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider">Preflight:</span>
+              {preflightChecks.map(c => (
+                <span key={c.label} className={cn(
+                  'text-[10px] font-mono px-2 py-0.5 rounded border',
+                  c.ok === true ? 'text-hmi-ok border-hmi-ok/30 bg-hmi-ok/10' :
+                  c.ok === false ? 'text-hmi-rec-on border-hmi-rec-on/30 bg-hmi-rec-on/10' :
+                  'text-hmi-muted border-hmi-grid bg-hmi-bg/40'
+                )}>
+                  {c.ok === true ? '✓' : c.ok === false ? '✗' : '…'} {c.label}
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Progress Indicator — based on successCount */}
           {state !== 'idle' && (
@@ -1261,7 +1611,7 @@ export function ExperimentClient() {
 
           {/* Results Summary and Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
+
             {/* Status log terminal */}
             <Card className="bg-hmi-panel border-hmi-grid flex flex-col h-80 overflow-hidden">
               <CardHeader className="py-3 border-b border-hmi-grid">
@@ -1324,7 +1674,7 @@ export function ExperimentClient() {
                       </div>
 
                       {res.status !== 'failed' ? (
-                        <div className="flex gap-4 font-mono text-[10px]">
+                        <div className="flex gap-3 font-mono text-[10px] flex-wrap justify-end">
                           <div>
                             <span className="text-hmi-muted">MATE:</span>{' '}
                             <span className="font-bold text-hmi-ideal">{res.mate.toFixed(3)} mm</span>
@@ -1334,9 +1684,21 @@ export function ExperimentClient() {
                             <span className="font-bold text-hmi-ideal">{res.mcte.toFixed(3)} mm</span>
                           </div>
                           <div>
-                            <span className="text-hmi-muted">Settle:</span>{' '}
-                            <span className="font-bold text-hmi-text">{res.settleTime} ms</span>
+                            <span className="text-hmi-muted">Move:</span>{' '}
+                            <span className="font-bold text-hmi-text">{Math.round(res.moveDuration)} ms</span>
                           </div>
+                          {res.sigmaHold != null && (
+                            <div>
+                              <span className="text-hmi-muted">σθ1:</span>{' '}
+                              <span className="font-bold text-hmi-text">{(res.sigmaHold * 1000).toFixed(3)} mrad</span>
+                            </div>
+                          )}
+                          {res.eSs != null && (
+                            <div>
+                              <span className="text-hmi-muted">e_ss:</span>{' '}
+                              <span className="font-bold text-hmi-text">{res.eSs.toFixed(3)} mm</span>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <span className="font-bold text-hmi-rec-on uppercase font-mono text-[10px]">FAILED</span>

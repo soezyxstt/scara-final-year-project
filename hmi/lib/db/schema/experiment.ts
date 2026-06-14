@@ -57,6 +57,12 @@ export const experimentMetrics = sqliteTable('experiment_metrics', {
   joint2ErrorMin: real('joint2_error_min'),
   settleTimeMs: real('settle_time_ms'),
   finalEefError: real('final_eef_error'),
+  // σ_θ1 (rad) over the 2 s pre-move hold window — noise floor (EXP-1)
+  sigmaTheta1Hold: real('sigma_theta1_hold'),
+  // Mean EEF error (mm) over the 2 s post-settle window (EXP-4 e_ss)
+  eSs: real('e_ss'),
+  // Trajectory duration M→S in firmware clock (ms)
+  moveDurationMs: real('move_duration_ms'),
 })
 
 export const experimentSamples = sqliteTable('experiment_samples', {
@@ -91,6 +97,7 @@ export const experimentSamples = sqliteTable('experiment_samples', {
   ctcGravity2: real('ctc_gravity2'),
   omega2Raw: real('omega2_raw'),
   deltaOmegaFf: real('delta_omega_ff'),
+  phase: text('phase'), // 'hold' | 'move' | 'settle'
 })
 
 export type ExperimentRun = typeof experimentRuns.$inferSelect

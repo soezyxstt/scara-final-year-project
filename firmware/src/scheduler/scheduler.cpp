@@ -129,6 +129,8 @@ void allOutputsOff() {
   stepper2_active = false;
   is_moving       = false;
   pending_move    = false;
+  is_resting      = false;
+  rest_ticks      = 0;
 
   dTheta1_d  = dTheta2_d  = 0.0f;
   ddTheta1_d = ddTheta2_d = 0.0f;
@@ -259,6 +261,16 @@ void runControlLoop() {
     t_traj += DT;
   } else {
     FK(theta1_d, theta2_d, traj_x_cmd, traj_y_cmd);
+    if (is_resting) {
+      rest_ticks++;
+      if (rest_ticks >= CONTROL_FREQ) {
+        is_resting = false;
+        if (pending_move) {
+          pending_move = false;
+          startTrajectory(pending_x, pending_y, false, true);
+        }
+      }
+    }
   }
 
   // 3. Desired state (pass pre-advanced t — same t used for IK above)
@@ -276,5 +288,5 @@ void runControlLoop() {
   loop_duration_us = micros() - t_start;
 
   // 7. D-line to ring buffer (TX is handled by drainDLineBuffer in loop())
-  if (op_mode != MODE_IDLE && (plot_enabled || is_moving)) writeDLineToBuffer();
+  if (op_mode != MODE_IDLE && (plot_enabled || is_moving || is_resting)) writeDLineToBuffer();
 }

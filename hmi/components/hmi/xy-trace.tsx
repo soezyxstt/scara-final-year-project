@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { useHMI } from '@/lib/hmi-context'
+import { useHMI, useHMILiveRefs } from '@/lib/hmi-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Maximize2, Minimize2, Crosshair, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tooltip } from '@/components/ui/tooltip'
 import type { TPoint, HMIState } from '@/lib/hmi-types'
-import { checkStraightLineTrajectory, getCurrentPosition, isAngleValid } from '@/lib/trajectory-safety'
+import { checkStraightLineTrajectory, getCurrentPosition, isAngleValid, calculateIntermediatePoint } from '@/lib/trajectory-safety'
 import { toast } from 'sonner'
 import { downloadSingleGraph } from '@/lib/capture-utils'
 import { useTheme } from '@/components/hmi/theme-provider'
@@ -596,6 +596,7 @@ export function drawTrace(
   if (activeTarget && currentPos) {
     const safety = checkStraightLineTrajectory(currentPos, activeTarget, L_INNER, L_OUTER)
     const isPathSafe = safety.isValid
+    const isInnerViolation = !safety.isValid && safety.reason === 'inner_violation'
     
     const [cpx, cpy] = toPx(currentPos.x, currentPos.y)
     const [tpx, tpy] = toPx(activeTarget.x, activeTarget.y)
@@ -603,43 +604,34 @@ export function drawTrace(
     ctx.save()
     ctx.setLineDash([4, 4])
     ctx.lineWidth = 1.8
-    ctx.strokeStyle = isPathSafe 
+    ctx.strokeStyle = (isPathSafe || isInnerViolation)
       ? (isLight ? 'rgba(22, 163, 74, 0.65)' : 'rgba(34, 197, 94, 0.65)') 
       : (isLight ? 'rgba(220, 38, 38, 0.85)' : 'rgba(248, 113, 113, 0.85)')
     
-    ctx.beginPath()
-    ctx.moveTo(cpx, cpy)
-    ctx.lineTo(tpx, tpy)
-    ctx.stroke()
-    
-    // If the path crosses the inner dead zone, mark the intersection/vertex point
-    if (!isPathSafe && safety.reason === 'inner_violation') {
-      const dx = activeTarget.x - currentPos.x
-      const dy = activeTarget.y - currentPos.y
-      const a = dx * dx + dy * dy
-      if (a > 0) {
-        const b = 2 * (currentPos.x * dx + currentPos.y * dy)
-        const tVertex = Math.max(0, Math.min(1, -b / (2 * a)))
-        const vx = currentPos.x + tVertex * dx
-        const vy = currentPos.y + tVertex * dy
-        const [vpx, vpy] = toPx(vx, vy)
-        
-        // Draw red warning node at the closest point to origin
-        ctx.beginPath()
-        ctx.arc(vpx, vpy, 6, 0, Math.PI * 2)
-        ctx.fillStyle = COLORS.actual
-        ctx.fill()
-        ctx.strokeStyle = '#FFFFFF'
-        ctx.lineWidth = 1.2
-        ctx.stroke()
-        
-        // Exclamation point
-        ctx.fillStyle = '#FFFFFF'
-        ctx.font = 'bold 9px monospace'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText('!', vpx, vpy)
-      }
+    if (isInnerViolation) {
+      const pInt = calculateIntermediatePoint(currentPos, activeTarget, L_INNER, L_OUTER)
+      const [ipx, ipy] = toPx(pInt.x, pInt.y)
+      
+      // Draw split segments: current -> intermediate -> target
+      ctx.beginPath()
+      ctx.moveTo(cpx, cpy)
+      ctx.lineTo(ipx, ipy)
+      ctx.lineTo(tpx, tpy)
+      ctx.stroke()
+      
+      // Draw intermediate waypoint node
+      ctx.beginPath()
+      ctx.arc(ipx, ipy, 5, 0, Math.PI * 2)
+      ctx.fillStyle = isLight ? '#16A34A' : '#22C55E'
+      ctx.fill()
+      ctx.strokeStyle = '#FFFFFF'
+      ctx.lineWidth = 1.0
+      ctx.stroke()
+    } else {
+      ctx.beginPath()
+      ctx.moveTo(cpx, cpy)
+      ctx.lineTo(tpx, tpy)
+      ctx.stroke()
     }
     
     ctx.restore()
@@ -653,7 +645,8 @@ export function drawTrace(
     // Check reachability
     const r2 = x * x + y * y
     const safety = checkStraightLineTrajectory(currentPos, state.previewTarget, L_INNER, L_OUTER)
-    const isReachable = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && isAngleValid(x, y) && safety.isValid
+    const isAutoRoute = !safety.isValid && safety.reason === 'inner_violation'
+    const isReachable = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && isAngleValid(x, y) && (safety.isValid || isAutoRoute)
     const dotColor = isReachable ? COLORS.ok : COLORS.actual
     
     ctx.save()
@@ -692,7 +685,8 @@ export function drawTrace(
     // Check reachability and path safety
     const r2 = x * x + y * y
     const safety = checkStraightLineTrajectory(currentPos, hoverPoint, L_INNER, L_OUTER)
-    const isPathSafe = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && isAngleValid(x, y) && safety.isValid
+    const isAutoRoute = !safety.isValid && safety.reason === 'inner_violation'
+    const isPathSafe = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && isAngleValid(x, y) && (safety.isValid || isAutoRoute)
     const color = isPathSafe 
       ? (isLight ? 'rgba(22, 163, 74, 0.6)' : 'rgba(34, 197, 94, 0.7)') 
       : (isLight ? 'rgba(220, 38, 38, 0.6)' : 'rgba(248, 113, 113, 0.7)')
@@ -749,6 +743,7 @@ export function drawTrace(
 
 export function XYTrace() {
   const { state, dispatch } = useHMI()
+  const liveRefs = useHMILiveRefs()
   const { theme } = useTheme()
   const [isFocused, setIsFocused] = useState(false)
   const [showArm, setShowArm] = useState(true)
@@ -789,6 +784,25 @@ export function XYTrace() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const stateRef = useRef(state)
   const showArmRef = useRef(showArm)
+
+  // Merges committed React state with the still-pending serial queue so the
+  // canvas always draws the freshest data without waiting for the 100ms flush.
+  const getCanvasState = useCallback((): HMIState => {
+    const s = stateRef.current
+    if (s.recordingState !== 'REC') return s
+    const pendingT = liveRefs.tQueueRef.current
+    const pendingD = liveRefs.dQueueRef.current
+    if (pendingT.length === 0 && pendingD.length === 0) return s
+    return {
+      ...s,
+      tBuffer: pendingT.length > 0 ? [...s.tBuffer, ...pendingT] : s.tBuffer,
+      dBuffer: pendingD.length > 0 ? [...s.dBuffer, ...pendingD] : s.dBuffer,
+    }
+  }, [liveRefs])
+
+  // Stable ref so resize observer and other `[]`-dep effects never go stale.
+  const getCanvasStateRef = useRef(getCanvasState)
+  useEffect(() => { getCanvasStateRef.current = getCanvasState }, [getCanvasState])
   const [isPicking, setIsPicking] = useState(false)
   const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null)
 
@@ -837,7 +851,7 @@ export function XYTrace() {
       if (isFocused) {
         e.preventDefault()
         toast.promise(
-          downloadSingleGraph('xy', 'XY Workspace Trace', stateRef.current),
+          downloadSingleGraph('xy', 'XY Workspace Trace', getCanvasStateRef.current()),
           {
             loading: 'Exporting XY Workspace Trace...',
             success: 'Workspace trace downloaded successfully!',
@@ -864,9 +878,9 @@ export function XYTrace() {
   const draw = useCallback(() => {
     const canvas = canvasRef.current
     if (canvas) {
-      drawTrace(canvas, stateRef.current, showArm, hoverPoint, zoom, centerX, centerY)
+      drawTrace(canvas, getCanvasState(), showArm, hoverPoint, zoom, centerX, centerY)
     }
-  }, [showArm, hoverPoint, zoom, centerX, centerY, theme])
+  }, [getCanvasState, showArm, hoverPoint, zoom, centerX, centerY, theme])
 
   // Event Handlers for Panning & Zooming
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -915,7 +929,7 @@ export function XYTrace() {
     setCenterX(newCenterX)
     setCenterY(newCenterY)
     
-    drawTrace(canvas, stateRef.current, showArmRef.current, null, zoomRef.current, newCenterX, newCenterY)
+    drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, zoomRef.current, newCenterX, newCenterY)
   }
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -945,7 +959,7 @@ export function XYTrace() {
     setCenterX(newCenterX)
     setCenterY(newCenterY)
     
-    drawTrace(canvas, stateRef.current, showArmRef.current, isPicking ? coords : null, nextZoom, newCenterX, newCenterY)
+    drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, isPicking ? coords : null, nextZoom, newCenterX, newCenterY)
   }
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -956,7 +970,7 @@ export function XYTrace() {
     
     const canvas = canvasRef.current
     if (canvas) {
-      drawTrace(canvas, stateRef.current, showArmRef.current, null, 1.0, 0, 75)
+      drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, 1.0, 0, 75)
     }
   }
 
@@ -982,13 +996,9 @@ export function XYTrace() {
     
     const currentPos = getCurrentPosition(stateRef.current)
     const safety = checkStraightLineTrajectory(currentPos, coords, L_INNER, L_OUTER)
-    if (!safety.isValid) {
-      if (safety.reason === 'inner_violation') {
-        const minD = safety.minDistance ? safety.minDistance.toFixed(1) : 'unknown'
-        alert(`Invalid Trajectory: The straight-line path passes through the inner dead zone (passes at ${minD} mm, minimum is ${L_INNER} mm).`)
-      } else {
-        alert('Invalid Trajectory: Path is outside the reachable workspace.')
-      }
+    const isAutoRoute = !safety.isValid && safety.reason === 'inner_violation'
+    if (!safety.isValid && !isAutoRoute) {
+      alert('Invalid Trajectory: Path is outside the reachable workspace or violates angular limits.')
       return
     }
     
@@ -1006,7 +1016,7 @@ export function XYTrace() {
       const dpr = window.devicePixelRatio || 1
       canvas.width  = Math.floor(canvas.clientWidth * dpr)
       canvas.height = Math.floor(canvas.clientHeight * dpr)
-      drawTrace(canvas, stateRef.current, showArmRef.current, null, zoomRef.current, centerXRef.current, centerYRef.current)
+      drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, zoomRef.current, centerXRef.current, centerYRef.current)
     }
 
     const ro = new ResizeObserver(handleResize)
@@ -1019,6 +1029,8 @@ export function XYTrace() {
   }, []) // Empty dependencies ensure this runs once on mount
 
   // ── Throttled canvas redraw (10 Hz) ──────────────────────────────────
+  // getCanvasState merges state.tBuffer + live queue so every tick draws the
+  // most current data without waiting for the next 100ms React flush cycle.
   const rafIdRef = useRef<number | null>(null)
   useEffect(() => {
     const tick = () => {
@@ -1027,7 +1039,7 @@ export function XYTrace() {
         rafIdRef.current = null
         const canvas = canvasRef.current
         if (canvas) {
-          drawTrace(canvas, stateRef.current, showArmRef.current, hoverPoint, zoomRef.current, centerXRef.current, centerYRef.current)
+          drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, hoverPoint, zoomRef.current, centerXRef.current, centerYRef.current)
         }
       })
     }
@@ -1036,7 +1048,7 @@ export function XYTrace() {
       clearInterval(id)
       if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current)
     }
-  }, [hoverPoint]) // hoverPoint changes need immediate redraw
+  }, [hoverPoint]) // hoverPoint changes need immediate redraw; getCanvasState is accessed via stable ref
 
   // For non-live interactions (pick point, mode changes, zoom changes)
   useEffect(() => {
@@ -1180,7 +1192,7 @@ export function XYTrace() {
                   setZoom(nextZoom)
                   const canvas = canvasRef.current
                   if (canvas) {
-                    drawTrace(canvas, stateRef.current, showArmRef.current, null, nextZoom, centerXRef.current, centerYRef.current)
+                    drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, nextZoom, centerXRef.current, centerYRef.current)
                   }
                 }} 
                 className="h-5 w-5 p-0 border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
@@ -1198,7 +1210,7 @@ export function XYTrace() {
                   setZoom(nextZoom)
                   const canvas = canvasRef.current
                   if (canvas) {
-                    drawTrace(canvas, stateRef.current, showArmRef.current, null, nextZoom, centerXRef.current, centerYRef.current)
+                    drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, nextZoom, centerXRef.current, centerYRef.current)
                   }
                 }} 
                 className="h-5 w-5 p-0 border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
@@ -1217,7 +1229,7 @@ export function XYTrace() {
                   setCenterY(75)
                   const canvas = canvasRef.current
                   if (canvas) {
-                    drawTrace(canvas, stateRef.current, showArmRef.current, null, 1.0, 0, 75)
+                    drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, 1.0, 0, 75)
                   }
                 }} 
                 className={cn(

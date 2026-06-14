@@ -18,7 +18,10 @@ using namespace Params;
 //  startTrajectory
 // ============================================================
 
-void startTrajectory(float new_x, float new_y, bool allow_split) {
+void startTrajectory(float new_x, float new_y, bool allow_split, bool is_continuation) {
+  is_resting = false;
+  rest_ticks = 0;
+
   // Determine elbow config from current measured theta2
   if      (theta2 >  0.009f) elbow_config =  1;
   else if (theta2 < -0.009f) elbow_config = -1;
@@ -115,8 +118,8 @@ void startTrajectory(float new_x, float new_y, bool allow_split) {
   omega2_prev = 0.0f;
   // integral2 is frozen (not reset) when starting a move
 
-  // Emit M-packet
-  Serial.print("M,");
+  // Emit M-packet (MC for L-shape second leg — continuation, no buffer reset on HMI)
+  Serial.print(is_continuation ? "MC," : "M,");
   Serial.print(traj_x0 * 1000.0f, 3); Serial.print(",");
   Serial.print(traj_y0 * 1000.0f, 3); Serial.print(",");
   Serial.print(traj_xf * 1000.0f, 3); Serial.print(",");
@@ -196,23 +199,22 @@ void checkTrajectoryDone() {
   }
   if (!traj_time_done) return;
 
-  // Timeout guard
+  // Timeout guard — always cancels the L-shape and signals done (failure path)
   if ((t_traj - traj_tf) > TRAJ_MAX_OVERTIME) {
     Serial.println("WARN: trajectory timeout — forcing stop");
     is_moving      = false;
     traj_time_done = false;
+    pending_move   = false;
+    is_resting     = false;
     emitStopPacket();
-    if (pending_move) {
-      pending_move = false;
-      startTrajectory(pending_x, pending_y, false);
-    }
     return;
   }
 
   // Settle check against target IK
   float th1_f, th2_f;
   if (!IK(traj_xf, traj_yf, elbow_config, th1_f, th2_f)) {
-    is_moving = false;
+    is_moving    = false;
+    pending_move = false;
     emitStopPacket();
     return;
   }
@@ -227,10 +229,13 @@ void checkTrajectoryDone() {
   if (settle_ticks >= SETTLE_TICKS_REQ) {
     is_moving      = false;
     traj_time_done = false;
-    emitStopPacket();
     if (pending_move) {
-      pending_move = false;
-      startTrajectory(pending_x, pending_y, false);
+      // Intermediate waypoint of L-shape reached — rest, then fire second leg.
+      // Do NOT emit S here; the S will come after the final leg settles.
+      is_resting = true;
+      rest_ticks = 0;
+    } else {
+      emitStopPacket();
     }
   }
 }
@@ -260,75 +265,110 @@ bool checkPathCrossesInnerRadius(float x0, float y0, float xf, float yf, float r
 }
 
 // ============================================================
+//  isAngleValid
+// ============================================================
+bool isAngleValid(float x, float y) {
+  return !(y < -0.577350269f * fabsf(x));
+}
+
+// ============================================================
+//  ccw / intersect helpers for line intersection
+// ============================================================
+static bool ccw(float Ax, float Ay, float Bx, float By, float Cx, float Cy) {
+  return (Cy - Ay) * (Bx - Ax) > (By - Ay) * (Cx - Ax);
+}
+
+static bool intersect(float Ax, float Ay, float Bx, float By, float Cx, float Cy, float Dx, float Dy) {
+  return (ccw(Ax, Ay, Cx, Cy, Dx, Dy) != ccw(Bx, By, Cx, Cy, Dx, Dy)) &&
+         (ccw(Ax, Ay, Bx, By, Cx, Cy) != ccw(Ax, Ay, Bx, By, Dx, Dy));
+}
+
+// ============================================================
+//  pathCrossesForbiddenAngle
+// ============================================================
+bool pathCrossesForbiddenAngle(float x0, float y0, float xf, float yf) {
+  if (!isAngleValid(x0, y0) || !isAngleValid(xf, yf)) {
+    return true;
+  }
+  // Rays at -30 deg and 210 deg (lengths scaled to 0.2 meters)
+  float ray1End_x = 0.200f;  float ray1End_y = -0.1154700538f;
+  float ray2End_x = -0.200f; float ray2End_y = -0.1154700538f;
+  float origin_x = 0.0f;     float origin_y = 0.0f;
+
+  return intersect(x0, y0, xf, yf, origin_x, origin_y, ray1End_x, ray1End_y) ||
+         intersect(x0, y0, xf, yf, origin_x, origin_y, ray2End_x, ray2End_y);
+}
+
+// ============================================================
 //  calculateIntermediatePoint
 // ============================================================
 void calculateIntermediatePoint(float x0, float y0, float xf, float yf, float rMin, float rMax, float &x_int, float &y_int) {
-  float dx = xf - x0;
-  float dy = yf - y0;
-  float lenSq = dx * dx + dy * dy;
-  if (lenSq < 1e-8f) {
-    x_int = x0;
-    y_int = y0;
-    return;
-  }
+  float rSafe = 0.120f; // safe radius in meters (120 mm)
 
-  float t = - (x0 * dx + y0 * dy) / lenSq;
-  if (t < 0.0f) t = 0.0f;
-  if (t > 1.0f) t = 1.0f;
+  float theta0 = atan2f(y0, x0);
+  float theta1 = atan2f(yf, xf);
 
-  float vx = x0 + t * dx;
-  float vy = y0 + t * dy;
-  float vMag = sqrtf(vx * vx + vy * vy);
+  float thetaDiff = theta1 - theta0;
+  while (thetaDiff < -PI) thetaDiff += 2.0f * PI;
+  while (thetaDiff > PI)  thetaDiff -= 2.0f * PI;
 
-  float ux = 0.0f;
-  float uy = 1.0f;
-  if (vMag > 1e-5f) {
-    ux = vx / vMag;
-    uy = vy / vMag;
-  }
+  float cand1_angle = theta0 + thetaDiff / 2.0f;
+  float cand2_angle = cand1_angle + PI;
 
-  float r1 = sqrtf(x0 * x0 + y0 * y0);
-  float r2 = sqrtf(xf * xf + yf * yf);
+  // Normalize candidates to [-PI, PI]
+  while (cand1_angle < -PI) cand1_angle += 2.0f * PI;
+  while (cand1_angle > PI)  cand1_angle -= 2.0f * PI;
 
-  float rSafe1 = 0.0f;
-  float cosD1 = (r1 > 0.0f) ? (x0 * ux + y0 * uy) / r1 : 0.0f;
-  float sinD1Sq = 1.0f - cosD1 * cosD1;
-  if (sinD1Sq < 0.0f) sinD1Sq = 0.0f;
-  float a1 = r1 * r1 * sinD1Sq - rMin * rMin;
-  if (a1 > 0.0f) {
-    float b1 = 2.0f * r1 * rMin * rMin * cosD1;
-    float c1 = -r1 * r1 * rMin * rMin;
-    float disc = b1 * b1 - 4.0f * a1 * c1;
-    if (disc >= 0.0f) {
-      rSafe1 = (-b1 + sqrtf(disc)) / (2.0f * a1);
+  while (cand2_angle < -PI) cand2_angle += 2.0f * PI;
+  while (cand2_angle > PI)  cand2_angle -= 2.0f * PI;
+
+  float cands[2] = {cand1_angle, cand2_angle};
+  bool cand_valid[2] = {false, false};
+  float cand_x[2], cand_y[2];
+
+  for (int i = 0; i < 2; i++) {
+    cand_x[i] = rSafe * cosf(cands[i]);
+    cand_y[i] = rSafe * sinf(cands[i]);
+
+    // Check angle validity
+    if (!isAngleValid(cand_x[i], cand_y[i])) {
+      continue;
+    }
+
+    // Check if both segments are safe from inner radius and forbidden angle
+    bool path1_safe = !checkPathCrossesInnerRadius(x0, y0, cand_x[i], cand_y[i], rMin) &&
+                      !pathCrossesForbiddenAngle(x0, y0, cand_x[i], cand_y[i]);
+    bool path2_safe = !checkPathCrossesInnerRadius(cand_x[i], cand_y[i], xf, yf, rMin) &&
+                      !pathCrossesForbiddenAngle(cand_x[i], cand_y[i], xf, yf);
+
+    if (path1_safe && path2_safe) {
+      cand_valid[i] = true;
     }
   }
 
-  float rSafe2 = 0.0f;
-  float cosD2 = (r2 > 0.0f) ? (xf * ux + yf * uy) / r2 : 0.0f;
-  float sinD2Sq = 1.0f - cosD2 * cosD2;
-  if (sinD2Sq < 0.0f) sinD2Sq = 0.0f;
-  float a2 = r2 * r2 * sinD2Sq - rMin * rMin;
-  if (a2 > 0.0f) {
-    float b2 = 2.0f * r2 * rMin * rMin * cosD2;
-    float c2 = -r2 * r2 * rMin * rMin;
-    float disc = b2 * b2 - 4.0f * a2 * c2;
-    if (disc >= 0.0f) {
-      rSafe2 = (-b2 + sqrtf(disc)) / (2.0f * a2);
+  // Choose the best candidate
+  if (cand_valid[0] && cand_valid[1]) {
+    // Both are valid, choose the one with shorter path length
+    float d1 = sqrtf((cand_x[0] - x0)*(cand_x[0] - x0) + (cand_y[0] - y0)*(cand_y[0] - y0)) +
+               sqrtf((xf - cand_x[0])*(xf - cand_x[0]) + (yf - cand_y[0])*(yf - cand_y[0]));
+    float d2 = sqrtf((cand_x[1] - x0)*(cand_x[1] - x0) + (cand_y[1] - y0)*(cand_y[1] - y0)) +
+               sqrtf((xf - cand_x[1])*(xf - cand_x[1]) + (yf - cand_y[1])*(yf - cand_y[1]));
+    if (d1 <= d2) {
+      x_int = cand_x[0];
+      y_int = cand_y[0];
+    } else {
+      x_int = cand_x[1];
+      y_int = cand_y[1];
     }
+  } else if (cand_valid[0]) {
+    x_int = cand_x[0];
+    y_int = cand_y[0];
+  } else if (cand_valid[1]) {
+    x_int = cand_x[1];
+    y_int = cand_y[1];
+  } else {
+    // Fallback: 90 degrees at safe radius
+    x_int = 0.0f;
+    y_int = rSafe;
   }
-
-  float rSafe = rSafe1;
-  if (rSafe2 > rSafe) rSafe = rSafe2;
-  if (0.110f > rSafe) rSafe = 0.110f; // 110 mm default waypoint radius
-
-  rSafe += 0.005f; // 5 mm safety margin
-
-  float rMinLimit = rMin + 0.005f;
-  float rMaxLimit = rMax - 0.005f;
-  if (rSafe < rMinLimit) rSafe = rMinLimit;
-  if (rSafe > rMaxLimit) rSafe = rMaxLimit;
-
-  x_int = rSafe * ux;
-  y_int = rSafe * uy;
 }

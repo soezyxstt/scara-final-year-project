@@ -101,6 +101,9 @@ namespace TrajState {
   float pending_x    = 0.0f;
   float pending_y    = 0.0f;
 
+  bool  is_resting   = false;
+  int   rest_ticks   = 0;
+
   float dTheta1_d_prev_acc = 0.0f;
   float dTheta2_d_prev_acc = 0.0f;
 

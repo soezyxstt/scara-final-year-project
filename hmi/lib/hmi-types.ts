@@ -169,6 +169,7 @@ export type HMIAction =
   | { type: 'ONLINE_STATUS'; online: boolean }
   | { type: 'MODE_CHANGE'; payload: ESPMode }
   | { type: 'MOVE_START'; info: MoveInfo }
+  | { type: 'MOVE_CONTINUE'; info: MoveInfo }
   | { type: 'MOVE_END' }
   | { type: 'T_SAMPLE'; point: TPoint }
   | { type: 'D_SAMPLE'; sample: DSample }
