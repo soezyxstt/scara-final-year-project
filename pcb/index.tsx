@@ -250,28 +250,30 @@ export default () => (
     {/* =========================================================================
         GROUND PLANE — solid bottom-layer pour tied to net.GND
         =========================================================================
-        The boundary polygon constrains the pour to the inner area inside the
-        corner mounting holes. Keepout zones around each hole ensure adequate
-        copper clearance for assembly hardware.
+        The asymmetric 6-point boundary wraps around the noisy LM2596 buck
+        region (left side), eliminating the need for a separate keepout and
+        preventing dead copper slivers. Corner mounting holes get dedicated
+        circular keepouts for screw/standoff clearance.
         ========================================================================= */}
     <copperpour layer="bottom" connectsTo="net.GND" clearance="0.3mm"
       boundary={[
-        { x: -42, y: 29 },
-        { x: 42,  y: 29 },
-        { x: 42,  y: -29 },
-        { x: -42, y: -29 },
+        { x: 0.5,  y: 29 },   // upper-middle transition
+        { x: 42,   y: 29 },   // top-right corner
+        { x: 42,   y: -29 },  // bottom-right corner
+        { x: 0.5,  y: -29 },  // lower-middle transition
+        { x: 0.5,  y: -14 },  // lower notch entry
+        { x: -42,  y: -14 },  // lower-left limit (inside notch)
+        { x: -42,  y: 14 },   // upper-left limit (inside notch)
+        { x: 0.5,  y: 14 },   // upper notch exit
       ]}
     />
     {/* Keepout zones around corner mounting holes — prevents copper
         from approaching the screw holes, reducing the risk of shorts with
         standoffs or enclosure hardware. */}
-    <keepout pcbX={-44} pcbY={30} shape="circle" radius="6mm" features={{ copper: true }} />
-    <keepout pcbX={44}  pcbY={30} shape="circle" radius="6mm" features={{ copper: true }} />
-    <keepout pcbX={-44} pcbY={-30} shape="circle" radius="6mm" features={{ copper: true }} />
-    <keepout pcbX={44}  pcbY={-30} shape="circle" radius="6mm" features={{ copper: true }} />
-    {/* Keepout around the LM2596 buck module — large switching currents and
-        heat; the pour underneath would be thermally and electrically noisy. */}
-    <keepout pcbX={-24.5} pcbY={0} shape="rectangle" width="50mm" height="28mm" features={{ copper: true }} />
+    <keepout pcbX={-44} pcbY={30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
+    <keepout pcbX={44}  pcbY={30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
+    <keepout pcbX={-44} pcbY={-30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
+    <keepout pcbX={44}  pcbY={-30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
 
     {/* Section labels (silkscreen) */}
     <silkscreentext text="ESP32 BRAIN" pcbX={20} pcbY={28} fontSize={1.8} anchorAlignment="center" />
