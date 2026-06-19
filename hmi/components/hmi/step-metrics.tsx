@@ -129,7 +129,7 @@ export function StepMetrics() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Select value={signal} onValueChange={v => setSignal(v as SignalKey)}>
+          <Select value={signal} onValueChange={(v: string) => setSignal(v as SignalKey)}>
             <SelectTrigger className="w-28 h-7 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -139,7 +139,7 @@ export function StepMetrics() {
               <SelectItem value="th2">θ2</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={bandPct} onValueChange={v => setBandPct(v as '2' | '5')}>
+          <Select value={bandPct} onValueChange={(v: string) => setBandPct(v as '2' | '5')}>
             <SelectTrigger className="w-20 h-7 text-xs">
               <SelectValue />
             </SelectTrigger>

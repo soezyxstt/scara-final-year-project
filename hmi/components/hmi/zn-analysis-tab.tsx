@@ -135,16 +135,16 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
     }
   }, [])
 
-  // Persisted view mode state ('pos' | 'raw' | 'compare' | 'vel' | 'fft')
-  const [viewMode, setViewModeState] = useState<'pos' | 'raw' | 'compare' | 'vel' | 'fft'>(() => {
+  // Persisted view mode state ('pos' | 'raw' | 'compare' | 'vel' | 'ctrl' | 'fft')
+  const [viewMode, setViewModeState] = useState<'pos' | 'raw' | 'compare' | 'vel' | 'ctrl' | 'fft'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
-      return (params.get('view') as 'pos' | 'raw' | 'compare' | 'vel' | 'fft') || 'pos'
+      return (params.get('view') as 'pos' | 'raw' | 'compare' | 'vel' | 'ctrl' | 'fft') || 'pos'
     }
     return 'pos'
   })
 
-  const setViewMode = useCallback((newMode: 'pos' | 'raw' | 'compare' | 'vel' | 'fft') => {
+  const setViewMode = useCallback((newMode: 'pos' | 'raw' | 'compare' | 'vel' | 'ctrl' | 'fft') => {
     setViewModeState(newMode)
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
@@ -216,6 +216,10 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
               t2_raw: s.t2_raw ?? s.t2_actual ?? 0,
               v1: s.v1 ?? 0,
               v2: s.v2 ?? 0,
+              p1_out: s.p1_out ?? 0,
+              i1_out: s.i1_out ?? 0,
+              d1_out: s.d1_out ?? 0,
+              ff_total: s.ff_total ?? 0,
             }
           }).filter(Boolean) as ZNSample[]
           bufferRef.current = sanitized
@@ -257,6 +261,10 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
         t2_raw: number
         v1?: number
         v2?: number
+        p1_out?: number
+        i1_out?: number
+        d1_out?: number
+        ff_total?: number
       }
 
       const buffer = bufferRef.current
@@ -279,6 +287,10 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
         t2_raw:    rawSample.t2_raw ?? rawSample.t2_actual ?? 0,
         v1:        rawSample.v1 ?? 0,
         v2:        rawSample.v2 ?? 0,
+        p1_out:    rawSample.p1_out ?? 0,
+        i1_out:    rawSample.i1_out ?? 0,
+        d1_out:    rawSample.d1_out ?? 0,
+        ff_total:  rawSample.ff_total ?? 0,
       }
       buffer.push(sample)
     }
@@ -372,11 +384,20 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
     return chartData[chartData.length - 1]?.t ?? 0
   }, [isFrozen, frozenEndTime, chartData])
 
+  const u1max = state.params?.u1max ?? 255
+
   const visibleData = useMemo(() => {
     const minT = chartEndTime - 10
     const filtered = chartData.filter((d) => d.t >= minT && d.t <= chartEndTime)
-    return downsample(filtered, 500)
-  }, [chartData, chartEndTime])
+    const sampled = downsample(filtered, 500)
+    return sampled.map((d) => ({
+      ...d,
+      p1_norm: d.p1_out / u1max,
+      i1_norm: d.i1_out / u1max,
+      d1_norm: d.d1_out / u1max,
+      ff_norm: d.ff_total / u1max,
+    }))
+  }, [chartData, chartEndTime, u1max])
 
   // Get active dataset based on selection range or fallback to whole buffer for metrics calculation
   const getActiveSelection = (): ZNSample[] => {
@@ -464,6 +485,30 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
     return calculateAnalysis()
   }, [activeSelection, activeJoint])
 
+  // --- Control Action (P/I/D/FF) Metrics — Joint 1 (DC motor) only ---
+  const ctrlAnalysis = useMemo(() => {
+    if (activeSelection.length === 0) {
+      return { meanP: 0, meanI: 0, meanD: 0, meanFF: 0, rmsP: 0, rmsI: 0, rmsD: 0, rmsFF: 0 }
+    }
+    const n = activeSelection.length
+    const pVals = activeSelection.map((s) => s.p1_out / u1max)
+    const iVals = activeSelection.map((s) => s.i1_out / u1max)
+    const dVals = activeSelection.map((s) => s.d1_out / u1max)
+    const ffVals = activeSelection.map((s) => s.ff_total / u1max)
+    const mean = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / n
+    const rms = (arr: number[]) => Math.sqrt(arr.reduce((a, b) => a + b * b, 0) / n)
+    return {
+      meanP: mean(pVals),
+      meanI: mean(iVals),
+      meanD: mean(dVals),
+      meanFF: mean(ffVals),
+      rmsP: rms(pVals),
+      rmsI: rms(iVals),
+      rmsD: rms(dVals),
+      rmsFF: rms(ffVals),
+    }
+  }, [activeSelection, u1max])
+
   // Floating Latest values based on active tab
   const latestSample = chartData[chartData.length - 1]
   const posOverlayStr = latestSample
@@ -476,6 +521,10 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
 
   const velOverlayStr = latestSample
     ? `Velocity: ${(activeJoint === 1 ? latestSample.v1 : latestSample.v2).toFixed(2)}°/s`
+    : '--'
+
+  const ctrlOverlayStr = latestSample
+    ? `P: ${(latestSample.p1_out / u1max).toFixed(3)} | I: ${(latestSample.i1_out / u1max).toFixed(3)} | D: ${(latestSample.d1_out / u1max).toFixed(3)} | FF: ${(latestSample.ff_total / u1max).toFixed(3)}`
     : '--'
 
   // --- FFT Frequency Spectrum Calculation ---
@@ -778,7 +827,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
         
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-bold text-hmi-muted uppercase font-sans">Show:</span>
-          <Select value={viewMode} onValueChange={(val) => setViewMode(val as any)}>
+          <Select value={viewMode} onValueChange={(val: string) => setViewMode(val as any)}>
             <SelectTrigger className="w-60 h-7 text-xs bg-hmi-bg border-hmi-grid text-hmi-text-secondary">
               <SelectValue />
             </SelectTrigger>
@@ -787,6 +836,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
               <SelectItem value="raw">Raw ADC Position (Unfiltered)</SelectItem>
               <SelectItem value="compare">Position Comparison (Filtered vs Raw)</SelectItem>
               <SelectItem value="vel">Velocity</SelectItem>
+              <SelectItem value="ctrl">Control Action Analysis (P, I, D, FF)</SelectItem>
               <SelectItem value="fft">Frequency (FFT Spectrum)</SelectItem>
             </SelectContent>
           </Select>
@@ -811,12 +861,15 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                   {viewMode === 'raw' && 'Raw ADC Position (Unfiltered)'}
                   {viewMode === 'compare' && 'Comparison: Filtered vs Raw ADC Jitter'}
                   {viewMode === 'vel' && 'Joint Velocity'}
+                  {viewMode === 'ctrl' && 'Control Action Analysis (J1 P/I/D/FF)'}
                   {viewMode === 'fft' && 'Noise Frequency Spectrum'}
                 </span>
                 <span className="text-[10px] font-mono text-hmi-muted">
-                  {selectStart !== null && selectEnd !== null
-                    ? `Selection: ${Math.min(selectStart, selectEnd).toFixed(2)}s - ${Math.max(selectStart, selectEnd).toFixed(2)}s`
-                    : 'Drag on graph to freeze & compute stats'}
+                  {viewMode === 'ctrl'
+                    ? 'Joint 1 (DC motor) only — Joint 2 stepper is open-loop, no PID effort'
+                    : selectStart !== null && selectEnd !== null
+                      ? `Selection: ${Math.min(selectStart, selectEnd).toFixed(2)}s - ${Math.max(selectStart, selectEnd).toFixed(2)}s`
+                      : 'Drag on graph to freeze & compute stats'}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -839,6 +892,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
               {viewMode === 'raw' && rawOverlayStr}
               {viewMode === 'compare' && `${posOverlayStr} | ${rawOverlayStr}`}
               {viewMode === 'vel' && velOverlayStr}
+              {viewMode === 'ctrl' && ctrlOverlayStr}
               {viewMode === 'fft' && domFreqStr}
             </div>
 
@@ -879,30 +933,28 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                         onClick={handleLegendClick}
                         wrapperStyle={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 600, cursor: 'pointer', paddingBottom: '8px' }} 
                       />
-                      {!hiddenLines.t1_raw && (
-                        <Area
-                          type="linear"
-                          dataKey="t1_raw"
-                          stroke="#94a3b8"
-                          fill="#94a3b8"
-                          fillOpacity={0.15}
-                          strokeWidth={1.5}
-                          name="Raw ADC FFT Amplitude"
-                          isAnimationActive={false}
-                        />
-                      )}
-                      {!hiddenLines.t1_actual && (
-                        <Area
-                          type="linear"
-                          dataKey="t1_actual"
-                          stroke="#FF9800"
-                          fill="#FF9800"
-                          fillOpacity={0.15}
-                          strokeWidth={1.5}
-                          name="Filtered FFT Amplitude"
-                          isAnimationActive={false}
-                        />
-                      )}
+                      <Area
+                        type="linear"
+                        dataKey="t1_raw"
+                        stroke="#94a3b8"
+                        fill="#94a3b8"
+                        fillOpacity={0.15}
+                        strokeWidth={1.5}
+                        name="Raw ADC FFT Amplitude"
+                        isAnimationActive={false}
+                        hide={!!hiddenLines.t1_raw}
+                      />
+                      <Area
+                        type="linear"
+                        dataKey="t1_actual"
+                        stroke="#FF9800"
+                        fill="#FF9800"
+                        fillOpacity={0.15}
+                        strokeWidth={1.5}
+                        name="Filtered FFT Amplitude"
+                        isAnimationActive={false}
+                        hide={!!hiddenLines.t1_actual}
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 )
@@ -930,7 +982,12 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                       tick={AT}
                       axisLine={AL}
                       tickLine={false}
-                      tickFormatter={(v) => (v != null && !isNaN(Number(v))) ? (viewMode === 'vel' ? `${Number(v).toFixed(0)}°/s` : `${Number(v).toFixed(1)}°`) : ''}
+                      tickFormatter={(v) => {
+                        if (v == null || isNaN(Number(v))) return ''
+                        if (viewMode === 'vel') return `${Number(v).toFixed(0)}°/s`
+                        if (viewMode === 'ctrl') return Number(v).toFixed(2)
+                        return `${Number(v).toFixed(1)}°`
+                      }}
                       width={45}
                     />
                     <ChartTooltip
@@ -959,101 +1016,140 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
 
                     {viewMode === 'pos' && (
                       <>
-                        {!hiddenLines.t1_target && (
-                          <Line
-                            type="monotone"
-                            dataKey={activeJoint === 1 ? 't1_target' : 't2_target'}
-                            stroke="#06B6D4"
-                            strokeDasharray="4 4"
-                            strokeWidth={1.5}
-                            dot={false}
-                            name="Target Position (°)"
-                            isAnimationActive={false}
-                          />
-                        )}
-                        {!hiddenLines.t1_actual && (
-                          <Line
-                            type="monotone"
-                            dataKey={activeJoint === 1 ? 't1_actual' : 't2_actual'}
-                            stroke="#FF9800"
-                            strokeWidth={2}
-                            dot={false}
-                            name="Filtered Position (°)"
-                            isAnimationActive={false}
-                          />
-                        )}
+                        <Line
+                          type="monotone"
+                          dataKey={activeJoint === 1 ? 't1_target' : 't2_target'}
+                          stroke="#06B6D4"
+                          strokeDasharray="4 4"
+                          strokeWidth={1.5}
+                          dot={false}
+                          name="Target Position (°)"
+                          isAnimationActive={false}
+                          hide={!!hiddenLines.t1_target}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey={activeJoint === 1 ? 't1_actual' : 't2_actual'}
+                          stroke="#FF9800"
+                          strokeWidth={2}
+                          dot={false}
+                          name="Filtered Position (°)"
+                          isAnimationActive={false}
+                          hide={!!hiddenLines.t1_actual}
+                        />
                       </>
                     )}
 
                     {viewMode === 'raw' && (
                       <>
-                        {!hiddenLines.t1_raw && (
-                          <Line
-                            type="monotone"
-                            dataKey={activeJoint === 1 ? 't1_raw' : 't2_raw'}
-                            stroke="#94a3b8"
-                            strokeWidth={1.75}
-                            dot={false}
-                            name="Raw ADC Position (°)"
-                            isAnimationActive={false}
-                          />
-                        )}
+                        <Line
+                          type="monotone"
+                          dataKey={activeJoint === 1 ? 't1_raw' : 't2_raw'}
+                          stroke="#94a3b8"
+                          strokeWidth={1.75}
+                          dot={false}
+                          name="Raw ADC Position (°)"
+                          isAnimationActive={false}
+                          hide={!!hiddenLines.t1_raw}
+                        />
                       </>
                     )}
 
                     {viewMode === 'compare' && (
                       <>
-                        {!hiddenLines.t1_target && (
-                          <Line
-                            type="monotone"
-                            dataKey={activeJoint === 1 ? 't1_target' : 't2_target'}
-                            stroke="#06B6D4"
-                            strokeDasharray="4 4"
-                            strokeWidth={1.5}
-                            dot={false}
-                            name="Target Position (°)"
-                            isAnimationActive={false}
-                          />
-                        )}
-                        {!hiddenLines.t1_raw && (
-                          <Line
-                            type="monotone"
-                            dataKey={activeJoint === 1 ? 't1_raw' : 't2_raw'}
-                            stroke="#64748b"
-                            strokeOpacity={0.35}
-                            strokeWidth={1}
-                            dot={false}
-                            name="Raw ADC Position (Dimmed) (°)"
-                            isAnimationActive={false}
-                          />
-                        )}
-                        {!hiddenLines.t1_actual && (
-                          <Line
-                            type="monotone"
-                            dataKey={activeJoint === 1 ? 't1_actual' : 't2_actual'}
-                            stroke="#FF9800"
-                            strokeWidth={2}
-                            dot={false}
-                            name="Filtered Position (°)"
-                            isAnimationActive={false}
-                          />
-                        )}
+                        <Line
+                          type="monotone"
+                          dataKey={activeJoint === 1 ? 't1_target' : 't2_target'}
+                          stroke="#06B6D4"
+                          strokeDasharray="4 4"
+                          strokeWidth={1.5}
+                          dot={false}
+                          name="Target Position (°)"
+                          isAnimationActive={false}
+                          hide={!!hiddenLines.t1_target}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey={activeJoint === 1 ? 't1_raw' : 't2_raw'}
+                          stroke="#64748b"
+                          strokeOpacity={0.35}
+                          strokeWidth={1}
+                          dot={false}
+                          name="Raw ADC Position (Dimmed) (°)"
+                          isAnimationActive={false}
+                          hide={!!hiddenLines.t1_raw}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey={activeJoint === 1 ? 't1_actual' : 't2_actual'}
+                          stroke="#FF9800"
+                          strokeWidth={2}
+                          dot={false}
+                          name="Filtered Position (°)"
+                          isAnimationActive={false}
+                          hide={!!hiddenLines.t1_actual}
+                        />
                       </>
                     )}
 
                     {viewMode === 'vel' && (
                       <>
-                        {!hiddenLines.v1 && (
-                          <Line
-                            type="monotone"
-                            dataKey={activeJoint === 1 ? 'v1' : 'v2'}
-                            stroke="#10B981"
-                            strokeWidth={1.75}
-                            dot={false}
-                            name="Joint Velocity (°/s)"
-                            isAnimationActive={false}
-                          />
-                        )}
+                        <Line
+                          type="monotone"
+                          dataKey={activeJoint === 1 ? 'v1' : 'v2'}
+                          stroke="#10B981"
+                          strokeWidth={1.75}
+                          dot={false}
+                          name="Joint Velocity (°/s)"
+                          isAnimationActive={false}
+                          hide={!!hiddenLines.v1}
+                        />
+                      </>
+                    )}
+
+                    {viewMode === 'ctrl' && (
+                      <>
+                        <Line
+                          type="monotone"
+                          dataKey="p1_norm"
+                          stroke="#3B82F6"
+                          strokeWidth={1.5}
+                          dot={false}
+                          name="P Output (frac)"
+                          isAnimationActive={false}
+                          hide={!!hiddenLines.p1_norm}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="i1_norm"
+                          stroke="#A78BFA"
+                          strokeWidth={1.5}
+                          dot={false}
+                          name="I Output (frac)"
+                          isAnimationActive={false}
+                          hide={!!hiddenLines.i1_norm}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="d1_norm"
+                          stroke="#FF9800"
+                          strokeWidth={1.5}
+                          dot={false}
+                          name="D Output (frac)"
+                          isAnimationActive={false}
+                          hide={!!hiddenLines.d1_norm}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="ff_norm"
+                          stroke="#10B981"
+                          strokeWidth={1.5}
+                          strokeDasharray="3 3"
+                          dot={false}
+                          name="FF Output (frac)"
+                          isAnimationActive={false}
+                          hide={!!hiddenLines.ff_norm}
+                        />
                       </>
                     )}
                   </LineChart>
@@ -1226,6 +1322,68 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                   </span>
                   <span className="text-[9px] text-hmi-muted">Average velocity displacement rate</span>
                 </Card>
+              </div>
+            )}
+
+            {/* CTRL METRICS */}
+            {viewMode === 'ctrl' && (
+              <div className="flex flex-col gap-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-sans block">
+                  🎛️ Control Action Metrics (J1, fraction of U1_MAX)
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
+                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Mean P</span>
+                    <span className="text-sm font-mono font-bold text-blue-400">
+                      {ctrlAnalysis.meanP.toFixed(4)}
+                    </span>
+                  </Card>
+                  <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
+                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">RMS P</span>
+                    <span className="text-sm font-mono font-bold text-blue-400">
+                      {ctrlAnalysis.rmsP.toFixed(4)}
+                    </span>
+                  </Card>
+                  <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
+                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Mean I</span>
+                    <span className="text-sm font-mono font-bold text-violet-400">
+                      {ctrlAnalysis.meanI.toFixed(4)}
+                    </span>
+                  </Card>
+                  <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
+                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">RMS I</span>
+                    <span className="text-sm font-mono font-bold text-violet-400">
+                      {ctrlAnalysis.rmsI.toFixed(4)}
+                    </span>
+                  </Card>
+                  <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
+                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Mean D</span>
+                    <span className="text-sm font-mono font-bold text-amber-400">
+                      {ctrlAnalysis.meanD.toFixed(4)}
+                    </span>
+                  </Card>
+                  <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
+                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">RMS D</span>
+                    <span className="text-sm font-mono font-bold text-amber-400">
+                      {ctrlAnalysis.rmsD.toFixed(4)}
+                    </span>
+                  </Card>
+                  <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
+                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Mean FF</span>
+                    <span className="text-sm font-mono font-bold text-emerald-400">
+                      {ctrlAnalysis.meanFF.toFixed(4)}
+                    </span>
+                  </Card>
+                  <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
+                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">RMS FF</span>
+                    <span className="text-sm font-mono font-bold text-emerald-400">
+                      {ctrlAnalysis.rmsFF.toFixed(4)}
+                    </span>
+                  </Card>
+                </div>
+                <span className="text-[9px] text-hmi-muted font-sans">
+                  P/I/D/FF are normalized by U1_MAX ({u1max.toFixed(0)}) — same scale as PWM output.
+                </span>
               </div>
             )}
 

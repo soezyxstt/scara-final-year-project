@@ -241,10 +241,15 @@ export function J1CtrlChart() {
         ff1_contrib = bestF.ff1Contrib / u1max
       }
 
+      // PID-only contribution: u1_total minus the CTC feedforward and velocity feedforward terms
+      const vff1 = (d.vff1 ?? 0) / u1max
+      const pid1_total = u1_total - ff1_contrib - vff1
+
       return {
         t: (d.t - firstT) / 1000,
-        u1_total,
+        pid1_total,
         ff1_contrib,
+        vff1,
         pwm1_adj,
       }
     }), 500)
@@ -266,8 +271,9 @@ export function J1CtrlChart() {
             allowEscapeViewBox={{ x: false, y: false }}
           />
           <Legend verticalAlign="top" align="left" height={24} onClick={handleLegendClick} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans)', fontWeight: 600, paddingBottom: '4px', cursor: 'pointer' }} />
-          <Line type="linear" dataKey="u1_total"          stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="u1_total / u1max" hide={!!hidden.u1_total} />
+          <Line type="linear" dataKey="pid1_total"        stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="PID Total / u1max" hide={!!hidden.pid1_total} />
           <Line type="linear" dataKey="ff1_contrib"       stroke="var(--color-hmi-ideal)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="FF Contribution" strokeDasharray="3 3" hide={!!hidden.ff1_contrib} />
+          <Line type="linear" dataKey="vff1"              stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5}  dot={false} isAnimationActive={false} name="Velocity FF" strokeDasharray="5 2" hide={!!hidden.vff1} />
           <Line type="linear" dataKey="pwm1_adj"          stroke="var(--color-hmi-j1)" strokeWidth={1.25} dot={false} isAnimationActive={false} name="PWM / 255" connectNulls={false} opacity={0.75} hide={!!hidden.pwm1_adj} />
         </LineChart>
       </ResponsiveContainer>
@@ -1197,17 +1203,24 @@ function prepareAnalyzerData(
           }
           ff1_contrib = bestF.ff1Contrib / u1max
         }
+
+        // PID-only contribution: u1_total minus the CTC feedforward and velocity feedforward terms
+        const vff1 = (d.vff1 ?? 0) / u1max
+        const pid1_total = u1_total - ff1_contrib - vff1
+
         return {
           t: (d.t - firstT) / 1000,
-          u1_total,
+          pid1_total,
           ff1_contrib,
+          vff1,
           pwm1_adj,
         }
       })
 
       const series = [
-        { key: 'u1_total', name: 'u1_total / u1max', stroke: 'var(--color-hmi-pwm-pos)', type: 'line' as const },
+        { key: 'pid1_total', name: 'PID Total / u1max', stroke: 'var(--color-hmi-pwm-pos)', type: 'line' as const },
         { key: 'ff1_contrib', name: 'FF Contribution', stroke: 'var(--color-hmi-ideal)', type: 'line' as const, strokeDasharray: '3 3' },
+        { key: 'vff1', name: 'Velocity FF', stroke: 'var(--color-hmi-pwm-neg)', type: 'line' as const, strokeDasharray: '5 2' },
         { key: 'pwm1_adj', name: 'PWM / 255', stroke: 'var(--color-hmi-j1)', type: 'line' as const },
       ]
       return { rawData, series, yLabel: 'Fraction of max', defaultYDomain: ['auto', 'auto'] as [any, any] }
@@ -2185,7 +2198,7 @@ export function ChartPanel() {
       )}
 
       
-      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as any)} className="flex flex-col flex-1 min-h-0">
+      <Tabs value={activeTab} onValueChange={(val: string) => setActiveTab(val as any)} className="flex flex-col flex-1 min-h-0">
         {!isFocused && (
           <TabsList className="rounded-none border-b border-hmi-grid bg-hmi-panel px-2 py-0 h-9 shrink-0 flex items-center justify-between">
             <div className="flex items-center gap-0.5">

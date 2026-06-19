@@ -47,11 +47,11 @@ This monorepo integrates embedded control systems with a modern web dashboard:
 │
 ├── docs/                     # Sub-system documentation folder
 │   ├── firmware/
-│   │   └── readme.md         # ESP32 pinouts, modes, commands, and telemetry details
+│   │   └── readme.md         # ESP32 pinouts, modes, commands, telemetry, and parameter details
 │   └── hmi/
 │       ├── stack-and-architecture.md  # Tech stack, routes, nextauth boundary, serial loop
-│       ├── features-and-data-flow.md  # UI specifications, experiments EXP-1..6, local cache
-│       └── scara-hmi-context.md       # Deep technical details for reducer actions & symbols
+│       ├── features-and-data-flow.md  # UI specifications, experiments EXP-1..6, API endpoints, serial protocol
+│       └── scara-hmi-context.md       # Deep technical details for reducer actions, components, DB schemas
 │
 ├── firmware/                 # PlatformIO ESP32 Project
 │   ├── include/config.h      # COMPILE-TIME physical constants, geometry, and pin numbers
@@ -61,22 +61,32 @@ This monorepo integrates embedded control systems with a modern web dashboard:
 │   │   ├── control/          # CTC + Joint 1/2 controller calculations
 │   │   ├── sensors/          # ADC reading & Tracking Differentiator (TD) noise filter
 │   │   ├── kinematics/       # Forward & Inverse Kinematics, Jacobian calculations
-│   │   ├── trajectory/       # Straight-line trajectory generator (Trapezoidal profile)
-│   │   └── comms/            # Command parser and serial packet formatting
+│   │   ├── trajectory/       # Trapezoidal/constant-velocity trajectory, L-shape path splitting, settle detection
+│   │   ├── comms/            # Command parser (~40 commands), serial packet formatting, ring buffer
+│   │   ├── hal/              # HAL layer: ADC mapping, DC PWM, stepper pulse generation
+│   │   └── state/            # Robot state machine, param defaults, trajectory state, CTC state
 │   ├── platformio.ini        # PlatformIO configuration
 │   └── scara.bat             # Compile and upload scripts
 │
-└── hmi/                      # Next.js Web Application
-    ├── app/                  # App Router entry pages and API endpoints
-    ├── components/           # UI elements (Monitor, ZN Tuner, Analytics, console)
-    │   └── hmi/
-    │       └── readme-tab.tsx # In-app copy of documentation viewer
-    ├── lib/
-    │   ├── hmi-context.tsx   # Serial read loop, parser, global reducer state
-    │   ├── hmi-types.ts      # Telemetry interfaces
-    │   └── db/               # Turso connection, Drizzle schemas, database queries
-    ├── package.json          # Node dependencies list
-    └── drizzle.config.ts     # Drizzle ORM config
+├── hmi/                      # Next.js Web Application
+│   ├── app/                  # App Router entry pages and API endpoints
+│   ├── components/
+│   │   ├── dashboard/        # 10 historical analytics components (Trajectory, Velocity, PID, Feedforward, Metrics, Advanced, AI Copilot tabs)
+│   │   ├── hmi/              # 29 live monitoring components (Monitor, Analysis, ZN, Rest, Serial, etc.)
+│   │   └── ui/               # Radix + Tailwind primitive wrappers
+│   ├── lib/
+│   │   ├── hmi-context.tsx   # Serial read loop, parser, global reducer state
+│   │   ├── hmi-types.ts      # Telemetry interfaces
+│   │   ├── db/               # Turso connection, Drizzle schemas, database queries, backup
+│   │   ├── ai-client.ts      # Google Gen AI client with model fallback chain
+│   │   └── ...               # capture-utils, cte-utils, trajectory-safety, tuning-advisor, etc.
+│   ├── package.json          # Node dependencies list
+│   └── drizzle.config.ts     # Drizzle ORM config
+│
+└── shared/                   # Cross-project shared artifacts
+    └── telemetry/
+        ├── schema.json       # Telemetry schema definition
+        └── generate.mjs      # Auto-generates telemetry code from schema
 ```
 
 ---
@@ -89,10 +99,10 @@ The web interface is split into public and protected (Google OAuth required) rou
 | :--- | :--- | :--- |
 | **`/`** (Home) | `SCARA` | Live trajectory tracking, post-run diagnostics, rest analysis, and user guide. (Public) |
 | **`/zn`** | `ZN` | Joint-level Ziegler-Nichols auto-recommendation tuning workspace. (Public) |
-| **`/test`** | `TEST` | 26 runtime parameter editor and raw unfiltered sensor ADC visualizer. (Public) |
+| **`/test`** | `TEST` | 33 runtime parameter editor, raw unfiltered sensor ADC visualizer, and params tuner. (Public) |
 | **`/login`** | — | NextAuth Google sign-in portal. (Public) |
 | **`/hasil-eksperimen`**| — | Comparative data analytics table for completed sequences. (Public) |
-| **`/dashboard`** | — | Saved Runs History: overlay multiple trajectories & compare metrics. (Protected) |
+| **`/dashboard`** | — | Saved Runs History: overlay multiple trajectories, compare metrics, velocity, PID, feedforward, and AI Copilot analysis. (Protected) |
 | **`/eksperimen`** | `TEST` | Automation Suite: execute pre-coded EXP-1 to EXP-6 scripts. (Protected) |
 
 ---

@@ -51,7 +51,8 @@ void writeDLineToBuffer() {
       last_pwm1,
       vff1_out,
       theta1_raw, theta2_raw,
-      u1_total_out);
+      u1_total_out,
+      p1_out, i1_out, d1_out, ff1_contrib_out);
 
   dline_head = next_head;
 }
@@ -64,6 +65,10 @@ void drainDLineBuffer() {
   uint8_t drained = 0;
   while (dline_tail != dline_head && drained < 2) {
     DLineEntry &e = dline_buf[dline_tail];
+    // Only write if the whole entry fits the TX buffer; otherwise leave it
+    // queued and try next loop. Keeps this non-blocking so the control tick
+    // is never stalled waiting on UART.
+    if ((size_t)Serial.availableForWrite() < e.len) break;
     Serial.write((const uint8_t *)e.str, e.len);
     dline_tail = (dline_tail + 1) % DLINE_BUF_SIZE;
     drained++;
@@ -76,7 +81,7 @@ void drainDLineBuffer() {
 
 void emitGains() {
   char buf[128];
-  formatGainsPacket(buf, sizeof(buf), Kp1, Ki1, Kd1, Kp2, Ki2, Kd2, 16, FF_INERTIA, FF_CORIOLIS, FF_GRAVITY);
+  formatGainsPacket(buf, sizeof(buf), Kp1, Ki1, Kd1, Kp2, Ki2, Kd2, 8, FF_INERTIA, FF_CORIOLIS, FF_GRAVITY);
   Serial.print(buf);
 }
 

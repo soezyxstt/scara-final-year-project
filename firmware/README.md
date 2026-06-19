@@ -26,6 +26,15 @@ The web dashboard (`/hmi`) connects at **921600** baud and auto-switches firmwar
 | :--- | :--- | :--- |
 | `/` | `mode,scara` | Cartesian moves and trajectory monitoring |
 | `/zn` | `mode,zn` | Joint-level Ziegler-Nichols tuning |
-| `/test` | `mode,test` | Live parameter tuning and raw signal diagnostics |
+| `/test` | `mode,test` | Live parameter tuning (33 runtime constants) and raw signal diagnostics |
+| `/eksperimen` | `mode,test` | Automated experiment sequences (EXP-1 through EXP-6) |
+
+## Commands & Telemetry
+
+For the full command reference (~40 commands), see the [Full Firmware README](../docs/firmware/readme.md). Key categories:
+- **Global**: `ping`, `estop`, `resume`, `mode,<name>`, `getgains`, `getparams`, `clrgraph`, `plot,0/1`
+- **SCARA/TEST**: `move,X,Y`, PID gains (`kp1,ki1,kd1,kp2,ki2,kd2`), feedforward (`ffi,ffc,ffg`)
+- **ZN**: `t1,deg`, `t2,deg`, `dbtest`
+- **TEST only**: ~33 runtime parameter commands (`vmax`, `amax`, `td1r`, `td2r`, `tden`, `trapen`, `dben`, `dbrel`, `db2en`, `db2rel`, `kv1`, `vffmax`, `vffdv`, etc.)
 
 See the [HMI README](../hmi/README.md) or the in-app **README** tab for the full user guide.

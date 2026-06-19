@@ -33,6 +33,16 @@ export interface DSample {
   th1_raw: number
   /** Joint 2 raw ADC position before filter (rad) */
   th2_raw: number
+  /** Total J1 control effort before PWM mapping (same units as U1_MAX) */
+  u1_total: number
+  /** J1 proportional term output (effort units, same scale as u1_total) */
+  p1_out: number
+  /** J1 integral term output (effort units, same scale as u1_total) */
+  i1_out: number
+  /** J1 derivative term output (effort units, same scale as u1_total) */
+  d1_out: number
+  /** J1 CTC feedforward contribution (effort units, same scale as u1_total) */
+  ff1_contrib: number
 }
 
 export function parseDSample(parts: (string | number)[]): DSample {
@@ -50,6 +60,11 @@ export function parseDSample(parts: (string | number)[]): DSample {
     vff1: Number(parts[11] ?? 0) as number,
     th1_raw: Number(parts[12] ?? 0) as number,
     th2_raw: Number(parts[13] ?? 0) as number,
+    u1_total: Number(parts[14] ?? 0) as number,
+    p1_out: Number(parts[15] ?? 0) as number,
+    i1_out: Number(parts[16] ?? 0) as number,
+    d1_out: Number(parts[17] ?? 0) as number,
+    ff1_contrib: Number(parts[18] ?? 0) as number,
   }
 }
 
@@ -108,8 +123,16 @@ export interface AdvParams {
   u1max: number
   /** Fractional zero threshold */
   fzt: number
+  /** Fractional zero threshold during kickstart (pct of fzt) */
+  fztk: number
+  /** Kickstart reduction enabled */
+  kspen: number
   /** PWM deadband offset */
   pwm_db: number
+  /** Dynamic deadband moving enabled */
+  dbmen: number
+  /** Deadband engage scale when moving (0.1-1.0) */
+  dbens: number
   /** Tracking Differentiator J1 Bandwidth r */
   td1r: number
   /** Tracking Differentiator J2 Bandwidth r */
@@ -140,30 +163,22 @@ export interface AdvParams {
   td_enabled: number
   /** Is trapezoidal trajectory profiling enabled */
   trap_enabled: number
-  /** Fractional kickstart threshold (pct of fzt) */
-  fztk?: number
-  /** Kickstart reduction enabled */
-  kspen?: number
-  /** Dynamic deadband moving enabled */
-  dbmen?: number
-  /** Deadband engage scale when moving (0.1-1.0) */
-  dbens?: number
   /** Joint 2 Ki activation gate (rad) */
   ki2_gate: number
   /** Joint 2 deadband engage limit (rad) */
   db2en: number
   /** Joint 2 deadband release limit (rad) */
   db2rel: number
-  /** Error deadzone radius (rad) — errors below this are treated as zero in hold mode */
+  /** Joint 1 error deadzone in hold mode (rad) */
   err_dz: number
-  /** Integrator freeze threshold (rad) — integrator decays instead of accumulating below this */
+  /** Joint 1 integral freeze threshold near setpoint in hold mode (rad) */
   integral_freeze_thresh: number
-  /** KV velocity feedforward (fraction per rad/s) */
-  kvVel?: number;
-  /** Max absolute vff fraction (of U1_MAX) */
-  vffMaxFrac?: number;
-  /** Max per-tick change for vff (fraction of U1_MAX) */
-  vffDvMax?: number;
+  /** Velocity feedforward gain (fraction of U1_MAX per rad/s) */
+  kv_vel: number
+  /** Velocity feedforward max clamp (fraction of U1_MAX) */
+  vff_max_frac: number
+  /** Velocity feedforward rate limit per tick (fraction of U1_MAX) */
+  vff_dv_max: number
 }
 
 export function parseAdvParams(parts: (string | number)[]): AdvParams {
@@ -198,9 +213,9 @@ export function parseAdvParams(parts: (string | number)[]): AdvParams {
     db2rel: Number(parts[28] ?? 0) as number,
     err_dz: Number(parts[29] ?? 0) as number,
     integral_freeze_thresh: Number(parts[30] ?? 0) as number,
-    kvVel: Number(parts[31] ?? 0) as number,
-    vffMaxFrac: Number(parts[32] ?? 0) as number,
-    vffDvMax: Number(parts[33] ?? 0) as number,
+    kv_vel: Number(parts[31] ?? 0) as number,
+    vff_max_frac: Number(parts[32] ?? 0) as number,
+    vff_dv_max: Number(parts[33] ?? 0) as number,
   }
 }
 

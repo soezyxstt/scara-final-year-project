@@ -95,6 +95,14 @@ export interface ZNSample {
   v1: number
   /** Joint 2 velocity (deg/s) */
   v2: number
+  /** Joint 1 PID proportional term output (effort units, same scale as ff_total) */
+  p1_out: number
+  /** Joint 1 PID integral term output (effort units, same scale as ff_total) */
+  i1_out: number
+  /** Joint 1 PID derivative term output (effort units, same scale as ff_total) */
+  d1_out: number
+  /** Joint 1 total feedforward contribution: CTC + velocity FF (effort units) */
+  ff_total: number
 }
 
 export interface Gains {

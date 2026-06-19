@@ -6,6 +6,10 @@ import { cn } from '@/lib/utils'
 import { HelpCircle, ChevronRight, ChevronLeft } from 'lucide-react'
 import { useHMI } from '@/lib/hmi-context'
 
+// Persist tutorial state across page/component remounts (e.g. during Next.js router.push tab transitions)
+let g_tutorialOpen = false
+let g_tutorialStep = 0
+
 interface TourStep {
   targetSelector: string
   title: string
@@ -86,9 +90,18 @@ const TOUR_STEPS: TourStep[] = [
 
 export function HMITutorial() {
   const { state, dispatch } = useHMI()
-  const [stepIndex, setStepIndex] = useState(0)
-  const [isOpen, setIsOpen] = useState(false)
+  const [stepIndex, setStepIndex] = useState(g_tutorialStep)
+  const [isOpen, setIsOpen] = useState(g_tutorialOpen)
   const [rect, setRect] = useState<DOMRect | null>(null)
+
+  // Keep global tutorial state variables in sync with React state
+  useEffect(() => {
+    g_tutorialOpen = isOpen
+  }, [isOpen])
+
+  useEffect(() => {
+    g_tutorialStep = stepIndex
+  }, [stepIndex])
 
   // Retrieve current step details
   const step = TOUR_STEPS[stepIndex]
@@ -153,8 +166,12 @@ export function HMITutorial() {
   // Listen for custom trigger event (e.g. from Hamburger Settings Menu)
   useEffect(() => {
     const handleStart = () => {
+      g_tutorialOpen = true
+      g_tutorialStep = 0
       setStepIndex(0)
       setIsOpen(true)
+      // Switch back to the main Monitor tab where the tutorial controls are located
+      window.dispatchEvent(new CustomEvent('hmi_switch_tab', { detail: 'monitor' }))
     }
     window.addEventListener('hmi_start_tutorial', handleStart)
     return () => window.removeEventListener('hmi_start_tutorial', handleStart)

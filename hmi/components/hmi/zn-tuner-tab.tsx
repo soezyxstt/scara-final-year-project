@@ -231,6 +231,10 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
               t2_raw: s.t2_raw ?? s.t2_actual ?? 0,
               v1: s.v1 ?? 0,
               v2: s.v2 ?? 0,
+              p1_out: s.p1_out ?? 0,
+              i1_out: s.i1_out ?? 0,
+              d1_out: s.d1_out ?? 0,
+              ff_total: s.ff_total ?? 0,
             }
           }).filter(Boolean) as ZNSample[]
           bufferRef.current = sanitized
@@ -298,6 +302,10 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
         t2_raw:    rawSample.t2_raw ?? rawSample.t2_actual ?? 0,
         v1:        rawSample.v1 ?? 0,
         v2:        rawSample.v2 ?? 0,
+        p1_out:    0,
+        i1_out:    0,
+        d1_out:    0,
+        ff_total:  0,
       }
 
       buffer.push(sample)

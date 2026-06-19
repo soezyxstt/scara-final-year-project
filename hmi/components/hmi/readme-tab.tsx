@@ -522,7 +522,7 @@ export function ReadmeTab() {
             </ol>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 my-4">
               {[
-                { tab: 'Monitor', desc: 'Live XY trace, charts, metrics, and control panel' },
+                { tab: 'Monitor', desc: 'Live XY trace, charts, metrics, Run+Save, and control panel' },
                 { tab: 'Analysis', desc: 'Post-run phase portrait, CTC torques, and data table' },
                 { tab: 'Rest Analysis', desc: 'Step-response and rest-state telemetry analysis' },
                 { tab: 'README', desc: 'This guide — you are here' },
@@ -607,15 +607,16 @@ export function ReadmeTab() {
               <li>Under the **Move target** card, enter the final coordinate targets <InlineCode>Xf</InlineCode> and <InlineCode>Yf</InlineCode> in millimetres.</li>
               <li>Specify the Elbow direction. <InlineCode>Right (+1)</InlineCode> represents the standard elbow-up kinematics configuration; <InlineCode>Left (-1)</InlineCode> sets elbow-down.</li>
               <li>Click <InlineCode>Send Move</InlineCode> or press <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-300 font-mono">Enter</kbd> to transmit the command.</li>
+              <li>Alternatively, use the <strong>Run + Save</strong> button in the header to capture the current target coordinates, trigger the move, and save the full telemetry to the Turso database (requires Google sign-in).</li>
               <li>The canvas will update, tracing the planned path in blue and recording actual position data as it arrives.</li>
             </ol>
 
             <Callout type="info">
-              <strong>Geometric Workspace Envelope:</strong> The robot is constrained by physical linkages to an annular sector: radial distance <strong className="text-zinc-200">70mm to 170mm</strong> and angular limits <strong className="text-zinc-200">0° to 180°</strong>. Coordinates outside this region will fail inverse kinematics calculations on the ESP32.
+              <strong>Geometric Workspace Envelope:</strong> The robot is constrained by physical linkages to an annular sector: radial distance <strong className="text-zinc-200">70.7 mm to 170 mm</strong> and angular limits <strong className="text-zinc-200">-30° to 210°</strong>. Coordinates outside this region will fail inverse kinematics calculations on the ESP32.
             </Callout>
 
             <Callout type="danger">
-              <strong>Trajectory Safety Validation:</strong> The HMI includes a safety layer checking all straight-line moves. If a path crosses the inner singularity circle (R &lt; 70 mm), exceeds the outer reach (R &gt; 170 mm), or goes below the horizontal plane (Y &lt; 0), the HMI disables the move command, displays validation warning details in the Control Panel, and overlays a red warning path on the canvas.
+              <strong>Trajectory Safety Validation:</strong> The HMI includes a safety layer checking all straight-line moves. If a path crosses the inner singularity circle (R &lt; 70.7 mm), exceeds the outer reach (R &gt; 170 mm), or goes below the horizontal plane (Y &lt; 0), the HMI disables the move command, displays validation warning details in the Control Panel, and overlays a red warning path on the canvas.
             </Callout>
           </section>
 
@@ -632,7 +633,7 @@ export function ReadmeTab() {
               <Property name="IDLE" type="SAFE DEFAULT" description="All motors off. The firmware returns here after 8 seconds of serial silence unless ping is sent." />
               <Property name="SCARA" type="HOME PAGE" description="Full Cartesian operation. Send move,X,Y from the Control Panel. Used on the home page (/)." />
               <Property name="ZN" type="ZN PAGE" description="Joint-level tuning. Send t1,deg or t2,deg step commands. Used on /zn." />
-              <Property name="TEST" type="TEST PAGE" description="Like SCARA but all 26 runtime parameters are adjustable live. Used on /test." />
+              <Property name="TEST" type="TEST PAGE" description="Like SCARA but all 33 runtime parameters are adjustable live. Used on /test." />
             </PropertyList>
             <Callout type="warn">
               If the robot stops responding, check whether the mode badge shows <InlineCode>IDLE</InlineCode>. Click <InlineCode>Connect</InlineCode> or navigate to the correct page to restore the expected mode.
@@ -681,7 +682,7 @@ export function ReadmeTab() {
               The Test page adds engineering tools on top of the home feature set:
             </p>
             <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400 leading-relaxed">
-              <li><strong>Params Tuner</strong> — adjust all 26 runtime constants (velocity limits, filter bandwidths, deadbands, trajectory flags) live with sync status LEDs.</li>
+              <li><strong>Params Tuner</strong> — adjust all 33 runtime parameters (velocity limits, filter bandwidths, deadbands, trajectory flags, VFF gains) live with sync status LEDs.</li>
               <li><strong>Raw Signal Section</strong> — overlay unfiltered ADC readings on top of filtered position data to diagnose sensor noise.</li>
               <li>Same Monitor, Analysis, and Rest Analysis tabs as the home page.</li>
             </ul>
@@ -883,7 +884,10 @@ export function ReadmeTab() {
               <Property name="EEF Error & Velocity" type="CARTESIAN" description="End-effector Cartesian error and velocity profiles from the frozen trajectory run." />
               <Property name="PWM & Control Effort" type="ACTUATOR WORK" description="Motor drive signal and integrated control effort (∫|PWM|dt)." />
               <Property name="CTC Feedforward Torques" type="MODEL-BASED" description="Inertia, Coriolis, and gravity feedforward components per joint from the computed torque model." />
-              <Property name="Loop Duration" type="TIMING" description="Microcontroller control loop execution time in microseconds." />
+              <Property name="Control Internal" type="INTEGRATOR" description="J1 integrator buffer tracking — shows integral windup recovery." />
+              <Property name="Stepper Velocity" type="COMMAND SPEED" description="Command speeds of the stepper drive (J2)." />
+              <Property name="PID Breakdown" type="P, I, D TERMS" description="Joint 1 proportional, integral, and derivative term splits over the run." />
+              <Property name="Loop Duration" type="TIMING" description="Microcontroller control loop execution time in microseconds (~80 µs)." />
             </PropertyList>
           </section>
 
@@ -1001,7 +1005,7 @@ export function ReadmeTab() {
             </p>
             <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400 leading-relaxed">
               <li><strong>Clear Log</strong> — removes local console entries.</li>
-              <li><strong>Clear Graph</strong> — erases chart buffers and sends <InlineCode>clrgraph</InlineCode> to the firmware.</li>
+              <li><strong>Clear Graph</strong> — erases chart buffers and sends <InlineCode>clrgraph</InlineCode> to the firmware (keyboard shortcut: <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-300 font-mono">c</kbd>).</li>
             </ul>
             <Callout type="info">
               Firmware messages prefixed with <InlineCode>INFO:</InlineCode>, <InlineCode>WARN:</InlineCode>, or <InlineCode>ERR:</InlineCode> also appear as toast notifications in the bottom-right corner.
@@ -1212,20 +1216,21 @@ export function ReadmeTab() {
 
             <div className="space-y-6 mt-4">
               <div>
-                <p className="text-xs font-bold text-zinc-200 mb-1">M — Move start (sent once when a trajectory begins)</p>
-                <p className="text-xs text-zinc-400 mb-2">Informs the HMI to reset buffers and prepare to record telemetry.</p>
+                <p className="text-xs font-bold text-zinc-200 mb-1">M / MC — Move start / continuation (sent at trajectory start)</p>
+                <p className="text-xs text-zinc-400 mb-2"><InlineCode>M</InlineCode> informs the HMI to reset buffers and prepare to record telemetry. <InlineCode>MC</InlineCode> is used for the second leg of an L-shaped split path and does <em>not</em> reset HMI buffers.</p>
                 <CodeBlock
                   filename="Arduino Print Output"
-                  code={`Serial.print("M,");
-Serial.print(x0);   // start X mm (float)
+                  code={`// is_continuation = true for L-shape second leg -> MC, else M
+Serial.print(is_continuation ? "MC," : "M,");
+Serial.print(x0, 3);  // start X mm (float)
 Serial.print(",");
-Serial.print(y0);   // start Y mm (float)
+Serial.print(y0, 3);  // start Y mm (float)
 Serial.print(",");
-Serial.print(xf);   // target X mm (float)
+Serial.print(xf, 3);  // target X mm (float)
 Serial.print(",");
-Serial.println(yf); // target Y mm (float)`}
+Serial.println(yf, 3); // target Y mm (float)`}
                 />
-                <div className="mt-1"><span className="text-[10px] text-zinc-500 font-mono">Example: <InlineCode>M,0.00,120.00,100.00,80.00</InlineCode></span></div>
+                <div className="mt-1"><span className="text-[10px] text-zinc-500 font-mono">Example: <InlineCode>M,0.000,120.000,100.000,80.000</InlineCode> / <InlineCode>MC,100.000,80.000,150.000,50.000</InlineCode></span></div>
               </div>
 
               <div className="pt-4 border-t border-zinc-800/40">
@@ -1258,31 +1263,35 @@ Serial.println(ya, 2);`}
 
               <div className="pt-4 border-t border-zinc-800/40">
                 <p className="text-xs font-bold text-zinc-200 mb-1">D — Dynamics sample (500 Hz from firmware, downsampled to 50 Hz in HMI)</p>
-                <p className="text-xs text-zinc-400 mb-2">Joint-level sensor data for charts and Rest Analysis. Joint errors are computed by the HMI.</p>
+                <p className="text-xs text-zinc-400 mb-2">Joint-level sensor data with velocity feedforward and raw ADC readings. Joint errors are computed by the HMI.</p>
                 <CodeBlock
                   filename="Arduino Print Output"
-                  code={`// t       = timestamp (ms)
-// th1/th2 = actual joint angles (rad)
+                  code={`// t        = timestamp (ms)
+// th1/th2  = actual joint angles (rad)
 // th1d/th2d = desired joint angles (rad)
-// dth1/dth2 = actual velocities (rad/s)
-// dth1d/dth2d = desired velocities (rad/s)
-// pwm1    = J1 control output (-255 to 255)
+// v1/v2    = actual velocities (rad/s)
+// v1d/v2d  = desired velocities (rad/s)
+// pwm1     = J1 control output (-255 to 255)
+// vff1     = velocity feedforward contribution (V)
 // th1raw/th2raw = unfiltered ADC angles (rad)
+// u1_total = total J1 control voltage (V)
 Serial.print("D,");
-Serial.print(t);        Serial.print(",");
-Serial.print(th1, 4);   Serial.print(",");
-Serial.print(th2, 4);   Serial.print(",");
-Serial.print(th1d, 4);  Serial.print(",");
-Serial.print(th2d, 4);  Serial.print(",");
-Serial.print(dth1, 4);  Serial.print(",");
-Serial.print(dth2, 4);  Serial.print(",");
-Serial.print(dth1d, 4); Serial.print(",");
-Serial.print(dth2d, 4); Serial.print(",");
-Serial.print(pwm1);     Serial.print(",");
-Serial.print(th1raw, 4); Serial.print(",");
-Serial.println(th2raw, 4);`}
+Serial.print(t);         Serial.print(",");
+Serial.print(th1, 3);    Serial.print(",");
+Serial.print(th2, 3);    Serial.print(",");
+Serial.print(th1d, 3);   Serial.print(",");
+Serial.print(th2d, 3);   Serial.print(",");
+Serial.print(v1, 3);     Serial.print(",");
+Serial.print(v2, 3);     Serial.print(",");
+Serial.print(v1d, 3);    Serial.print(",");
+Serial.print(v2d, 3);    Serial.print(",");
+Serial.print(pwm1);      Serial.print(",");
+Serial.print(vff1, 3);   Serial.print(",");
+Serial.print(th1raw, 3); Serial.print(",");
+Serial.print(th2raw, 3); Serial.print(",");
+Serial.println(u1_total, 4);`}
                 />
-                <div className="mt-1"><span className="text-[10px] text-zinc-500 font-mono">Example: <InlineCode>D,125,0.7854,0.5236,0.7900,0.5260,0.12,0.08,0.14,0.09,180,0.7840,0.5220</InlineCode></span></div>
+                <div className="mt-1"><span className="text-[10px] text-zinc-500 font-mono">Example: <InlineCode>D,125,0.785,0.524,0.790,0.526,0.120,0.080,0.140,0.090,180,0.050,0.784,0.522,2.4500</InlineCode></span></div>
               </div>
 
               <div className="pt-4 border-t border-zinc-800/40">
@@ -1328,21 +1337,43 @@ Serial.println(integral2, 3);`}
               </div>
 
               <div className="pt-4 border-t border-zinc-800/40">
-                <p className="text-xs font-bold text-zinc-200 mb-1">K — Runtime parameters (26 fields, sent on request/boot)</p>
-                <p className="text-xs text-zinc-400 mb-2">Velocity/acceleration limits, filter bandwidths, deadbands, trajectory flags, and hold mode coefficients.</p>
+                <p className="text-xs font-bold text-zinc-200 mb-1">K — Runtime parameters (33 fields, sent on request/boot)</p>
+                <p className="text-xs text-zinc-400 mb-2">Velocity/acceleration limits, filter bandwidths, deadbands, trajectory flags, VFF gains, and hold mode coefficients.</p>
                 <CodeBlock
                   filename="Arduino Print Output"
-                  code={`// K,vmax,amax,cfreq,u1max,fzt,pwm_db,td1r,td2r,td_h,ddth,
-//   dben,dbrel,dbvel,hskp,hskd,idecay,taunom,m22ref,alpha_tilt_deg,
-//   td_enabled,trap_enabled,ki2_gate_rad,db2en,db2rel,err_dz,integral_freeze_thresh
+                  code={`// K,vmax,amax,cfreq,u1max,fzt,fztk,kspen,pwm_db,dbmen,dbens,
+//   td1r,td2r,td1h,ddth,dben,dbrel,dbvel,hskp,hskd,idecay,
+//   taunom,m22ref,alpha_tilt_deg,td_enabled,trap_enabled,
+//   ki2_gate_rad,db2en,db2rel,err_dz,integral_freeze_thresh,
+//   kv_vel,vff_max_frac,vff_dv_max
 Serial.print("K,");
-Serial.print(vmax, 3); Serial.print(","); // ... (all 26 parameters CSV)`}
+Serial.print(vmax, 3);    Serial.print(","); // velocity limit (m/s)
+Serial.print(amax, 3);    Serial.print(","); // acceleration limit (m/s²)
+Serial.print(cfreq);      Serial.print(","); // control frequency (Hz)
+Serial.print(u1max, 2);   Serial.print(","); // max control output (V)
+// ... (all 33 parameters CSV)`}
+                />
+              </div>
+
+              <div className="pt-4 border-t border-zinc-800/40">
+                <p className="text-xs font-bold text-zinc-200 mb-1">P — Position heartbeat (sent on demand via getgains/getparams)</p>
+                <p className="text-xs text-zinc-400 mb-2">Reports current end-effector FK position and joint angles.</p>
+                <CodeBlock
+                  filename="Arduino Print Output"
+                  code={`// x, y    = end-effector position (mm)
+// theta1   = Joint 1 angle (rad)
+// theta2   = Joint 2 angle (rad)
+Serial.print("P,");
+Serial.print(x, 3);      Serial.print(",");
+Serial.print(y, 3);      Serial.print(",");
+Serial.print(theta1, 4); Serial.print(",");
+Serial.println(theta2, 4);`}
                 />
               </div>
 
               <div className="pt-4 border-t border-zinc-800/40">
                 <p className="text-xs font-bold text-zinc-200 mb-1">Q — Trajectory Queue Status (sent on queue state changes)</p>
-                <p className="text-xs text-zinc-400 mb-2">Streams active trajectory queue target information.</p>
+                <p className="text-xs text-zinc-400 mb-2">Reports whether a second move is queued and its target coordinates.</p>
                 <CodeBlock
                   filename="Arduino Print Output"
                   code={`// pending_status = 1 if move is queued, 0 otherwise
@@ -1351,6 +1382,26 @@ Serial.print("Q,");
 Serial.print(pending_status); Serial.print(",");
 Serial.print(pending_x);      Serial.print(",");
 Serial.println(pending_y);`}
+                />
+              </div>
+
+              <div className="pt-4 border-t border-zinc-800/40">
+                <p className="text-xs font-bold text-zinc-200 mb-1">ESTOP — E-STOP status (sent on demand or state change)</p>
+                <p className="text-xs text-zinc-400 mb-2">Indicates whether the emergency stop latch is active.</p>
+                <CodeBlock
+                  filename="Arduino Print Output"
+                  code={`Serial.print("ESTOP,");
+Serial.println(estop_active ? "1" : "0");`}
+                />
+              </div>
+
+              <div className="pt-4 border-t border-zinc-800/40">
+                <p className="text-xs font-bold text-zinc-200 mb-1">X — Mode identifier (sent on boot, mode switch, and getgains)</p>
+                <p className="text-xs text-zinc-400 mb-2">Reports the current firmware operating mode name.</p>
+                <CodeBlock
+                  filename="Arduino Print Output"
+                  code={`Serial.print("X,");
+Serial.println(MODE_NAMES[op_mode]);  // e.g. "IDLE", "SCARA", "ZN", "TEST"`}
                 />
               </div>
 
@@ -1422,7 +1473,7 @@ Serial.println(loop_duration_us);`}
               <Property name="ffi,ffc,ffg" type="FEEDFORWARD" description="Set inertia, Coriolis, and gravity feedforward blend factors (0.0–1.0)." />
               <Property name="clrgraph" type="BUFFER CLEAR" description="Clear trajectory buffers on the HMI and firmware." />
               <Property name="t1,<deg> / t2,<deg>" type="ZN STEP" description="Set joint target angle in degrees (ZN and TEST modes)." />
-              <Property name="<param>,val" type="TEST PARAM" description="Set any of 26 runtime constants on the Test page (vmax, amax, td1r, td2r, etc.)." />
+              <Property name="<param>,val" type="TEST PARAM" description="Set any of 33 runtime parameters on the Test page (vmax, amax, td1r, td2r, kv1, vffmax, vffdv, etc.)." />
             </PropertyList>
           </section>
 
@@ -1526,25 +1577,27 @@ void loop() {
 
     // ── T Line: Send Trajectory coordinates
     Serial.print("T,");
-    Serial.print(xi, 2); Serial.print(",");
-    Serial.print(yi, 2); Serial.print(",");
-    Serial.print(xa, 2); Serial.print(",");
-    Serial.println(ya, 2);
+    Serial.print(xi, 3); Serial.print(",");
+    Serial.print(yi, 3); Serial.print(",");
+    Serial.print(xa, 3); Serial.print(",");
+    Serial.println(ya, 3);
 
     // ── D Line: Send detailed dynamics logs
     Serial.print("D,");
-    Serial.print(t);        Serial.print(",");
-    Serial.print(th1, 4);   Serial.print(",");
-    Serial.print(th2, 4);   Serial.print(",");
-    Serial.print(th1d, 4);  Serial.print(",");
-    Serial.print(th2d, 4);  Serial.print(",");
-    Serial.print(e1, 4);    Serial.print(",");
-    Serial.print(e2, 4);    Serial.print(",");
-    Serial.print(v1, 4);    Serial.print(",");
-    Serial.print(v2, 4);    Serial.print(",");
-    Serial.print(v1d, 4);   Serial.print(",");
-    Serial.print(v2d, 4);   Serial.print(",");
-    Serial.println(pwm1);
+    Serial.print(t);         Serial.print(",");
+    Serial.print(th1, 3);    Serial.print(",");
+    Serial.print(th2, 3);    Serial.print(",");
+    Serial.print(th1d, 3);   Serial.print(",");
+    Serial.print(th2d, 3);   Serial.print(",");
+    Serial.print(v1, 3);     Serial.print(",");
+    Serial.print(v2, 3);     Serial.print(",");
+    Serial.print(v1d, 3);    Serial.print(",");
+    Serial.print(v2d, 3);    Serial.print(",");
+    Serial.print(pwm1);      Serial.print(",");
+    Serial.print(0.0, 3);    Serial.print(",");  // vff1 placeholder
+    Serial.print(th1, 3);    Serial.print(",");  // th1raw placeholder
+    Serial.print(th2, 3);    Serial.print(",");  // th2raw placeholder
+    Serial.println(0.0, 4);                      // u1_total placeholder
 
     // ── Stop condition: Send S packet to complete run
     if (t > 3000) {  // 3 second trajectory simulation timeout

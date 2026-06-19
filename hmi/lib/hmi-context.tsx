@@ -721,6 +721,10 @@ function useSerial(
           const th1raw = Number.isFinite(partsNum[12]) ? partsNum[12] : th1
           const th2raw = Number.isFinite(partsNum[13]) ? partsNum[13] : th2
           const u1Total = Number.isFinite(partsNum[14]) ? partsNum[14] : 0
+          const p1Out = Number.isFinite(partsNum[15]) ? partsNum[15] : 0
+          const i1Out = Number.isFinite(partsNum[16]) ? partsNum[16] : 0
+          const d1Out = Number.isFinite(partsNum[17]) ? partsNum[17] : 0
+          const ff1Contrib = Number.isFinite(partsNum[18]) ? partsNum[18] : 0
 
           const RAD2DEG = 180 / Math.PI
 
@@ -747,6 +751,11 @@ function useSerial(
                 // Velocities (rad/s → deg/s)
                 v1:        dth1 * RAD2DEG,
                 v2:        dth2 * RAD2DEG,
+                // J1 PID/FF control action breakdown (effort units, same scale as u1Total)
+                p1_out:    p1Out,
+                i1_out:    i1Out,
+                d1_out:    d1Out,
+                ff_total:  ff1Contrib + vff1,
               }
             }))
           }

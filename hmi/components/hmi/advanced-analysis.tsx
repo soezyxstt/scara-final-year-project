@@ -160,7 +160,7 @@ export function FFTSection({
             {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
           </div>
           <div className="flex items-center gap-2">
-            <Select value={sig} onValueChange={v => setSig(v as FFTSignal)}>
+            <Select value={sig} onValueChange={(v: string) => setSig(v as FFTSignal)}>
               <SelectTrigger className="w-28 h-6 text-xs bg-hmi-btn border-hmi-grid text-hmi-text-secondary">
                 <SelectValue />
               </SelectTrigger>

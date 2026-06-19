@@ -22,7 +22,8 @@ import {
   Sliders,
   FolderClock,
   PlayCircle,
-  BarChart3
+  BarChart3,
+  Cpu
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -172,6 +173,15 @@ export function CommandPalette() {
       icon: <BarChart3 className="w-4 h-4 text-fuchsia-400" />,
       action: () => navigateTo('/hasil-eksperimen'),
       keywords: ['results', 'data', 'statistics', 'charts', 'recharts']
+    },
+    {
+      id: 'nav-pcb',
+      title: 'Controller PCB',
+      subtitle: 'Hardware documentation for the custom ESP32 + A4988 + LM2596 controller board.',
+      category: 'Page Navigation',
+      icon: <Cpu className="w-4 h-4 text-cyan-400" />,
+      action: () => navigateTo('/pcb'),
+      keywords: ['pcb', 'hardware', 'esp32', 'devkitc', 'a4988', 'lm2596', 'wiring', 'schematic']
     },
 
     // --- AKSI CEPAT HMI ---

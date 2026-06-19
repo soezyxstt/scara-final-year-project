@@ -22,16 +22,20 @@ For in-depth developer references, see the centralized documentation folder:
 | :--- | :--- | :--- |
 | `/` | `SCARA` | Primary dashboard — Monitor, Analysis, Rest Analysis, and README tabs |
 | `/zn` | `ZN` | Ziegler-Nichols joint tuning page with step commands and caliper analyzer |
-| `/test` | `TEST` | Engineering test bench — adds Params Tuner and Raw Signal sections |
+| `/test` | `TEST` | Engineering test bench — adds Params Tuner (33 parameters) and Raw Signal sections |
+| `/login` | — | Google OAuth sign-in portal |
+| `/dashboard` | — | Saved Runs History with comparison tabs (Trajectory, Velocity, PID, Feedforward, Metrics, Advanced, AI Copilot) — Protected |
+| `/eksperimen` | `TEST` | Automated experiment sequences (EXP-1 through EXP-6) — Protected |
+| `/hasil-eksperimen` | — | Comparative analytics table for completed sequences |
 
-All routes share a single `HMIProvider` serial session. Switch pages via the **☰ Settings** menu without disconnecting.
+All routes share a single `HMIProvider` serial session. Switch pages via the header menu without disconnecting.
 
 ---
 
 ## Home Page Tabs (`/`)
 
 ### 1. Monitor Tab
-* **XY Workspace Trace (`XYTrace`)**: Canvas-based 2D workspace with link segments ($l_1 = 100$ mm, $l_2 = 70$ mm), reach boundaries ($R = 170$ mm), inner singularity zone ($r = 70$ mm), ideal vs actual paths, ghost trail, and pick-point targeting.
+* **XY Workspace Trace (`XYTrace`)**: Canvas-based 2D workspace with link segments ($l_1 = 100$ mm, $l_2 = 70$ mm), reach boundaries ($R = 170$ mm), inner singularity zone ($r = 70.7$ mm), ideal vs actual paths, ghost trail, and pick-point targeting.
 * **Telemetry Charts (`ChartPanel`)**: Seven chart tabs — **CTE** (cross-tracking error), **ATE** (along-tracking error), joint **Position**, **Velocity**, **PID breakdown**, **J1 control**, and **J2 velocity**.
 * **Run Metrics (`MetricsPanel`)**: Post-run summary grid — Accuracy Index, MCTE, RMS ATE, error bias, RMSE per joint, control variance, jitter, and settling time.
 * **Tuning & Control Panel (`ControlPanel`)**: Coordinate moves, elbow configuration, dual-joint PID gains, feedforward blend factors, and microstepping.
@@ -43,7 +47,10 @@ Post-run diagnostics from frozen telemetry buffers:
 * **EEF Cartesian Error & Velocity** — expandable chart cards
 * **PWM Output & Control Effort** — actuator work metrics
 * **CTC Feedforward Torques** — inertia, Coriolis, and gravity components
-* **Loop Duration** — microcontroller execution time
+* **Control Internal** — J1 integrator buffer tracking
+* **Stepper Velocity** — command speeds of stepper drive
+* **PID Breakdown** — P, I, D term splits for Joint 1
+* **Loop Duration** — microcontroller execution time (~80 µs)
 * **Ideal vs Actual Data Table** — paginated sample table with CSV export
 
 ### 3. Rest Analysis Tab (`ZNAnalysisTab`)
@@ -66,7 +73,7 @@ Dedicated Ziegler-Nichols tuning workspace (`ZNTunerTab`):
 * Caliper selection analyzer computing $T_u$, $f_u$, and recommended PID rules
 
 ### Test Page (`/test`)
-Engineering mode with four tabs: Monitor, Analysis (includes `RawSignalSection`), Rest Analysis, and **Params Tuner** (`AdvTunerTab`) for all 26 runtime constants.
+Engineering mode with four tabs: Monitor, Analysis (includes `RawSignalSection`), Rest Analysis, and **Params Tuner** (`AdvTunerTab`) for all 33 runtime parameters.
 
 ---
 
@@ -76,7 +83,10 @@ Engineering mode with four tabs: Monitor, Analysis (includes `RawSignalSection`)
 * **Connect / Disconnect** — Web Serial port management with auto-reconnect
 * **Serial Monitor** — toggle bottom-sheet log panel
 * **E-STOP / RESUME** — emergency stop and motor re-enable
-* **☰ Settings Menu (`CaptureMenu`)** — display preferences, keyboard shortcuts, graph exports, and ZIP packaging
+* **Theme Toggle** — switch between dark and light mode
+* **Command Palette (Ctrl+K)** — quick action launcher
+* **Run + Save** — capture current target coordinates, initiate a move, and save telemetry to database
+* **☰ Settings Menu (`CaptureMenu`)** — display preferences, keyboard shortcuts, ghost trail opacity, angular units, graph exports, and ZIP packaging
 
 ---
 
@@ -101,11 +111,14 @@ Configurable via the settings menu. Defaults include tab switching (`1`/`2`/`3`)
 ## Technology Stack
 
 * **Framework**: Next.js v16 (App Router), React v19, TypeScript v5
-* **Styling**: Tailwind CSS v4 — industrial dark mode palette
+* **Database**: Turso (LibSQL edge SQLite) with Drizzle ORM v0.45
+* **Authentication**: NextAuth.js v5 with Google OAuth provider
+* **AI Copilot**: Google Gemini API with model fallback chain, Cloudflare KV for history
+* **Styling**: Tailwind CSS v4 — industrial dark mode palette (zinc bases)
 * **Hardware Interface**: Web Serial API at **921600** baud
 * **Graphics**: HTML5 Canvas (workspace) and Recharts v3.8.1 (telemetry)
 * **UI Primitives**: Radix UI, Sonner toasts, react-resizable-panels
-* **Packaging**: JSZip (client-side ZIP export)
+* **Packaging**: JSZip (client-side ZIP export of graphs, CSV, and SVG reports)
 
 ---
 
@@ -133,7 +146,8 @@ Open [http://localhost:3000](http://localhost:3000) or navigate to the live host
 1. Plug the ESP32 into a USB port.
 2. Click **Connect** in the header.
 3. Select the matching COM port in the browser popup.
-4. The HMI sends `getgains` and `getparams` on connect, and `ping` every few seconds to keep the firmware watchdog alive.
-5. Ensure firmware UART baud rate is **921600**.
+4. The HMI sends `getgains` and `getparams` on connect, and `ping` every 2 seconds to keep the firmware watchdog alive.
+5. On `/zn` and `/test` routes, the HMI sends `plot,1` to enable high-rate `D`-line telemetry. On `/`, it sends `plot,0` to reduce traffic.
+6. Ensure firmware UART baud rate is **921600**.
 
 For a step-by-step new-user walkthrough, open the **README** tab on the home page.

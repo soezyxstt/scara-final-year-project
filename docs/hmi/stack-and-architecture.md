@@ -31,42 +31,61 @@ This document outlines the software architecture, state lifecycle, routing topol
 hmi/
 ├── app/                              # Next.js Routing Modules
 │   ├── actions/
-│   │   └── experiment.ts             # Server Actions writing automated run results to Turso DB
+│   │   └── experiment.ts             # Server Actions writing experiment results to Turso DB
 │   ├── api/
-│   │   ├── auth/                     # NextAuth API callback routes
-│   │   │   └── [...nextauth]/route.ts
-│   │   └── runs/                     # Runs history REST endpoints
-│   │       ├── route.ts              # POST /api/runs (writes metadata, gains, and samples to DB)
-│   │       └── [id]/route.ts         # GET /api/runs/[id] (retrieves aligned runs data)
-│   ├── dashboard/                    # Runs history visualization workspace (/dashboard) - PROTECTED
-│   │   ├── page.tsx                  # Server component fetching meta-records list
-│   │   └── dashboard-content.tsx     # Comparison panel and selector interface
-│   ├── eksperimen/                   # Automation Sequencer (/eksperimen) - PROTECTED
+│   │   ├── auth/[...nextauth]/route.ts  # NextAuth API callback routes
+│   │   └── runs/
+│   │       ├── route.ts              # GET (list) / POST (create) runs
+│   │       ├── [id]/route.ts         # GET / DELETE individual run
+│   │       └── [id]/copilot/route.ts # POST streaming AI Copilot (Gemini)
+│   ├── dashboard/                    # /dashboard - PROTECTED
 │   │   ├── page.tsx
-│   │   └── experiment-client.tsx     # Experiment state loop machine and cooldown scheduler
-│   ├── hasil-eksperimen/             # Completed analytics viewer (/hasil-eksperimen) - PUBLIC
+│   │   └── dashboard-content.tsx
+│   ├── eksperimen/                   # /eksperimen - PROTECTED
+│   │   ├── page.tsx
+│   │   └── experiment-client.tsx
+│   ├── hasil-eksperimen/             # /hasil-eksperimen - PUBLIC
 │   │   ├── page.tsx
 │   │   └── results-client.tsx
-│   ├── login/                        # Google Auth portal (/login)
+│   ├── login/                        # /login - PUBLIC
 │   │   ├── page.tsx
 │   │   └── login-content.tsx
-│   ├── globals.css                   # Custom scrollbars, tailwind utility classes, themes
-│   ├── layout.tsx                    # React shell hosting NextAuth SessionProvider and global HMIProvider
-│   └── providers.tsx                 # HMIProvider wrapper keeping Serial connection persistence
+│   ├── zn/                           # /zn - PUBLIC
+│   │   ├── page.tsx
+│   │   └── zn-page-content.tsx
+│   ├── test/                         # /test - PUBLIC
+│   │   ├── page.tsx
+│   │   └── test-page-content.tsx
+│   ├── globals.css                   # Tailwind v4 theme, custom scrollbars, keyframes
+│   ├── layout.tsx                    # Root layout with SessionProvider + HMIProvider
+│   └── providers.tsx                 # HMIProvider wrapper (Serial, ModeRouter, KeybindingsHandler)
 ├── components/                       # React Components Layer
-│   ├── dashboard/                    # Historical analytics tabs (feedforward-tab, metrics-tab, pid-tab, etc.)
-│   ├── hmi/                          # Live dashboard tabs (monitor-tab, analysis-tab, zn-analysis-tab, readme-tab)
-│   └── ui/                           # Primitive wrappers
+│   ├── dashboard/                    # 10 components: trajectory-tab, velocity-tab, pid-tab, feedforward-tab, metrics-tab, advanced-tab, copilot-tab, chart-card, dashboard-xy-trace, run-selector
+│   ├── hmi/                          # 29 components: monitor-tab, analysis-tab, zn-analysis-tab, readme-tab, chart-panel, control-panel, xy-trace, serial-log, serial-terminal, capture-menu, capture-charts-host, command-palette, run-button, save-run-dialog, hmi-tutorial, theme-toggle, theme-provider, step-metrics, etc.
+│   ├── mode-badge.tsx                # Mode indicator component
+│   └── ui/                           # Radix + Tailwind primitive wrappers
 ├── lib/
+│   ├── actions/
+│   │   └── experiment.ts             # Experiment DB insert server actions
 │   ├── db/                           # Turso connection configs and Drizzle models
-│   │   ├── schema/
-│   │   │   └── experiment.ts         # Experiment data schemas
+│   │   ├── schema/experiment.ts      # Experiment schemas
+│   │   ├── backup.ts                 # Server-side JSONL backup writer
 │   │   ├── index.ts                  # SQL database client
-│   │   ├── queries.ts                # DB insertion and selection procedures
+│   │   ├── queries.ts                # DB queries (insert, select, delete runs)
 │   │   └── schema.ts                 # Runs, users, samples tables
+│   ├── ai-client.ts                  # Google Gen AI client with model fallback chain
+│   ├── capture-session.ts            # Export session state
+│   ├── capture-utils.ts              # ZIP/PNG/JPEG export helpers
+│   ├── cloudflare-services.ts        # Cloudflare KV REST client
+│   ├── cte-utils.ts                  # Cross/along tracking error computation
 │   ├── hmi-context.tsx               # Reducer actions, serial read loop, parser
 │   ├── hmi-types.ts                  # Data interfaces
-│   └── telemetry-types.ts            # Auto-generated telemetry types
+│   ├── keybindings-store.ts          # Keyboard shortcut persistence
+│   ├── localMean.ts                  # Local regression (LOESS) utility
+│   ├── telemetry-types.ts            # Auto-generated telemetry field types
+│   ├── trajectory-safety.ts          # Move validation rules
+│   ├── tuning-advisor.ts             # Rule-based PID suggestions
+│   └── utils.ts                      # Tailwind class helper (cn)
 ```
 
 ---

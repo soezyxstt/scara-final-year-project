@@ -482,7 +482,7 @@ export function DashboardXYTrace({ runs }: Props) {
             ctx.fillStyle = bodyCol
             ctx.fill()
             ctx.strokeStyle = borderCol
-            ctx.lineWidth = 1.2
+            ctx.lineWidth = 2.0
             ctx.stroke()
 
             if (coreCol && coreWidth) {
@@ -503,10 +503,10 @@ export function DashboardXYTrace({ runs }: Props) {
           bPx,
           aePx,
           12, // width
-          isLight ? 'rgba(240, 240, 240, 0.75)' : 'rgba(30, 30, 30, 0.75)', // body
-          hexToRgba(colors.j1, 0.3), // border
-          hexToRgba(colors.j1, 0.85), // core
-          2.5 // coreWidth
+          isLight ? '#F4F4F5' : '#2A2C31', // body (fully solid)
+          hexToRgba(colors.j1, 0.95), // border (solid, highly visible)
+          hexToRgba(colors.j1, 1.0), // core (fully solid)
+          3.0 // coreWidth
         )
 
         // Link 2 (outer arm, J2): l2 = 70mm, colored orange
@@ -514,10 +514,10 @@ export function DashboardXYTrace({ runs }: Props) {
           aePx,
           atPx,
           9, // width
-          isLight ? 'rgba(240, 240, 240, 0.75)' : 'rgba(30, 30, 30, 0.75)', // body
-          hexToRgba(colors.j2, 0.3), // border
-          hexToRgba(colors.j2, 0.85), // core
-          1.8 // coreWidth
+          isLight ? '#F4F4F5' : '#2A2C31', // body (fully solid)
+          hexToRgba(colors.j2, 0.95), // border (solid, highly visible)
+          hexToRgba(colors.j2, 1.0), // core (fully solid)
+          2.2 // coreWidth
         )
 
         // Joint pivots (Clean concentric circles with colored outlines and centers)

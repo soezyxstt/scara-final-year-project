@@ -40,7 +40,7 @@ export function SaveRunDialog({ open, onConfirm, onCancel }: Props) {
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => { if (!v) onCancel() }}>
+    <Dialog.Root open={open} onOpenChange={(v: boolean) => { if (!v) onCancel() }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/60 z-50 animate-[sheet-overlay-in_150ms_ease]" />
         <Dialog.Content

@@ -62,49 +62,98 @@ Below is the annotated directory tree detailing the purpose of every key file in
 ```text
 hmi/
 ├── app/                              # Next.js App Router Root Shell
-│   ├── globals.css                   # [Config] Tailwind CSS v4 Theme, Keyframes, Scrollbars
-│   ├── layout.tsx                    # [Entry] Root layout + Providers wrapper
-│   ├── providers.tsx                 # [Entry] HMIProvider, ModeRouter, KeybindingsHandler
-│   ├── page.tsx                      # [Entry] Home route → HMIRoot
-│   ├── zn/                           # Ziegler-Nichols Tuner route (/zn)
+│   ├── actions/
+│   │   └── experiment.ts             # Server actions for automated experiment DB writes
+│   ├── api/                          # REST API endpoints
+│   │   ├── auth/[...nextauth]/route.ts
+│   │   ├── runs/route.ts             # GET (list) / POST (create) runs
+│   │   ├── runs/[id]/route.ts        # GET / DELETE individual runs
+│   │   └── runs/[id]/copilot/route.ts # Streaming AI Copilot (Gemini)
+│   ├── dashboard/                    # Protected: /dashboard
+│   │   ├── page.tsx
+│   │   └── dashboard-content.tsx
+│   ├── eksperimen/                   # Protected: /eksperimen
+│   │   ├── page.tsx
+│   │   └── experiment-client.tsx
+│   ├── hasil-eksperimen/             # Public: /hasil-eksperimen
+│   │   ├── page.tsx
+│   │   └── results-client.tsx
+│   ├── login/                        # Public: /login
+│   │   ├── page.tsx
+│   │   └── login-content.tsx
+│   ├── zn/                           # Public: /zn
 │   │   ├── page.tsx
 │   │   └── zn-page-content.tsx
-│   └── test/                         # Engineering test bench route (/test)
-│       ├── page.tsx
-│       └── test-page-content.tsx
+│   ├── test/                         # Public: /test
+│   │   ├── page.tsx
+│   │   └── test-page-content.tsx
+│   ├── globals.css                   # [Config] Tailwind CSS v4 Theme, Keyframes, Scrollbars
+│   ├── layout.tsx                    # [Entry] Root layout + Providers wrapper
+│   └── providers.tsx                 # [Entry] HMIProvider, ModeRouter, KeybindingsHandler
 ├── components/                       # Shared Component Layer
-│   ├── hmi/                          # Core HMI Features & Views
-│   │   ├── advanced-analysis.tsx     # [UI/Logic] FFT, control effort, CTC torques, loop diagnostics
-│   │   ├── adv-tuner-tab.tsx         # [UI/Logic] 26 runtime constants tuner (Test page only)
-│   │   ├── analysis-tab.tsx          # [UI] Post-run diagnostics layout
-│   │   ├── capture-charts-host.tsx   # [Logic] Off-screen chart render host for exports
-│   │   ├── capture-menu.tsx          # [UI/Logic] Settings sidebar, exports, keybindings
-│   │   ├── chart-panel.tsx           # [UI] Telemetry charts + MetricsPanel
-│   │   ├── comparison-table.tsx      # [UI/Logic] CSV exporter and sample table
-│   │   ├── control-panel.tsx         # [UI/Logic] PID, moves, feedforward, microstepping
-│   │   ├── hmi-root.tsx              # [Entry] Home shell (Monitor/Analysis/Rest/README tabs)
-│   │   ├── keybindings-handler.tsx   # [Logic] Global keyboard shortcut listeners
-│   │   ├── mode-router.tsx           # [Logic] Auto mode,scara|zn|test per route
-│   │   ├── monitor-tab.tsx           # [UI] Live monitoring layout
-│   │   ├── params-report.tsx         # [UI] SVG system parameters report
-│   │   ├── phase-portrait.tsx        # [UI] Joint state-space θ vs θ̇ plot
-│   │   ├── raw-signal-section.tsx    # [UI] Raw ADC overlay (Test page)
-│   │   ├── readme-tab.tsx            # [UI] In-app user guide
-│   │   ├── serial-log.tsx            # [UI/Logic] Serial log console content
-│   │   ├── serial-terminal.tsx       # [UI] Bottom-sheet serial monitor shell
-│   │   ├── xy-trace.tsx              # [UI/Core] Canvas workspace map
-│   │   ├── zn-analysis-tab.tsx       # [UI/Logic] Rest Analysis tab
-│   │   └── zn-tuner-tab.tsx          # [UI/Logic] ZN page tuner workspace
+│   ├── dashboard/                    # Historical analytics (10 components)
+│   │   ├── trajectory-tab.tsx        # XY overlay of selected runs
+│   │   ├── velocity-tab.tsx          # Velocity & control comparison
+│   │   ├── pid-tab.tsx               # PID & CTE comparison
+│   │   ├── feedforward-tab.tsx       # Feedforward torque comparison
+│   │   ├── metrics-tab.tsx           # Side-by-side metrics table
+│   │   ├── advanced-tab.tsx          # Combined FFT + advanced metrics
+│   │   ├── copilot-tab.tsx           # AI Copilot analysis panel
+│   │   ├── chart-card.tsx            # Generic chart card wrapper
+│   │   ├── dashboard-xy-trace.tsx    # Dedicated XY trace for dashboard
+│   │   └── run-selector.tsx          # Run selection sidebar
+│   ├── hmi/                          # Core HMI Features & Views (29 components)
+│   │   ├── advanced-analysis.tsx     # FFT, control effort, CTC torques, loop diagnostics
+│   │   ├── adv-tuner-tab.tsx         # 33 runtime constants tuner (Test page only)
+│   │   ├── analysis-tab.tsx          # Post-run diagnostics layout
+│   │   ├── capture-charts-host.tsx   # Off-screen chart render host for exports
+│   │   ├── capture-menu.tsx          # Settings sidebar, exports, keybindings
+│   │   ├── chart-panel.tsx           # Telemetry charts + MetricsPanel (embedded)
+│   │   ├── command-palette.tsx       # Ctrl+K command palette
+│   │   ├── comparison-table.tsx      # CSV exporter and sample table
+│   │   ├── control-panel.tsx         # PID, moves, feedforward, microstepping
+│   │   ├── header.tsx                # Legacy header (unused)
+│   │   ├── hmi-root.tsx              # Home shell — inline header with mode badge, connect, ESTOP, theme, palette, run button
+│   │   ├── hmi-tutorial.tsx          # Onboarding tutorial overlay
+│   │   ├── keybindings-handler.tsx   # Global keyboard shortcut listeners
+│   │   ├── mode-router.tsx           # Auto mode,scara|zn|test per route
+│   │   ├── monitor-tab.tsx           # Live monitoring layout
+│   │   ├── params-report.tsx         # SVG system parameters report
+│   │   ├── phase-portrait.tsx        # Joint state-space vs plot
+│   │   ├── raw-signal-section.tsx    # Raw ADC overlay (Test page)
+│   │   ├── readme-tab.tsx            # In-app user guide
+│   │   ├── run-button.tsx            # Run + Save button
+│   │   ├── save-run-dialog.tsx       # Dialog for naming & saving runs
+│   │   ├── serial-log.tsx            # Serial log console content
+│   │   ├── serial-terminal.tsx       # Bottom-sheet serial monitor shell
+│   │   ├── step-metrics.tsx          # Step metrics for rest analysis
+│   │   ├── theme-provider.tsx        # Theme context provider (dark/light)
+│   │   ├── theme-toggle.tsx          # Theme toggle button
+│   │   ├── xy-trace.tsx              # Canvas workspace map
+│   │   ├── zn-analysis-tab.tsx       # Rest Analysis tab
+│   │   └── zn-tuner-tab.tsx          # ZN page tuner workspace
+│   ├── mode-badge.tsx                # ModeBadge component (at components/root)
 │   └── ui/                           # Atomic Radix + Tailwind Primitive Wrapper Components
 ├── hooks/
 │   └── use-heartbeat.ts              # Periodic ping to firmware watchdog
 ├── lib/                              # Core Logic & Utilities Layer
+│   ├── actions/
+│   │   └── experiment.ts             # Experiment DB insert server actions
+│   ├── db/                           # Turso DB layer
+│   │   ├── schema/experiment.ts      # Experiment run schemas
+│   │   ├── backup.ts                 # Server-side JSONL backup writer
+│   │   ├── index.ts                  # SQL database client
+│   │   ├── queries.ts                # DB insertion and selection procedures
+│   │   └── schema.ts                 # Runs, users, samples tables
+│   ├── ai-client.ts                  # Google Gen AI client with model fallback chain
 │   ├── capture-session.ts            # Export session state
 │   ├── capture-utils.ts              # ZIP/PNG/JPEG export helpers
+│   ├── cloudflare-services.ts        # Cloudflare KV REST client
 │   ├── cte-utils.ts                  # Cross/along tracking error computation
 │   ├── hmi-context.tsx               # Global reducer + Web Serial read-loop
 │   ├── hmi-types.ts                  # State and sample interfaces
 │   ├── keybindings-store.ts          # Keyboard shortcut persistence
+│   ├── localMean.ts                  # Local regression (LOESS) utility
 │   ├── telemetry-types.ts            # Auto-generated telemetry field types
 │   ├── trajectory-safety.ts          # Move validation rules
 │   ├── tuning-advisor.ts             # Rule-based PID suggestions
@@ -112,11 +161,11 @@ hmi/
 
 ### Core HMI Components (`components/hmi/`)
 
-#### 1. `HMIRoot` & `HMIShell`
+#### 1. `HMIRoot`
 *   **File Path**: [hmi-root.tsx](../../hmi/components/hmi/hmi-root.tsx)
-*   **Purpose**: Home page entry shell. Renders the header bar and manages tab state (`'monitor' | 'analysis' | 'rest' | 'readme'`). Serial connection and `HMIProvider` live in `app/providers.tsx` so they persist across route changes.
+*   **Purpose**: Home page entry shell. Renders an inline header bar and manages tab state (`'monitor' | 'analysis' | 'rest' | 'readme'`). Serial connection and `HMIProvider` live in `app/providers.tsx` so they persist across route changes.
 *   **Props**: None.
-*   **Controls/Renders**: Tab links, `ModeBadge`, Connect/Disconnect, Serial Monitor toggle, E-STOP/RESUME, and `CaptureMenu`.
+*   **Controls/Renders**: Tab links, `ModeBadge` (from `components/mode-badge.tsx`), Connect/Disconnect, Serial Monitor toggle, E-STOP/RESUME, `ThemeToggle`, `CommandPalette`, `RunButton`, and `CaptureMenu`.
 
 #### 2. `MonitorTab`
 *   **File Path**: [monitor-tab.tsx](../../hmi/components/hmi/monitor-tab.tsx)
@@ -135,7 +184,7 @@ hmi/
 *   **Purpose**: Visualizes the 2D Cartesian workspace of the SCARA arm, traces movements, draws joint links, and previews moves with safety indicators.
 *   **Props**: None.
 *   **Controls/Renders**:
-1. HTML5 `<canvas>` rendering: Outer reach limits ($R=170\text{ mm}$), inner singularity zone ($r=70\text{ mm}$), grid lines, ideal coordinate path (dashed blue), actual coordinate path (solid red), previous run ghost path (drawn with adjustable opacity loaded dynamically from `localStorage`), current destination flag (orange), and joint links (J1 in blue, J2 in orange).
+1. HTML5 `<canvas>` rendering: Outer reach limits ($R=170\text{ mm}$), inner singularity zone ($r=70.7\text{ mm}$), grid lines, ideal coordinate path (dashed blue), actual coordinate path (solid red), previous run ghost path (drawn with adjustable opacity loaded dynamically from `localStorage`), current destination flag (orange), and joint links (J1 in blue, J2 in orange).
 2. Safety reachability indicators: Red border and crossing alert markers drawn on canvas if the previewed straight-line move violates safety constraints.
 3. Toggles: Ghost Trail ON/OFF, Link skeleton overlay ON/OFF, Focus Mode (expands graph to full screen).
 4. Bottom-left status board: Displays live numerical Cartesian coordinate positions and deviation error.
@@ -192,19 +241,36 @@ hmi/
 *   **Props**: None.
 *   **Controls/Renders**: Renders a paginated table of raw data columns (Sample Index, Timestamp, Desired/Actual angles and errors, and Euclidean tooltip error) and an "Export CSV" trigger.
 
-#### 11. `SerialLog` & `SerialTerminalSheet`
+### Additional Components
+
+#### `SerialLog` & `SerialTerminalSheet`
 *   **File Paths**: [serial-log.tsx](../../hmi/components/hmi/serial-log.tsx), [serial-terminal.tsx](../../hmi/components/hmi/serial-terminal.tsx)
 *   **Purpose**: Resizable bottom-sheet serial monitor toggled from the header.
-*   **Controls/Renders**: Filters high-frequency `T`/`D` packets. Badges for `MOVE`, `DONE`, `GAINS`. Clear Log and Clear Graph (`clrgraph`) buttons.
+*   **Controls/Renders**: Filters high-frequency `D`, `T`, `F`, `E`, `B` packets. Badges for `MOVE` (`M`), `DONE` (`S`), `GAINS` (`G`), MODE (`X`). Clear Log and Clear Graph (`clrgraph` + `FLUSH_BUFFERS` dispatch). Filter toggle, expand-to-fullscreen.
+
+#### `ReadmeTab`
+*   **File Path**: [readme-tab.tsx](../../hmi/components/hmi/readme-tab.tsx)
+*   **Purpose**: In-app user guide with connection instructions, kinematics, ZN methodology.
+*   **Props**: None.
+
+#### `AdvTunerTab` (Test Page Only)
+*   **File Path**: [adv-tuner-tab.tsx](../../hmi/components/hmi/adv-tuner-tab.tsx)
+*   **Purpose**: Engineering params tuner on `/test` — syncs and tunes **33** runtime constants with inline status LEDs and trajectory queue panel (vmax, amax, cfreq, u1max, td1r, td2r, dben, dbrel, db2en, db2rel, kv1, vffmax, vffdv, etc.).
+*   **Props**: None.
+
+#### `ZNTunerTab` (`/zn` Page)
+*   **File Path**: [zn-tuner-tab.tsx](../../hmi/components/hmi/zn-tuner-tab.tsx)
+*   **Purpose**: Dedicated Ziegler-Nichols tuning workspace on the `/zn` route.
+*   **Props**: `isActive: boolean`.
 
 #### 12. `ReadmeTab`
 *   **File Path**: [readme-tab.tsx](../../hmi/components/hmi/readme-tab.tsx)
 *   **Purpose**: A local documentation tab containing user instructions, connection guides, mathematical explanations of the SCARA kinematics, ZN tuning methodology, and an example Arduino integration sketch.
 *   **Props**: None.
 
-#### 13. `AdvTunerTab` (Test Page Only)
+#### `AdvTunerTab` (Test Page Only)
 *   **File Path**: [adv-tuner-tab.tsx](../../hmi/components/hmi/adv-tuner-tab.tsx)
-*   **Purpose**: Engineering params tuner on `/test` — syncs and tunes 26 runtime constants with inline status LEDs and trajectory queue panel.
+*   **Purpose**: Engineering params tuner on `/test` — syncs and tunes **33** runtime parameters with inline status LEDs and trajectory queue panel.
 *   **Props**: None.
 
 #### 14. `ZNTunerTab` (`/zn` Page)
@@ -223,7 +289,32 @@ hmi/
 *   **Purpose**: Renders an industrial vector SVG diagnostic report containing all current controller constants, gains, loop parameters, and limits. Used for captures.
 *   **Props**: `width?: number`, `height?: number`.
 
-#### 16. `CaptureMenu`
+#### `CommandPalette`
+*   **File Path**: [command-palette.tsx](../../hmi/components/hmi/command-palette.tsx)
+*   **Purpose**: Ctrl+K command palette for quick actions (connect, disconnect, mode switch, tab switch).
+*   **Props**: None.
+
+#### `RunButton` & `SaveRunDialog`
+*   **File Paths**: [run-button.tsx](../../hmi/components/hmi/run-button.tsx), [save-run-dialog.tsx](../../hmi/components/hmi/save-run-dialog.tsx)
+*   **Purpose**: `RunButton` captures target coordinates from the control panel and initiates a trajectory move + DB save. `SaveRunDialog` prompts for a run name before saving to Turso.
+*   **Props**: None.
+
+#### `HmiTutorial`
+*   **File Path**: [hmi-tutorial.tsx](../../hmi/components/hmi/hmi-tutorial.tsx)
+*   **Purpose**: Onboarding tutorial overlay displayed on first visit. Steps through connecting, moving, and saving a run.
+*   **Props**: None.
+
+#### `ThemeToggle` & `ThemeProvider`
+*   **File Paths**: [theme-toggle.tsx](../../hmi/components/hmi/theme-toggle.tsx), [theme-provider.tsx](../../hmi/components/hmi/theme-provider.tsx)
+*   **Purpose**: Dark/light mode toggle and context provider using Tailwind `class` strategy. Persisted in `localStorage`.
+*   **Props**: None.
+
+#### `StepMetrics`
+*   **File Path**: [step-metrics.tsx](../../hmi/components/hmi/step-metrics.tsx)
+*   **Purpose**: Step response metrics calculator for rest analysis (rise time, settling time, overshoot, damping ratio, SNR).
+*   **Props**: None.
+
+#### `CaptureMenu`
 *   **File Path**: [capture-menu.tsx](../../hmi/components/hmi/capture-menu.tsx)
 *   **Purpose**: Slide-out configuration sidebar. Manages angular units preferences, workspace transparency settings, and exposes full diagnostics package bundling.
 *   **Props**: None.
@@ -325,7 +416,7 @@ Commands are written to the port's stream writer as raw strings terminated with 
 | `clrgraph` | `SerialLog` (Clear Graph button) | Purges trajectory buffers. |
 | `estop` | Header E-STOP button | Emergency stop — cuts motor outputs. |
 | `ffi,<val>` / `ffc,<val>` / `ffg,<val>` | `ControlPanel` | Feedforward blend factors (0–1). |
-| `<param>,<val>` | `AdvTunerTab` (Test page) | Sets any of 26 runtime constants (`vmax`, `amax`, `cfreq`, `td1r`, `td2r`, etc.). |
+| `<param>,<val>` | `AdvTunerTab` (Test page) | Sets any of 33 runtime parameters (`vmax`, `amax`, `cfreq`, `td1r`, `td2r`, `kv1`, `vffmax`, `vffdv`, etc.). |
 
 ---
 
@@ -458,30 +549,34 @@ export interface HMIState {
   serialStatus: 'connected' | 'reconnecting' | 'disconnected'
   portName: string | null                   // USB device COM port info
   online: boolean                           // Window navigator offline indicator
+  currentMode: ESPMode | null               // Active firmware mode (IDLE/SCARA/ZN/TEST) from X packet
   recordingState: 'REC' | 'IDLE' | 'WAITING' // Telemetry logging mode
-  moveCount: number                         // Index tracking total coordinates moves
+  moveCount: number                         // Index tracking total coordinate moves
   currentMove: MoveInfo | null              // Start / target values of active run
   dBuffer: DSample[]                        // Dynamic list of joint samples for active run
-  tBuffer: TPoint[]                         // Dynamic list of coordinates traces for active run
+  tBuffer: TPoint[]                         // Dynamic list of coordinate traces for active run
   fBuffer: FSample[]                        // Dynamic forces telemetry samples for active run
   eBuffer: ESample[]                        // Dynamic controller effort/duration samples for active run
-  prevTBuffer: TPoint[]                     // Faded layout trace data from the previous run
-  showGhost: boolean                        // Ghost overlays display indicator
+  prevTBuffer: TPoint[]                     // Previous run trace data (ghost overlay)
+  showGhost: boolean                        // Ghost overlay display toggle
   frozenD: DSample[]                        // Retained samples snapshot after move ends
   frozenT: TPoint[]                         // Retained coordinate snap after move ends
   frozenF: FSample[]                        // Retained forces telemetry snap after move ends
   frozenE: ESample[]                        // Retained controller effort/duration snap after move ends
-  stats: Stats | null                       // Computed max error/PWM details
+  stats: Stats | null                       // Computed metrics (accuracy index, errors, etc.)
   gains: Gains | null                       // PID values reported from the device
-  params: AdvParams | null                  // 26 runtime constants reported from the device
-  currentMode: ESPMode | null               // Active firmware mode (IDLE/SCARA/ZN/TEST)
-  estopped: boolean                         // E-STOP latch state from ESTOP packet
-  hasSyncedParams: boolean                  // Sync state flag indicating device params synch
-  queueStatus: { pendingStatus: number; pendingX: number; pendingY: number } | null // Trajectory queue status
+  params: AdvParams | null                  // 33 runtime constants reported from the device
+  hasSyncedParams: boolean                  // Sync state flag indicating device params synced
+  queueStatus: { pendingStatus: number; pendingX: number; pendingY: number } | null
   logLines: string[]                        // Terminal line logs list
-  previewTarget: { x: number; y: number } | null  // Real-time canvas hover target coordinates
-  bootPose: { x: number; y: number; th1: number; th2: number } | null  // Initial controller pose feedback
-  pickedTarget: { x: number; y: number } | null   // Coordinates selected directly on XY Trace canvas
+  previewTarget: { x: number; y: number } | null  // Canvas hover target coordinates
+  bootPose: { x: number; y: number; th1: number; th2: number } | null  // Initial boot FK pose
+  pickedTarget: { x: number; y: number } | null   // Coordinates selected on XY Trace canvas
+  estopped: boolean                         // E-STOP latch state from ESTOP packet
+  targetInputX: number | null               // Current X target from control panel (for save)
+  targetInputY: number | null               // Current Y target from control panel (for save)
+  pendingSave: { name: string; startedAt: number } | null  // Pending DB save after move ends
+  lastSavedRunId: string | null             // Most recent saved run ID
 }
 ```
 

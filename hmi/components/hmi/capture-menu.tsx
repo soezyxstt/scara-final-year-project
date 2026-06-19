@@ -292,7 +292,10 @@ export function CaptureMenu() {
                 size="sm"
                 onClick={() => {
                   setIsOpen(false)
-                  window.dispatchEvent(new Event('hmi_start_tutorial'))
+                  // Short delay to allow the Hamburger menu sheet transition to finish closing and release focus locks
+                  setTimeout(() => {
+                    window.dispatchEvent(new Event('hmi_start_tutorial'))
+                  }, 150)
                 }}
                 className="w-full h-8 text-xs font-semibold border-indigo-500/30 text-indigo-300 hover:text-white hover:bg-indigo-500/15 transition-all mt-1"
               >

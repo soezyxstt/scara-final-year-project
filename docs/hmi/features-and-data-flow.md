@@ -27,7 +27,7 @@ The HMI application features a route-dependent architecture where the expected f
 
 ### A. Monitor Tab & Safety Constraints
 1. **XY Trace Canvas (`XYTrace`)**:
-   - Visualizes the SCARA workspace envelope: Outer radius limit $R_{max} = 170\text{ mm}$ and inner singularity limit $R_{min} = 70\text{ mm}$.
+   - Visualizes the SCARA workspace envelope: Outer radius limit $R_{max} = 170\text{ mm}$ and inner singularity limit $R_{min} = 70.7\text{ mm}$.
    - Shows the planned path in dashed blue and the actual tracked path in solid red.
    - **Path Safety Checking**: If a proposed Cartesian straight-line path crosses $R < 70\text{ mm}$, goes outside $R > 170\text{ mm}$, or drops below the horizontal baseline ($Y < 0$), the HMI disables the move button, displays safety alerts in the sidebar, and overlays a red warning path on the canvas.
 2. **Telemetry Charts (`ChartPanel`)**:
@@ -44,10 +44,15 @@ Bypasses path generation to run direct step response tests:
 - Includes a draggable caliper overlay. By marking peak-to-peak waves of an oscillation response, the system computes Ultimate Gain ($K_u$) and Ultimate Period ($T_u$), outputting recommended PID values using ZN Tuning Rules.
 
 ### C. Saved Runs History Dashboard (`/dashboard`)
-Allows side-by-side comparison of up to 4 saved trajectories:
+Allows side-by-side comparison of saved trajectories:
 - Checkboxes in the sidebar select database runs.
-- Trajectory Tab overlays the selected paths in distinct colors on the XY Trace canvas.
-- Comparative charts (Velocity, PID, Feedforward, Metrics, Advanced) compare joint speeds, control efforts, and loop execution durations.
+- **Trajectory** tab overlays selected paths on a dedicated XY Trace canvas.
+- **Velocity & Control** tab compares joint speeds and control efforts.
+- **PID & CTE** tab compares PID contributions and tracking errors.
+- **Feedforward** tab compares CTC feedforward torque components.
+- **Metrics** tab tabulates side-by-side accuracy metrics.
+- **Advanced** tab shows combined analysis with FFT and advanced metrics.
+- **AI Copilot** tab: Streaming AI analysis using Google Gemini with model fallback chain (Pro → Flash → Flash Lite). Supports `explain`, `diagnose`, and `recommend` modes. Uses Cloudflare KV for historical run context and run telemetry (downsampled to 60 points) as context.
 
 ### D. Automated Experiments (/eksperimen)
 Runs automated sequences to evaluate specific control mechanisms.
@@ -68,7 +73,20 @@ To protect the GM25-370 DC motor from thermal strain during sequence loops:
 
 ---
 
-## 3. Database Sync & Local Backup Schemas
+## 3. API Endpoints
+
+| Endpoint | Method | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `/api/auth/[...nextauth]` | * | Public | NextAuth.js Google OAuth callbacks |
+| `/api/runs` | GET | Google OAuth | List all runs for authenticated user |
+| `/api/runs` | POST | Google OAuth | Save a new run (metadata, gains, samples) |
+| `/api/runs/[id]` | GET | Google OAuth | Retrieve run with samples |
+| `/api/runs/[id]` | DELETE | Google OAuth | Delete a run with cascade |
+| `/api/runs/[id]/copilot` | POST | Google OAuth | Streaming AI Copilot analysis (modes: `explain`, `diagnose`, `recommend`) |
+
+The AI Copilot endpoint uses Google Gemini with a fallback chain (`gemini-2.5-flash-pro` → `gemini-2.0-flash` → `gemini-2.0-flash-lite`), Cloudflare KV for historical run context, and streams responses as SSE.
+
+## 4. Database Sync & Local Backup Schemas
 
 ### A. Offline Sync Queue
 When saving runs offline:
@@ -89,16 +107,17 @@ The Turso schema consists of:
 
 ---
 
-## 4. Serial Protocol Specifications
+## 5. Serial Protocol Specifications
 
 ### A. Downstream Commands (HMI → MCU)
-All commands are plain-text ASCII strings terminated with a newline (`\n`).
+All commands are plain-text ASCII strings terminated with a newline (`\n`). See the [Firmware Manual](../firmware/readme.md) for the complete list of ~40 TEST-mode runtime parameter commands.
 
 | String | Description | Example |
 | :--- | :--- | :--- |
 | `move,X,Y` | Request Cartesian end-effector move (mm). | `move,125.0,80.0` |
 | `elbow,N` | Select elbow configuration: `1` (right) or `-1` (left). | `elbow,1` |
-| `kp1,val` / `kd2,val` | Set individual joint gains. | `kp1,0.8` |
+| `kp1,val` / `ki1,val` / `kd1,val` | Set Joint 1 PID gains. | `kp1,0.8` |
+| `kp2,val` / `ki2,val` / `kd2,val` | Set Joint 2 PID gains. | `kp2,5.0` |
 | `ffi,val` / `ffc,val` / `ffg,val` | Set dynamic feedforward blend factor (0.0 to 1.0). | `ffi,1.0` |
 | `mstep,N` | Configure stepper microstep divisor: 1, 2, 4, 8, 16. | `mstep,16` |
 | `mode,name` | Switch operating mode: `idle`, `scara`, `zn`, `test`. | `mode,scara` |
@@ -107,16 +126,22 @@ All commands are plain-text ASCII strings terminated with a newline (`\n`).
 | `estop` / `resume` | Emergency stop / Clear emergency lock. | `estop` |
 | `ping` | Reset watchdog timer. | `ping` |
 | `getgains` / `getparams` | Query runtime constants. | `getgains` |
+| `clrgraph` | Purge trajectory buffers on HMI. | `clrgraph` |
 
 ### B. Upstream Telemetry (MCU → HMI)
-Packets are sent as CSV lines.
+Packets are sent as CSV lines. See the [Firmware Manual](../firmware/readme.md) for complete field documentation.
 
 - **Move Start (`M`)**: `M,x0,y0,xf,yf` (Emitted once when trajectory begins).
-- **Move Done (`S`)**: `S` (Emitted once when motion settles).
-- **Cartesian Path (`T`)**: `T,xi,yi,xa,ya` (Desired coordinates vs actual, sent at 50 Hz).
-- **Joint Dynamics (`D`)**: `D,t,th1,th2,th1d,th2d,dth1,dth2,dth1d,dth2d,pwm1,th1raw,th2raw` (Angles and raw ADC inputs, 500 Hz firmware / 50 Hz HMI).
-- **Feedforward breakdown (`F`)**: `F,t,inertia1,coriolis1,gravity1,inertia2,coriolis2,gravity2,ff1_contrib,u1_total,integral1,dω_ff,ω2_raw,integral2` (50 Hz).
+- **Move Continuation (`MC`)**: `MC,x0,y0,xf,yf` (Emitted for L-shape second leg — does not reset HMI buffers).
+- **Move Done (`S`)**: `S,xf,yf` (Emitted once when motion settles).
+- **Cartesian Path (`T`)**: `T,xi,yi,xa,ya` (Desired vs actual, 50 Hz).
+- **Joint Dynamics (`D`)**: `D,t,th1,th2,th1d,th2d,dth1,dth2,dth1d,dth2d,pwm1,vff1,th1raw,th2raw,u1_total` (14 fields, 500 Hz ring buffer).
+- **Feedforward breakdown (`F`)**: `F,t,inertia1,coriolis1,gravity1,inertia2,coriolis2,gravity2,ff1_contrib,u1_total,integral1,delta_omega_ff,omega2_raw,integral2` (50 Hz).
+- **PID Effort (`E`)**: `E,t,p1_out,i1_out,d1_out,loop_duration_us` (PWM-scaled values, 50 Hz).
 - **Gains Report (`G`)**: `G,kp1,ki1,kd1,kp2,ki2,kd2,mstep,ffi,ffc,ffg` (On request/update).
-- **Parameters (`K`)**: `K,vmax,amax,cfreq,u1max...` (26 fields, sent on request).
+- **Parameters (`K`)**: `K,vmax,amax,cfreq,u1max,fzt,...` (33 fields, sent on request).
+- **Position Heartbeat (`P`)**: `P,x_mm,y_mm,th1_rad,th2_rad` (Boot + on `getgains`).
+- **Queue Status (`Q`)**: `Q,pending,pending_x,pending_y` (On queue change).
 - **Operating Mode (`X`)**: `X,MODENAME` (Sent on mode change).
-Lines prefixed with `INFO:`, `WARN:`, or `ERR:` also trigger Sonner toast notifications.
+- **E-STOP (`ESTOP`)**: `ESTOP,0` or `ESTOP,1` (On estop/resume).
+Lines prefixed with `INFO:`, `WARN:`, `ERR:`, or `SUCCESS:` also trigger Sonner toast notifications.

@@ -20,7 +20,11 @@
         { "name": "vff1", "type": "float", "tsType": "number", "precision": 3, "description": "Velocity feedforward contribution for J1 (fraction of U1_MAX)" },
         { "name": "th1_raw", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 1 raw ADC position before filter (rad)" },
         { "name": "th2_raw", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 raw ADC position before filter (rad)" },
-        { "name": "u1_total", "type": "float", "tsType": "number", "precision": 4, "description": "Total J1 control effort before PWM mapping (same units as U1_MAX)" }
+        { "name": "u1_total", "type": "float", "tsType": "number", "precision": 4, "description": "Total J1 control effort before PWM mapping (same units as U1_MAX)" },
+        { "name": "p1_out", "type": "float", "tsType": "number", "precision": 4, "description": "J1 proportional term output (effort units, same scale as u1_total)" },
+        { "name": "i1_out", "type": "float", "tsType": "number", "precision": 4, "description": "J1 integral term output (effort units, same scale as u1_total)" },
+        { "name": "d1_out", "type": "float", "tsType": "number", "precision": 4, "description": "J1 derivative term output (effort units, same scale as u1_total)" },
+        { "name": "ff1_contrib", "type": "float", "tsType": "number", "precision": 4, "description": "J1 CTC feedforward contribution (effort units, same scale as u1_total)" }
       ]
     },
     "G": {
@@ -70,7 +74,12 @@
         { "name": "trap_enabled", "type": "int", "tsType": "number", "precision": 0, "description": "Is trapezoidal trajectory profiling enabled" },
         { "name": "ki2_gate", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 Ki activation gate (rad)" },
         { "name": "db2en", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 deadband engage limit (rad)" },
-        { "name": "db2rel", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 deadband release limit (rad)" }
+        { "name": "db2rel", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 2 deadband release limit (rad)" },
+        { "name": "err_dz", "type": "float", "tsType": "number", "precision": 4, "description": "Joint 1 error deadzone in hold mode (rad)" },
+        { "name": "integral_freeze_thresh", "type": "float", "tsType": "number", "precision": 4, "description": "Joint 1 integral freeze threshold near setpoint in hold mode (rad)" },
+        { "name": "kv_vel", "type": "float", "tsType": "number", "precision": 6, "description": "Velocity feedforward gain (fraction of U1_MAX per rad/s)" },
+        { "name": "vff_max_frac", "type": "float", "tsType": "number", "precision": 4, "description": "Velocity feedforward max clamp (fraction of U1_MAX)" },
+        { "name": "vff_dv_max", "type": "float", "tsType": "number", "precision": 4, "description": "Velocity feedforward rate limit per tick (fraction of U1_MAX)" }
       ]
     }
   }

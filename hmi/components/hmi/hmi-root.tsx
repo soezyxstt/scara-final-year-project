@@ -67,12 +67,14 @@ function HMIShell() {
       const customEvent = e as CustomEvent<string>
       const next = customEvent.detail
       if (next && ['monitor', 'analysis', 'rest', 'readme'].includes(next)) {
-        router.push(`/?tab=${next}`)
+        if (next !== tab) {
+          router.push(`/?tab=${next}`)
+        }
       }
     }
     window.addEventListener('hmi_switch_tab', handleSwitchTab)
     return () => window.removeEventListener('hmi_switch_tab', handleSwitchTab)
-  }, [router])
+  }, [router, tab])
 
 
   const [serialLogOpen, setSerialLogOpen] = useState(false)
