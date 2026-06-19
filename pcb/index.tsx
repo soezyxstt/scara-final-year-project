@@ -295,12 +295,12 @@ export default () => (
     {/* Per-trace `thickness` IS honored (unlike pcbRouteWidth). Signals fall
         back to the 0.25mm board floor; power/coil nets are explicitly fatter. */}
 
-    {/* ---- 12V high-current (raw supply) — fat, runs in open areas ---- */}
-    <trace from=".PWR_IN > .VCC" to="net.V12" thickness="0.8mm" />
-    <trace from=".LM2596 > .IN_POS" to="net.V12" thickness="0.8mm" />
-    <trace from=".C_BULK > .POS" to="net.V12" thickness="0.8mm" />
-    <trace from=".A4988 > .VMOT" to="net.V12" thickness="0.8mm" />
-    <trace from=".J_DC > .V12" to="net.V12" thickness="0.8mm" />
+    {/* ---- 12V high-current (raw supply) — widened per IPC-2152 for >2A ---- */}
+    <trace from=".PWR_IN > .VCC" to="net.V12" thickness="1.5mm" />
+    <trace from=".LM2596 > .IN_POS" to="net.V12" thickness="1.2mm" />
+    <trace from=".C_BULK > .POS" to="net.V12" thickness="1.2mm" />
+    <trace from=".A4988 > .VMOT" to="net.V12" thickness="1.2mm" />
+    <trace from=".J_DC > .V12" to="net.V12" thickness="1.5mm" />
 
     {/* ---- GND ties to net.GND (bottom pour carries the real return current,
         so logic-side ties stay slim; motor-side ties are widened) ---- */}
@@ -343,11 +343,11 @@ export default () => (
         SIGNALS  (pins per firmware/include/config.h) — slim, at 0.25mm floor
         ========================================================================= */}
 
-    {/* ---- Stepper coil outputs (motor current) ---- */}
-    <trace from=".A4988 > .1A" to=".STEPPER > .1A" thickness="0.6mm" />
-    <trace from=".A4988 > .1B" to=".STEPPER > .1B" thickness="0.6mm" />
-    <trace from=".A4988 > .2A" to=".STEPPER > .2A" thickness="0.6mm" />
-    <trace from=".A4988 > .2B" to=".STEPPER > .2B" thickness="0.6mm" />
+    {/* ---- Stepper coil outputs (motor current) — 1.0mm for thermal headroom ---- */}
+    <trace from=".A4988 > .1A" to=".STEPPER > .1A" thickness="1.0mm" />
+    <trace from=".A4988 > .1B" to=".STEPPER > .1B" thickness="1.0mm" />
+    <trace from=".A4988 > .2A" to=".STEPPER > .2A" thickness="1.0mm" />
+    <trace from=".A4988 > .2B" to=".STEPPER > .2B" thickness="1.0mm" />
 
     {/* ---- Stepper control (IO14 STEP, IO12 DIR) ---- */}
     <trace from=".ESP32 > .IO14" to=".A4988 > .STEP" />

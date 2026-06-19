@@ -1488,7 +1488,7 @@
     ],
     "subcircuit_id": "subcircuit_source_group_0",
     "display_name": ".PWR_IN > .VCC to net.V12",
-    "min_trace_thickness": 0.8,
+    "min_trace_thickness": 1.5,
     "subcircuit_connectivity_map_key": "unnamedsubcircuitsubcircuit_source_group_0_connectivity_net0"
   },
   {
@@ -1502,7 +1502,7 @@
     ],
     "subcircuit_id": "subcircuit_source_group_0",
     "display_name": ".LM2596 > .IN_POS to net.V12",
-    "min_trace_thickness": 0.8,
+    "min_trace_thickness": 1.2,
     "subcircuit_connectivity_map_key": "unnamedsubcircuitsubcircuit_source_group_0_connectivity_net0"
   },
   {
@@ -1516,7 +1516,7 @@
     ],
     "subcircuit_id": "subcircuit_source_group_0",
     "display_name": ".C_BULK > .POS to net.V12",
-    "min_trace_thickness": 0.8,
+    "min_trace_thickness": 1.2,
     "subcircuit_connectivity_map_key": "unnamedsubcircuitsubcircuit_source_group_0_connectivity_net0"
   },
   {
@@ -1530,7 +1530,7 @@
     ],
     "subcircuit_id": "subcircuit_source_group_0",
     "display_name": ".A4988 > .VMOT to net.V12",
-    "min_trace_thickness": 0.8,
+    "min_trace_thickness": 1.2,
     "subcircuit_connectivity_map_key": "unnamedsubcircuitsubcircuit_source_group_0_connectivity_net0"
   },
   {
@@ -1544,7 +1544,7 @@
     ],
     "subcircuit_id": "subcircuit_source_group_0",
     "display_name": ".J_DC > .V12 to net.V12",
-    "min_trace_thickness": 0.8,
+    "min_trace_thickness": 1.5,
     "subcircuit_connectivity_map_key": "unnamedsubcircuitsubcircuit_source_group_0_connectivity_net0"
   },
   {
@@ -1979,7 +1979,7 @@
     "connected_source_net_ids": [],
     "subcircuit_id": "subcircuit_source_group_0",
     "display_name": ".A4988 > .1A to .STEPPER > .1A",
-    "min_trace_thickness": 0.6,
+    "min_trace_thickness": 1,
     "subcircuit_connectivity_map_key": "unnamedsubcircuitsubcircuit_source_group_0_connectivity_net4"
   },
   {
@@ -1992,7 +1992,7 @@
     "connected_source_net_ids": [],
     "subcircuit_id": "subcircuit_source_group_0",
     "display_name": ".A4988 > .1B to .STEPPER > .1B",
-    "min_trace_thickness": 0.6,
+    "min_trace_thickness": 1,
     "subcircuit_connectivity_map_key": "unnamedsubcircuitsubcircuit_source_group_0_connectivity_net5"
   },
   {
@@ -2005,7 +2005,7 @@
     "connected_source_net_ids": [],
     "subcircuit_id": "subcircuit_source_group_0",
     "display_name": ".A4988 > .2A to .STEPPER > .2A",
-    "min_trace_thickness": 0.6,
+    "min_trace_thickness": 1,
     "subcircuit_connectivity_map_key": "unnamedsubcircuitsubcircuit_source_group_0_connectivity_net6"
   },
   {
@@ -2018,7 +2018,7 @@
     "connected_source_net_ids": [],
     "subcircuit_id": "subcircuit_source_group_0",
     "display_name": ".A4988 > .2B to .STEPPER > .2B",
-    "min_trace_thickness": 0.6,
+    "min_trace_thickness": 1,
     "subcircuit_connectivity_map_key": "unnamedsubcircuitsubcircuit_source_group_0_connectivity_net7"
   },
   {
@@ -14101,7 +14101,7 @@
         "route_type": "wire",
         "x": -35.89,
         "y": -22.81,
-        "width": 0.8,
+        "width": 0.25,
         "layer": "top",
         "start_pcb_port_id": "pcb_port_53"
       },
@@ -14109,14 +14109,14 @@
         "route_type": "wire",
         "x": -40.46000000000001,
         "y": -22.81,
-        "width": 0.8,
+        "width": 0.25,
         "layer": "top"
       },
       {
         "route_type": "wire",
         "x": -44.27,
         "y": -19,
-        "width": 0.8,
+        "width": 0.25,
         "layer": "top",
         "end_pcb_port_id": "pcb_port_61"
       }
@@ -17283,7 +17283,7 @@
         "route_type": "wire",
         "x": -23.19,
         "y": -22.81,
-        "width": 0.6,
+        "width": 1,
         "layer": "top",
         "start_pcb_port_id": "pcb_port_58"
       },
@@ -17291,7 +17291,7 @@
         "route_type": "wire",
         "x": -23.19,
         "y": -28,
-        "width": 0.6,
+        "width": 1,
         "layer": "top",
         "end_pcb_port_id": "pcb_port_66"
       }
@@ -17308,7 +17308,7 @@
         "route_type": "wire",
         "x": -25.73,
         "y": -22.81,
-        "width": 0.6,
+        "width": 1,
         "layer": "top",
         "start_pcb_port_id": "pcb_port_57"
       },
@@ -17316,7 +17316,7 @@
         "route_type": "wire",
         "x": -25.73,
         "y": -28,
-        "width": 0.6,
+        "width": 1,
         "layer": "top",
         "end_pcb_port_id": "pcb_port_65"
       }
@@ -17379,7 +17379,7 @@
         "route_type": "wire",
         "x": -28.27,
         "y": -22.81,
-        "width": 0.6,
+        "width": 1,
         "layer": "top",
         "start_pcb_port_id": "pcb_port_56"
       },
@@ -17387,7 +17387,7 @@
         "route_type": "wire",
         "x": -28.27,
         "y": -28,
-        "width": 0.6,
+        "width": 1,
         "layer": "top",
         "end_pcb_port_id": "pcb_port_64"
       }
