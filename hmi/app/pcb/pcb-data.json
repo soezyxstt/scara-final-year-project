@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-19T18:12:42.546Z",
+  "generatedAt": "2026-06-19T18:37:11.185Z",
   "components": [
     {
       "ref": "A4988",
@@ -12,18 +12,6 @@
       "label": "100µF VMOT Bulk Cap",
       "description": "Radial electrolytic bulk capacitor placed directly next to the A4988 power pins to filter high di/dt voltage spikes from the 12V motor supply.",
       "type": "simple_connector"
-    },
-    {
-      "ref": "C_POT1",
-      "label": "1µF J1 Bypass Cap",
-      "description": "Shunt capacitor (0805) to GND at IO39 — a small local bypass for ADC sample-and-hold settling. Main J1 filtering is an off-board LPF.",
-      "type": "simple_capacitor"
-    },
-    {
-      "ref": "C_POT2",
-      "label": "1µF J2 Bypass Cap",
-      "description": "Shunt capacitor (0805) to GND at IO36 to bypass high-frequency noise on the Joint 2 potentiometer feedback line.",
-      "type": "simple_capacitor"
     },
     {
       "ref": "ENC",

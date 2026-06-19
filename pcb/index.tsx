@@ -7,34 +7,8 @@ import React from "react"
 // carrier and an LM2596 buck module, regulates power, and breaks out the
 // potentiometer, encoder and (off-board) L298N control signals.
 //
-// Pin assignments MATCH firmware/include/config.h 1:1 (see GPIO map below).
-//
-// KEY DESIGN POINTS:
-//  1. Solid bottom-layer GND copper pour (ground plane) — every GND pad ties
-//     to net.GND, the pour stitches them together. Removes the old fragile
-//     hand-routed star-ground daisy chain.
-//  2. Named rails (V12 / V5 / V3V3 / GND) so the schematic renders clean net
-//     labels instead of long crossing wires.
-//  3. Explicit schX/schY on every part so the schematic lays out left→right
-//     instead of collapsing on the origin.
-//  4. DC motor is NOT driven on this board — IO16/IO17/IO18 + 12V/5V/GND are
-//     broken out to J_DC for an off-board L298N H-bridge (Joint 1).
-//  5. MS1/MS2/MS3 hardwired to 3V3 (fixed 1/16 microstep, matches firmware
-//     which never toggles them). A4988 EN tied to GND (always enabled).
-//  6. J1/J2 pot lines have a 1uF local bypass at the ADC pin for SAR settling.
-//     The main brush-EMI low-pass for J1 is an off-board LPF, so no on-board
-//     series resistor (avoids double-filtering + excess ADC source impedance).
+// Pin assignments MATCH firmware/include/config.h 1:1.
 // ---------------------------------------------------------------------------
-
-// ===========================================================================
-//  ESP32 GPIO MAP  (matches firmware/include/config.h)
-// ---------------------------------------------------------------------------
-//  IO14  A4988 STEP          IO36  J2 stepper pot wiper (ADC1, in-only)
-//  IO12  A4988 DIR           IO39  J1 dc-motor pot wiper (ADC1, in-only, RC)
-//  IO16  L298N IN3  (J_DC)   IO25  Encoder A  (NEW)
-//  IO17  L298N IN4  (J_DC)   IO26  Encoder B  (NEW)
-//  IO18  L298N EN   (J_DC)   MS1/2/3  -> 3V3 (fixed 1/16)
-// ===========================================================================
 
 // ---- helpers --------------------------------------------------------------
 
@@ -86,9 +60,6 @@ function Connector(props: {
 
 // ---- footprints -----------------------------------------------------------
 
-// Physical pin order of the real 38-pin ESP32-DevKitC-V4 (top -> bottom).
-// Left col = module pins 1..19, right col = pins 20..38. VP=IO36, VN=IO39.
-// D2/D3/CMD/D0/D1/CLK are the internal-flash pins (GPIO6-11) — NOT usable.
 const DEVKITC_LEFT = ["3V3", "EN", "IO36", "IO39", "IO34", "IO35", "IO32", "IO33", "IO25", "IO26", "IO27", "IO14", "IO12", "GND_1", "IO13", "D2", "D3", "CMD", "5V"]
 const DEVKITC_RIGHT = ["GND_2", "IO23", "IO22", "TXD0", "RXD0", "IO21", "GND_3", "IO19", "IO18", "IO5", "IO17", "IO16", "IO4", "IO0", "IO2", "IO15", "D1", "D0", "CLK"]
 
@@ -108,13 +79,11 @@ function Lm2596Module(props: { name: string; pcbX: number; pcbY: number; schX?: 
     <>
       <connector name={props.name} pcbX={props.pcbX} pcbY={props.pcbY} schX={props.schX} schY={props.schY} footprint={
         <footprint>
-          {/* Electrical Pads */}
           <platedhole portHints={["IN_POS"]} pcbX={-pinInsetX} pcbY={pinOffsetY} holeDiameter="1.5mm" outerDiameter="2.8mm" shape="circle" />
           <platedhole portHints={["IN_NEG"]} pcbX={-pinInsetX} pcbY={-pinOffsetY} holeDiameter="1.5mm" outerDiameter="2.8mm" shape="circle" />
           <platedhole portHints={["OUT_POS"]} pcbX={pinInsetX} pcbY={pinOffsetY} holeDiameter="1.5mm" outerDiameter="2.8mm" shape="circle" />
           <platedhole portHints={["OUT_NEG"]} pcbX={pinInsetX} pcbY={-pinOffsetY} holeDiameter="1.5mm" outerDiameter="2.8mm" shape="circle" />
 
-          {/* Non-plated mounting holes (3mm diameter for M3 screws) */}
           <platedhole pcbX={-holeX} pcbY={holeY} holeDiameter="3mm" outerDiameter="4mm" shape="circle" />
           <platedhole pcbX={holeX} pcbY={-holeY} holeDiameter="3mm" outerDiameter="4mm" shape="circle" />
         </footprint>
@@ -134,7 +103,6 @@ function DcPwrJack(props: { name: string; pcbX: number; pcbY: number; schX?: num
           <platedhole portHints={["GND"]} pcbX={0.0} pcbY={-4.8} holeDiameter="2.8mm" outerDiameter="4.0mm" shape="circle" />
         </footprint>
       } />
-      {/* Centered silkscreen body — stays on-board */}
       <silkscreenrect pcbX={props.pcbX} pcbY={props.pcbY - 1.5} width={12.0} height={11.0} strokeWidth={0.3} />
     </>
   )
@@ -192,10 +160,6 @@ function ScrewTerminal(props: { name: string; pcbX: number; pcbY: number; schX?:
 
 // ---- board -----------------------------------------------------------------
 
-// Trace widths: minTraceWidth sets the 0.25mm floor (signals fall back to it),
-// and each power/coil trace gets an explicit `thickness` below. NOTE the working
-// prop is `thickness` (or `width`) on <trace> — `pcbRouteWidth` is silently
-// ignored by this autorouter. GND's real return current rides the bottom pour.
 export default () => (
   <board width="96mm" height="66mm" minTraceWidth="0.25mm">
     {/* M3 Corner Mounting Holes for Enclosure */}
@@ -204,19 +168,14 @@ export default () => (
     <platedhole pcbX={-44} pcbY={-30} holeDiameter="3.0mm" outerDiameter="4.0mm" shape="circle" />
     <platedhole pcbX={44} pcbY={-30} holeDiameter="3.0mm" outerDiameter="4.0mm" shape="circle" />
 
-    {/* ZONE 2: BRAIN — ESP32 DevKitC, right-of-center.
-        Left column faces the analog/stepper zone; right column faces the
-        right-edge motor/expansion terminals. Placement follows pin sides to
-        keep traces short and the bottom GND pour intact. */}
+    {/* ZONE 2: BRAIN — ESP32 DevKitC */}
     <DevKitCSocket name="ESP32" pcbX={20} pcbY={0} schX={0} schY={0} />
 
-    {/* ZONE 1: NOISY POWER — buck on the left edge (clear of the y=+/-30
-        mounting holes); 12V jack above it. Power-only nets, so it does not
-        need to sit near any ESP column. */}
+    {/* ZONE 1: NOISY POWER — Buck + 12V Jack */}
     <Lm2596Module name="LM2596" pcbX={-24.5} pcbY={0} schX={-15} schY={2} />
-    <DcPwrJack name="PWR_IN" pcbX={-40} pcbY={20} schX={-15} schY={6} />
+    <DcPwrJack name="PWR_IN" pcbX={-41} pcbY={19} schX={-15} schY={6} />
 
-    {/* ZONE 1b: STEPPER — bottom-left (A4988 logic pins IO14/IO12 on ESP left col) */}
+    {/* ZONE 1b: STEPPER — A4988 Carrier + Bulk Cap + Output Header */}
     <Connector name="A4988" pcbX={-27} pcbY={-19} schX={-13} schY={-5} rows={[
       { labels: ["ENABLE", "MS1", "MS2", "MS3", "RESET", "SLEEP", "STEP", "DIR"], pitch: 2.54, rowOffsetY: 3.81 },
       { labels: ["VMOT", "GND_MOT", "1B", "1A", "2A", "2B", "VDD", "GND_LOGIC"], pitch: 2.54, rowOffsetY: -3.81 },
@@ -224,86 +183,60 @@ export default () => (
     <RadialCapacitor name="C_BULK" pcbX={-43} pcbY={-19} diameter={6.3} isPolarized schX={-15} schY={-9} />
     <Connector name="STEPPER" pcbX={-27} pcbY={-28} schX={-13} schY={-11} rows={[{ labels: ["1B", "1A", "2A", "2B"], pitch: 2.54 }]} />
 
-    {/* ZONE 3: CLEAN ANALOG & SENSOR — between the buck and the ESP32 left
-        column where IO36/IO39 (pots) and IO25/IO26 (encoder) live. */}
-    {/* J2 stepper pot -> IO36 (1uF bypass) */}
-    <Connector name="POT2" pcbX={-1} pcbY={13} axis="y" schX={15} schY={2} rows={[{ labels: ["V3V3", "WIPER", "GND"], pitch: 2.54 }]} />
-    <capacitor name="C_POT2" capacitance="1uF" footprint="0805" pcbX={3} pcbY={13} schX={13} schY={3} />
-    {/* J1 DC-motor pot -> IO39. External LPF is off-board; C_POT1 is just a
-        small local bypass at the ADC pin for SAR settling. */}
-    <Connector name="POT1" pcbX={-1} pcbY={5} axis="y" schX={15} schY={-4} rows={[{ labels: ["V3V3", "WIPER", "GND"], pitch: 2.54 }]} />
-    <capacitor name="C_POT1" capacitance="1uF" footprint="0805" pcbX={3} pcbY={5} schX={13} schY={-6} />
-    {/* Encoder -> IO25/IO26 */}
-    <Connector name="ENC" pcbX={-1} pcbY={-5} axis="y" schX={15} schY={6} rows={[{ labels: ["V3V3", "GND", "ENC_A", "ENC_B"], pitch: 2.54 }]} />
+    {/* ZONE 3: CLEAN ANALOG & SENSOR (Shifted to x=2 for buck and ESP32 isolation) */}
+    <Connector name="POT2" pcbX={2} pcbY={13} axis="y" schX={15} schY={2} rows={[{ labels: ["V3V3", "WIPER", "GND"], pitch: 2.54 }]} />
+    <Connector name="POT1" pcbX={2} pcbY={5} axis="y" schX={15} schY={-4} rows={[{ labels: ["V3V3", "WIPER", "GND"], pitch: 2.54 }]} />
+    <Connector name="ENC" pcbX={2} pcbY={-5} axis="y" schX={15} schY={6} rows={[{ labels: ["V3V3", "GND", "ENC_A", "ENC_B"], pitch: 2.54 }]} />
 
-    {/* ZONE 4: DC-MOTOR (off-board L298N) breakout — right edge, by the ESP32
-        right column (IN3/IN4/EN = IO16/IO17/IO18). Screw terminal for the cable. */}
-    <ScrewTerminal name="J_DC" pcbX={43} pcbY={-14} axis="y" schX={-2} schY={-9}
-      labels={["V12", "GND", "IN3", "IN4", "ENA", "V5"]} />
+    {/* ZONE 4: DC-MOTOR Breakout (L298N) */}
+    <ScrewTerminal name="J_DC" pcbX={43} pcbY={-14} axis="y" schX={-2} schY={-9} labels={["V12", "GND", "IN3", "IN4", "ENA", "V5"]} />
 
-    {/* ZONE 5: EXPANSION — spare GPIO on a labeled 3.5mm screw terminal, right
-        edge by the ESP32 right column. All firmware-untouched & non-strapping.
-        IO34 is input-only (ADC1); IO21/IO22 are the default I2C SDA/SCL. */}
-    <ScrewTerminal name="J_EXP" pcbX={43} pcbY={13} axis="y" schX={4} schY={-12}
-      labels={["V3V3", "GND", "IO21", "IO22", "IO19", "IO23", "IO27", "IO34"]} />
+    {/* ZONE 5: EXPANSION */}
+    <ScrewTerminal name="J_EXP" pcbX={43} pcbY={13} axis="y" schX={4} schY={-12} labels={["V3V3", "GND", "IO21", "IO22", "IO19", "IO23", "IO27", "IO34"]} />
 
     {/* =========================================================================
-        GROUND PLANE — solid bottom-layer pour tied to net.GND
-        =========================================================================
-        The asymmetric 6-point boundary wraps around the noisy LM2596 buck
-        region (left side), eliminating the need for a separate keepout and
-        preventing dead copper slivers. Corner mounting holes get dedicated
-        circular keepouts for screw/standoff clearance.
+        GROUND PLANE — Optimized Asymmetric Notch
         ========================================================================= */}
     <copperpour layer="bottom" connectsTo="net.GND" clearance="0.3mm"
       boundary={[
         { x: 0.5,  y: 29 },   // upper-middle transition
         { x: 42,   y: 29 },   // top-right corner
         { x: 42,   y: -29 },  // bottom-right corner
-        { x: 0.5,  y: -29 },  // lower-middle transition
-        { x: 0.5,  y: -14 },  // lower notch entry
-        { x: -42,  y: -14 },  // lower-left limit (inside notch)
-        { x: -42,  y: 14 },   // upper-left limit (inside notch)
-        { x: 0.5,  y: 14 },   // upper notch exit
+        { x: -42,  y: -29 },  // bottom-left corner (covers stepper fully)
+        { x: -42,  y: -10 },  // lower notch entry (clears A4988)
+        { x: 0.5,  y: -10 },  // notch inner floor
+        { x: 0.5,  y: 14 },   // notch inner ceiling
+        { x: -42,  y: 14 },   // upper notch exit
+        { x: -42,  y: 29 },   // top-left corner
       ]}
     />
-    {/* Keepout zones around corner mounting holes — prevents copper
-        from approaching the screw holes, reducing the risk of shorts with
-        standoffs or enclosure hardware. */}
     <keepout pcbX={-44} pcbY={30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
     <keepout pcbX={44}  pcbY={30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
     <keepout pcbX={-44} pcbY={-30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
     <keepout pcbX={44}  pcbY={-30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
 
-    {/* Section labels (silkscreen) */}
+    {/* Silkscreen Labels */}
     <silkscreentext text="ESP32 BRAIN" pcbX={20} pcbY={28} fontSize={1.8} anchorAlignment="center" />
     <silkscreentext text="5V BUCK" pcbX={-24.5} pcbY={0} fontSize={1.6} anchorAlignment="center" />
-    <silkscreentext text="12V IN" pcbX={-40} pcbY={26.5} fontSize={1.3} anchorAlignment="center" />
+    <silkscreentext text="12V IN" pcbX={-41} pcbY={25.5} fontSize={1.3} anchorAlignment="center" />
     <silkscreentext text="A4988 J2" pcbX={-27} pcbY={-12.5} fontSize={1.6} anchorAlignment="center" />
     <silkscreentext text="MS=3V3 EN=GND" pcbX={-27} pcbY={-24.5} fontSize={1.1} anchorAlignment="center" />
     <silkscreentext text="STEPPER" pcbX={-27} pcbY={-31} fontSize={1.3} anchorAlignment="center" />
-    <silkscreentext text="STEP POT" pcbX={-1} pcbY={17.2} fontSize={1.1} anchorAlignment="center" />
-    <silkscreentext text="DC POT" pcbX={-1} pcbY={9} fontSize={1.1} anchorAlignment="center" />
-    <silkscreentext text="ENCODER" pcbX={-1} pcbY={-10.2} fontSize={1.1} anchorAlignment="center" />
+    <silkscreentext text="STEP POT" pcbX={2} pcbY={17.2} fontSize={1.1} anchorAlignment="center" />
+    <silkscreentext text="DC POT" pcbX={2} pcbY={9} fontSize={1.1} anchorAlignment="center" />
+    <silkscreentext text="ENCODER" pcbX={2} pcbY={-10.2} fontSize={1.1} anchorAlignment="center" />
     <silkscreentext text="L298N J1" pcbX={43} pcbY={-25.5} fontSize={1.2} anchorAlignment="center" />
     <silkscreentext text="Adi Haditya Nursyam, M22" pcbX={3} pcbY={-31} fontSize={1.4} anchorAlignment="center" />
 
     {/* =========================================================================
         POWER RAILS
         ========================================================================= */}
+    <trace from=".PWR_IN > .VCC" to="net.V12" thickness="0.8mm" />
+    <trace from=".LM2596 > .IN_POS" to="net.V12" thickness="0.8mm" />
+    <trace from=".C_BULK > .POS" to="net.V12" thickness="0.8mm" />
+    <trace from=".A4988 > .VMOT" to="net.V12" thickness="0.8mm" />
+    <trace from=".J_DC > .V12" to="net.V12" thickness="0.8mm" />
 
-    {/* Per-trace `thickness` IS honored (unlike pcbRouteWidth). Signals fall
-        back to the 0.25mm board floor; power/coil nets are explicitly fatter. */}
-
-    {/* ---- 12V high-current (raw supply) — widened per IPC-2152 for >2A ---- */}
-    <trace from=".PWR_IN > .VCC" to="net.V12" thickness="1.5mm" />
-    <trace from=".LM2596 > .IN_POS" to="net.V12" thickness="1.2mm" />
-    <trace from=".C_BULK > .POS" to="net.V12" thickness="1.2mm" />
-    <trace from=".A4988 > .VMOT" to="net.V12" thickness="1.2mm" />
-    <trace from=".J_DC > .V12" to="net.V12" thickness="1.5mm" />
-
-    {/* ---- GND ties to net.GND (bottom pour carries the real return current,
-        so logic-side ties stay slim; motor-side ties are widened) ---- */}
     <trace from=".PWR_IN > .GND" to="net.GND" thickness="0.8mm" />
     <trace from=".PWR_IN > .SW" to="net.GND" thickness="0.3mm" />
     <trace from=".LM2596 > .IN_NEG" to="net.GND" thickness="0.8mm" />
@@ -319,15 +252,11 @@ export default () => (
     <trace from=".POT1 > .GND" to="net.GND" thickness="0.3mm" />
     <trace from=".POT2 > .GND" to="net.GND" thickness="0.3mm" />
     <trace from=".ENC > .GND" to="net.GND" thickness="0.3mm" />
-    <trace from=".C_POT1 > .pin2" to="net.GND" thickness="0.3mm" />
-    <trace from=".C_POT2 > .pin2" to="net.GND" thickness="0.3mm" />
 
-    {/* ---- 5V logic ---- */}
     <trace from=".LM2596 > .OUT_POS" to="net.V5" thickness="0.6mm" />
     <trace from=".ESP32 > .5V" to="net.V5" thickness="0.6mm" />
     <trace from=".J_DC > .V5" to="net.V5" thickness="0.5mm" />
 
-    {/* ---- 3.3V logic (low current; slim) ---- */}
     <trace from=".ESP32 > .3V3" to="net.V3V3" thickness="0.4mm" />
     <trace from=".A4988 > .VDD" to="net.V3V3" thickness="0.3mm" />
     <trace from=".A4988 > .MS1" to="net.V3V3" thickness="0.3mm" />
@@ -340,37 +269,26 @@ export default () => (
     <trace from=".ENC > .V3V3" to="net.V3V3" thickness="0.3mm" />
 
     {/* =========================================================================
-        SIGNALS  (pins per firmware/include/config.h) — slim, at 0.25mm floor
+        SIGNALS
         ========================================================================= */}
+    <trace from=".A4988 > .1A" to=".STEPPER > .1A" thickness="0.6mm" />
+    <trace from=".A4988 > .1B" to=".STEPPER > .1B" thickness="0.6mm" />
+    <trace from=".A4988 > .2A" to=".STEPPER > .2A" thickness="0.6mm" />
+    <trace from=".A4988 > .2B" to=".STEPPER > .2B" thickness="0.6mm" />
 
-    {/* ---- Stepper coil outputs (motor current) — 1.0mm for thermal headroom ---- */}
-    <trace from=".A4988 > .1A" to=".STEPPER > .1A" thickness="1.0mm" />
-    <trace from=".A4988 > .1B" to=".STEPPER > .1B" thickness="1.0mm" />
-    <trace from=".A4988 > .2A" to=".STEPPER > .2A" thickness="1.0mm" />
-    <trace from=".A4988 > .2B" to=".STEPPER > .2B" thickness="1.0mm" />
-
-    {/* ---- Stepper control (IO14 STEP, IO12 DIR) ---- */}
     <trace from=".ESP32 > .IO14" to=".A4988 > .STEP" />
     <trace from=".ESP32 > .IO12" to=".A4988 > .DIR" />
 
-    {/* ---- DC-motor (L298N) control breakout: IO16/IO17/IO18 ---- */}
     <trace from=".ESP32 > .IO16" to=".J_DC > .IN3" />
     <trace from=".ESP32 > .IO17" to=".J_DC > .IN4" />
     <trace from=".ESP32 > .IO18" to=".J_DC > .ENA" />
 
-    {/* ---- J1 DC-motor pot feedback -> IO39 (external LPF; C_POT1 local bypass) ---- */}
     <trace from=".POT1 > .WIPER" to=".ESP32 > .IO39" />
-    <trace from=".C_POT1 > .pin1" to=".ESP32 > .IO39" />
-
-    {/* ---- J2 stepper pot feedback -> IO36 (1uF shunt) ---- */}
     <trace from=".POT2 > .WIPER" to=".ESP32 > .IO36" />
-    <trace from=".C_POT2 > .pin1" to=".ESP32 > .IO36" />
 
-    {/* ---- Encoder feedback: IO25 / IO26 ---- */}
     <trace from=".ESP32 > .IO25" to=".ENC > .ENC_A" />
     <trace from=".ESP32 > .IO26" to=".ENC > .ENC_B" />
 
-    {/* ---- Expansion breakout (spare GPIO + power) ---- */}
     <trace from=".J_EXP > .V3V3" to="net.V3V3" thickness="0.3mm" />
     <trace from=".J_EXP > .GND" to="net.GND" thickness="0.3mm" />
     <trace from=".J_EXP > .IO21" to=".ESP32 > .IO21" />
