@@ -97,9 +97,10 @@ The web interface is split into public and protected (Google OAuth required) rou
 
 | Path | Firmware Mode | Purpose / Access Control |
 | :--- | :--- | :--- |
-| **`/`** (Home) | `SCARA` | Live trajectory tracking, post-run diagnostics, rest analysis, and user guide. (Public) |
+| **`/`** (Home) | `SCARA` | Live trajectory tracking (3D visualizer), post-run diagnostics, rest analysis, and user guide. (Public) |
 | **`/zn`** | `ZN` | Joint-level Ziegler-Nichols auto-recommendation tuning workspace. (Public) |
 | **`/test`** | `TEST` | 33 runtime parameter editor, raw unfiltered sensor ADC visualizer, and params tuner. (Public) |
+| **`/pcb`** | — | Interactive ESP32 Controller PCB layout, schematic, and CAD viewer. (Public) |
 | **`/login`** | — | NextAuth Google sign-in portal. (Public) |
 | **`/hasil-eksperimen`**| — | Comparative data analytics table for completed sequences. (Public) |
 | **`/dashboard`** | — | Saved Runs History: overlay multiple trajectories, compare metrics, velocity, PID, feedforward, and AI Copilot analysis. (Protected) |

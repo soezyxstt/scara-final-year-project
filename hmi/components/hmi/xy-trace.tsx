@@ -12,6 +12,9 @@ import { checkStraightLineTrajectory, getCurrentPosition, isAngleValid, calculat
 import { toast } from 'sonner'
 import { downloadSingleGraph } from '@/lib/capture-utils'
 import { useTheme } from '@/components/hmi/theme-provider'
+import { SCARA3DCanvas } from './scara-arm-3d'
+
+
 
 export const L_OUTER = 170   // mm — outer workspace radius
 export const L_INNER = 70.7  // mm — inner workspace radius (dead zone)
@@ -319,205 +322,8 @@ export function drawTrace(
   const latestPoint = activeBuf.length > 0 ? activeBuf[activeBuf.length - 1] : null
   const latestDSample = activeDSamples.length > 0 ? activeDSamples[activeDSamples.length - 1] : null
 
-  // Draw SCARA links underneath the paths but on top of the grid
-  if (showArm && (latestPoint || state.bootPose)) {
-    let actualElbow: [number, number] | null = null
-    let idealElbow: [number, number] | null = null
-    let actualTip: [number, number] | null = null
-    let idealTip: [number, number] | null = null
+  // 2D Arm Capsule drawing disabled to use 3D GLB model overlay instead
 
-    if (latestPoint) {
-      actualTip = [latestPoint.xa, latestPoint.ya]
-      idealTip = [latestPoint.xi, latestPoint.yi]
-      if (latestDSample) {
-        const l1 = 100
-        actualElbow = [
-          l1 * Math.cos(latestDSample.th1),
-          l1 * Math.sin(latestDSample.th1)
-        ]
-        idealElbow = [
-          l1 * Math.cos(latestDSample.th1d),
-          l1 * Math.sin(latestDSample.th1d)
-        ]
-      } else {
-        // Fallback: If we don't have DSample, reconstruct using Inverse Kinematics.
-        const l1 = 100
-        const l2 = 70
-        
-        const getIKElbow = (x: number, y: number): [number, number] => {
-          const r2 = x * x + y * y
-          const r = Math.sqrt(r2)
-          if (r === 0) return [0, 0]
-          const cosAlpha = Math.max(-1, Math.min(1, (l1 * l1 + r2 - l2 * l2) / (2 * l1 * r)))
-          const alpha = Math.acos(cosAlpha)
-          const beta = Math.atan2(y, x)
-          // Default to right-handed configuration
-          const theta1 = beta - alpha
-          return [l1 * Math.cos(theta1), l1 * Math.sin(theta1)]
-        }
-
-        actualElbow = getIKElbow(latestPoint.xa, latestPoint.ya)
-        idealElbow = getIKElbow(latestPoint.xi, latestPoint.yi)
-      }
-    } else if (state.bootPose) {
-      const l1 = 100
-      actualTip = [state.bootPose.x, state.bootPose.y]
-      actualElbow = [
-        l1 * Math.cos(state.bootPose.th1),
-        l1 * Math.sin(state.bootPose.th1)
-      ]
-    }
-
-    // 1. Draw Ideal Arm (Holographic translucent phantom capsules)
-    if (idealElbow && idealTip) {
-      const bPx = toPx(0, 0)
-      const iePx = toPx(idealElbow[0], idealElbow[1])
-      const itPx = toPx(idealTip[0], idealTip[1])
-
-      const drawPhantomCapsule = (
-        p1: [number, number],
-        p2: [number, number],
-        width: number,
-        fillCol: string,
-        borderCol: string
-      ) => {
-        ctx.save()
-        const dx = p2[0] - p1[0]
-        const dy = p2[1] - p1[1]
-        const len = Math.sqrt(dx * dx + dy * dy)
-        if (len > 0) {
-          const angle = Math.atan2(dy, dx)
-          
-          ctx.beginPath()
-          ctx.arc(p1[0], p1[1], width / 2, angle + Math.PI / 2, angle - Math.PI / 2)
-          ctx.arc(p2[0], p2[1], width / 2, angle - Math.PI / 2, angle + Math.PI / 2)
-          ctx.closePath()
-          
-          ctx.fillStyle = fillCol
-          ctx.fill()
-          ctx.strokeStyle = borderCol
-          ctx.lineWidth = 1.0
-          ctx.setLineDash([3, 3])
-          ctx.stroke()
-        }
-        ctx.restore()
-      }
-
-      // Link 1 (Ideal J1) - Holo Blue
-      drawPhantomCapsule(
-        bPx,
-        iePx,
-        14, // width
-        isLight ? 'rgba(37, 99, 235, 0.04)' : 'rgba(96, 165, 250, 0.08)',
-        isLight ? 'rgba(37, 99, 235, 0.35)' : 'rgba(96, 165, 250, 0.45)'
-      )
-
-      // Link 2 (Ideal J2) - Holo Orange
-      drawPhantomCapsule(
-        iePx,
-        itPx,
-        10, // width
-        isLight ? 'rgba(234, 88, 12, 0.04)' : 'rgba(251, 146, 60, 0.08)',
-        isLight ? 'rgba(234, 88, 12, 0.35)' : 'rgba(251, 146, 60, 0.45)'
-      )
-    }
-
-    // 2. Draw Actual Arm (Modern glowing semi-transparent capsule bars: J1 blue, J2 orange)
-    if (actualElbow && actualTip) {
-      const bPx = toPx(0, 0)
-      const aePx = toPx(actualElbow[0], actualElbow[1])
-      const atPx = toPx(actualTip[0], actualTip[1])
-
-      const drawCapsule = (
-        p1: [number, number],
-        p2: [number, number],
-        width: number,
-        bodyCol: string,
-        borderCol: string,
-        coreCol?: string,
-        coreWidth?: number
-      ) => {
-        ctx.save()
-        const dx = p2[0] - p1[0]
-        const dy = p2[1] - p1[1]
-        const len = Math.sqrt(dx * dx + dy * dy)
-        if (len > 0) {
-          const ux = dx / len
-          const uy = dy / len
-          const angle = Math.atan2(dy, dx)
-          
-          ctx.beginPath()
-          ctx.arc(p1[0], p1[1], width / 2, angle + Math.PI / 2, angle - Math.PI / 2)
-          ctx.arc(p2[0], p2[1], width / 2, angle - Math.PI / 2, angle + Math.PI / 2)
-          ctx.closePath()
-          
-          ctx.fillStyle = bodyCol
-          ctx.fill()
-          ctx.strokeStyle = borderCol
-          ctx.lineWidth = 2.0
-          ctx.stroke()
-
-          if (coreCol && coreWidth) {
-            ctx.beginPath()
-            ctx.moveTo(p1[0], p1[1])
-            ctx.lineTo(p2[0], p2[1])
-            ctx.strokeStyle = coreCol
-            ctx.lineWidth = coreWidth
-            ctx.lineCap = 'round'
-            ctx.stroke()
-          }
-        }
-        ctx.restore()
-      }
-
-      // Link 1 (inner arm, J1): l1 = 100mm, colored blue
-      drawCapsule(
-        bPx,
-        aePx,
-        12, // width
-        isLight ? '#F4F4F5' : '#2A2C31', // body (fully solid)
-        hexToRgba(COLORS.j1, 0.95), // border (solid, highly visible)
-        hexToRgba(COLORS.j1, 1.0), // core (fully solid)
-        3.0 // coreWidth
-      )
-
-      // Link 2 (outer arm, J2): l2 = 70mm, colored orange
-      drawCapsule(
-        aePx,
-        atPx,
-        9, // width
-        isLight ? '#F4F4F5' : '#2A2C31', // body (fully solid)
-        hexToRgba(COLORS.j2, 0.95), // border (solid, highly visible)
-        hexToRgba(COLORS.j2, 1.0), // core (fully solid)
-        2.2 // coreWidth
-      )
-
-      // Joint pivots (Clean concentric circles with colored outlines and centers)
-      const drawJoint = (p: [number, number], r: number, color: string) => {
-        ctx.save()
-        ctx.beginPath()
-        ctx.arc(p[0], p[1], r, 0, Math.PI * 2)
-        ctx.fillStyle = COLORS.panel
-        ctx.fill()
-        ctx.strokeStyle = color
-        ctx.lineWidth = 1.5
-        ctx.stroke()
-        
-        ctx.beginPath()
-        ctx.arc(p[0], p[1], r * 0.4, 0, Math.PI * 2)
-        ctx.fillStyle = color
-        ctx.fill()
-        ctx.restore()
-      }
-
-      // Base joint (J1) - Blue
-      drawJoint(bPx, 6, COLORS.j1)
-      // Elbow joint (J2) - Orange
-      drawJoint(aePx, 4.5, COLORS.j2)
-      // End effector joint indicator (J3 / Tip) - Red/Actual
-      drawJoint(atPx, 3.5, COLORS.actual)
-    }
-  }
 
   function drawPath(buf: TPoint[], ideal: boolean, alpha = 1) {
     if (buf.length < 2) return
@@ -748,26 +554,17 @@ export function XYTrace() {
   const [isFocused, setIsFocused] = useState(false)
   const [showArm, setShowArm] = useState(true)
   const [ghostOpacity, setGhostOpacity] = useState(0.2)
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  const [resetCounter, setResetCounter] = useState(0)
+  const [isPicking, setIsPicking] = useState(false)
+  const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null)
 
-  // Zoom & Pan States
-  const [zoom, setZoom] = useState(1.0)
-  const [centerX, setCenterX] = useState(0)
-  const [centerY, setCenterY] = useState(75)
-
-  // Zoom & Pan Refs to avoid stale closures in canvas RAF/event ticks
-  const zoomRef = useRef(1.0)
-  const centerXRef = useRef(0)
-  const centerYRef = useRef(75)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const stateRef = useRef(state)
 
   useEffect(() => {
-    zoomRef.current = zoom
-    centerXRef.current = centerX
-    centerYRef.current = centerY
-  }, [zoom, centerX, centerY])
-
-  // Drag Panning States
-  const [isDragging, setIsDragging] = useState(false)
-  const dragStartRef = useRef<{ x: number; y: number; centerX: number; centerY: number } | null>(null)
+    stateRef.current = state
+  }, [state])
 
   useEffect(() => {
     const handleConfigChange = () => {
@@ -780,10 +577,6 @@ export function XYTrace() {
     window.addEventListener('hmi_config_updated', handleConfigChange)
     return () => window.removeEventListener('hmi_config_updated', handleConfigChange)
   }, [])
-
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const stateRef = useRef(state)
-  const showArmRef = useRef(showArm)
 
   // Merges committed React state with the still-pending serial queue so the
   // canvas always draws the freshest data without waiting for the 100ms flush.
@@ -800,11 +593,57 @@ export function XYTrace() {
     }
   }, [liveRefs])
 
-  // Stable ref so resize observer and other `[]`-dep effects never go stale.
-  const getCanvasStateRef = useRef(getCanvasState)
-  useEffect(() => { getCanvasStateRef.current = getCanvasState }, [getCanvasState])
-  const [isPicking, setIsPicking] = useState(false)
-  const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null)
+  // Retrieves coordinates and angles for the 3D overlay posed models
+  const getCurrentAngles = useCallback(() => {
+    const s = getCanvasState()
+    const activeBuf = s.recordingState === 'REC' ? s.tBuffer : s.frozenT
+    const activeDSamples = s.recordingState === 'REC' ? s.dBuffer : s.frozenD
+
+    const latestPoint = activeBuf.length > 0 ? activeBuf[activeBuf.length - 1] : null
+    const latestDSample = activeDSamples.length > 0 ? activeDSamples[activeDSamples.length - 1] : null
+
+    let th1 = 0
+    let th2 = 0
+    let th1d: number | null = null
+    let th2d: number | null = null
+
+    if (latestPoint) {
+      if (latestDSample && latestDSample.th1 !== null && latestDSample.th2 !== null) {
+        th1 = latestDSample.th1
+        th2 = latestDSample.th2
+        th1d = latestDSample.th1d ?? latestDSample.th1
+        th2d = latestDSample.th2d ?? latestDSample.th2
+      } else {
+        // Fallback: Reconstruct using IK
+        const l1 = 100
+        const l2 = 70
+        const getIK = (x: number, y: number) => {
+          const r2 = x * x + y * y
+          const r = Math.sqrt(r2)
+          if (r === 0) return { t1: 0, t2: 0 }
+          const cosAlpha = Math.max(-1, Math.min(1, (l1 * l1 + r2 - l2 * l2) / (2 * l1 * r)))
+          const alpha = Math.acos(cosAlpha)
+          const beta = Math.atan2(y, x)
+          const t1 = beta - alpha
+          const t2 = Math.atan2(y - l1 * Math.sin(t1), x - l1 * Math.cos(t1)) - t1
+          return { t1, t2 }
+        }
+
+        const act = getIK(latestPoint.xa, latestPoint.ya)
+        th1 = act.t1
+        th2 = act.t2
+
+        const idl = getIK(latestPoint.xi, latestPoint.yi)
+        th1d = idl.t1
+        th2d = idl.t2
+      }
+    } else if (s.bootPose) {
+      th1 = s.bootPose.th1
+      th2 = s.bootPose.th2
+    }
+
+    return { th1, th2, th1d, th2d }
+  }, [getCanvasState])
 
   // Listen for custom window event to toggle pick point mode
   useEffect(() => {
@@ -851,7 +690,7 @@ export function XYTrace() {
       if (isFocused) {
         e.preventDefault()
         toast.promise(
-          downloadSingleGraph('xy', 'XY Workspace Trace', getCanvasStateRef.current()),
+          downloadSingleGraph('xy', 'XY Workspace Trace', getCanvasState()),
           {
             loading: 'Exporting XY Workspace Trace...',
             success: 'Workspace trace downloaded successfully!',
@@ -862,212 +701,30 @@ export function XYTrace() {
     }
     window.addEventListener('hmi_download_graph', handleDownload)
     return () => window.removeEventListener('hmi_download_graph', handleDownload)
-  }, [isFocused])
+  }, [isFocused, getCanvasState])
 
-  // Sync stateRef to keep redraws using the latest data
+  // Observe resize to set container size
   useEffect(() => {
-    stateRef.current = state
-  }, [state])
-
-  // Keep showArmRef synced for the resize observer closure
-  useEffect(() => {
-    showArmRef.current = showArm
-  }, [showArm])
-
-  // Draw helper
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current
-    if (canvas) {
-      drawTrace(canvas, getCanvasState(), showArm, hoverPoint, zoom, centerX, centerY)
-    }
-  }, [getCanvasState, showArm, hoverPoint, zoom, centerX, centerY, theme])
-
-  // Event Handlers for Panning & Zooming
-  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (isPicking) return
-    if (e.button !== 0) return // only left click panning
-    
-    setIsDragging(true)
-    dragStartRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      centerX: centerXRef.current,
-      centerY: centerYRef.current
-    }
-    e.currentTarget.setPointerCapture(e.pointerId)
-  }
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    if (isPicking) {
-      const coords = getRobotCoords(canvas, e.clientX, e.clientY, zoomRef.current, centerXRef.current, centerYRef.current)
-      setHoverPoint(coords)
-      return
-    }
-
-    if (!isDragging || !dragStartRef.current) return
-    
-    const dpr = window.devicePixelRatio || 1
-    const W = canvas.width / dpr
-    const H = canvas.height / dpr
-    const plotW = W - LM - RM
-    const plotH = H - TM - BM
-    
-    const scaleY = plotH / (YMAX - YMIN)
-    const scaleX = plotW / (2 * (L_OUTER + 25))
-    const baseScale = Math.min(scaleY, scaleX)
-    const scale = baseScale * zoomRef.current
-    
-    const dx = e.clientX - dragStartRef.current.x
-    const dy = e.clientY - dragStartRef.current.y
-    
-    const newCenterX = dragStartRef.current.centerX - dx / scale
-    const newCenterY = dragStartRef.current.centerY + dy / scale
-    
-    setCenterX(newCenterX)
-    setCenterY(newCenterY)
-    
-    drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, zoomRef.current, newCenterX, newCenterY)
-  }
-
-  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (isDragging) {
-      setIsDragging(false)
-      dragStartRef.current = null
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    }
-  }
-
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault()
-    const canvas = canvasRef.current
-    if (!canvas) return
-    
-    const zoomFactor = e.deltaY < 0 ? 1.15 : 1 / 1.15
-    const nextZoom = Math.max(0.5, Math.min(15.0, zoomRef.current * zoomFactor))
-    
-    if (nextZoom === zoomRef.current) return
-    
-    const coords = getRobotCoords(canvas, e.clientX, e.clientY, zoomRef.current, centerXRef.current, centerYRef.current)
-    const scaleRatio = zoomRef.current / nextZoom
-    const newCenterX = coords.x - (coords.x - centerXRef.current) * scaleRatio
-    const newCenterY = coords.y - (coords.y - centerYRef.current) * scaleRatio
-    
-    setZoom(nextZoom)
-    setCenterX(newCenterX)
-    setCenterY(newCenterY)
-    
-    drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, isPicking ? coords : null, nextZoom, newCenterX, newCenterY)
-  }
-
-  const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    e.stopPropagation()
-    setZoom(1.0)
-    setCenterX(0)
-    setCenterY(75)
-    
-    const canvas = canvasRef.current
-    if (canvas) {
-      drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, 1.0, 0, 75)
-    }
-  }
-
-  const handleMouseLeave = () => {
-    if (isPicking) {
-      setHoverPoint(null)
-    }
-  }
-
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isPicking) return
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const coords = getRobotCoords(canvas, e.clientX, e.clientY, zoomRef.current, centerXRef.current, centerYRef.current)
-    
-    const r2 = coords.x * coords.x + coords.y * coords.y
-    const isReachable = r2 >= L_INNER * L_INNER && r2 <= L_OUTER * L_OUTER && isAngleValid(coords.x, coords.y)
-    
-    if (!isReachable) {
-      alert(`Invalid Point: Coordinate (${coords.x.toFixed(1)}, ${coords.y.toFixed(1)}) is outside the reachable workspace (${L_INNER} - ${L_OUTER} mm, -30 - 210 deg).`)
-      return
-    }
-    
-    const currentPos = getCurrentPosition(stateRef.current)
-    const safety = checkStraightLineTrajectory(currentPos, coords, L_INNER, L_OUTER)
-    const isAutoRoute = !safety.isValid && safety.reason === 'inner_violation'
-    if (!safety.isValid && !isAutoRoute) {
-      alert('Invalid Trajectory: Path is outside the reachable workspace or violates angular limits.')
-      return
-    }
-    
-    dispatch({ type: 'PICK_TARGET', target: { x: coords.x, y: coords.y } })
-    setIsPicking(false)
-    setHoverPoint(null)
-  }
-
-  // Observe resize to adjust backing store size
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
 
     const handleResize = () => {
-      const dpr = window.devicePixelRatio || 1
-      canvas.width  = Math.floor(canvas.clientWidth * dpr)
-      canvas.height = Math.floor(canvas.clientHeight * dpr)
-      drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, zoomRef.current, centerXRef.current, centerYRef.current)
+      setContainerSize({ width: wrapper.clientWidth, height: wrapper.clientHeight })
     }
 
     const ro = new ResizeObserver(handleResize)
-    ro.observe(canvas)
+    ro.observe(wrapper)
     
-    // Initial size setup & draw
+    // Initial size setup
     handleResize()
 
     return () => ro.disconnect()
-  }, []) // Empty dependencies ensure this runs once on mount
-
-  // ── Throttled canvas redraw (10 Hz) ──────────────────────────────────
-  // getCanvasState merges state.tBuffer + live queue so every tick draws the
-  // most current data without waiting for the next 100ms React flush cycle.
-  const rafIdRef = useRef<number | null>(null)
-  useEffect(() => {
-    const tick = () => {
-      if (rafIdRef.current !== null) return // already a frame queued
-      rafIdRef.current = requestAnimationFrame(() => {
-        rafIdRef.current = null
-        const canvas = canvasRef.current
-        if (canvas) {
-          drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, hoverPoint, zoomRef.current, centerXRef.current, centerYRef.current)
-        }
-      })
-    }
-    const id = setInterval(tick, 100) // 10 Hz
-    return () => {
-      clearInterval(id)
-      if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current)
-    }
-  }, [hoverPoint]) // hoverPoint changes need immediate redraw; getCanvasState is accessed via stable ref
-
-  // For non-live interactions (pick point, mode changes, zoom changes)
-  useEffect(() => {
-    draw()
-  }, [
-    state.recordingState,
-    state.frozenT,
-    state.prevTBuffer,
-    state.showGhost,
-    state.currentMove,
-    state.previewTarget,
-    state.bootPose,
-    showArm,
-    draw,
-  ])
+  }, [])
 
   const activeBuf = state.recordingState === 'REC' ? state.tBuffer : state.frozenT
   const last = activeBuf[activeBuf.length - 1]
   const errMm = last ? Math.sqrt((last.xi - last.xa) ** 2 + (last.yi - last.ya) ** 2) : null
+  const currentPos = getCurrentPosition(state)
 
   const recColor = 
     state.recordingState === 'REC'
@@ -1180,68 +837,24 @@ export function XYTrace() {
             </Button>
           </Tooltip>
 
-          {/* Zoom & Reset Controls */}
+          {/* Reset Control */}
           <div className="flex items-center gap-1 border-l border-hmi-grid/60 pl-1.5 mr-0.5">
-            <Tooltip content="Zoom In" align="center">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={(e) => { 
-                  e.stopPropagation()
-                  const nextZoom = Math.min(15.0, zoomRef.current * 1.25)
-                  setZoom(nextZoom)
-                  const canvas = canvasRef.current
-                  if (canvas) {
-                    drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, nextZoom, centerXRef.current, centerYRef.current)
-                  }
-                }} 
-                className="h-5 w-5 p-0 border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
-              >
-                <ZoomIn className="h-3 w-3" />
-              </Button>
-            </Tooltip>
-            <Tooltip content="Zoom Out" align="center">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={(e) => { 
-                  e.stopPropagation()
-                  const nextZoom = Math.max(0.5, zoomRef.current / 1.25)
-                  setZoom(nextZoom)
-                  const canvas = canvasRef.current
-                  if (canvas) {
-                    drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, nextZoom, centerXRef.current, centerYRef.current)
-                  }
-                }} 
-                className="h-5 w-5 p-0 border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
-              >
-                <ZoomOut className="h-3 w-3" />
-              </Button>
-            </Tooltip>
             <Tooltip content="Reset Zoom & Pan" align="center">
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={(e) => { 
                   e.stopPropagation()
-                  setZoom(1.0)
-                  setCenterX(0)
-                  setCenterY(75)
-                  const canvas = canvasRef.current
-                  if (canvas) {
-                    drawTrace(canvas, getCanvasStateRef.current(), showArmRef.current, null, 1.0, 0, 75)
-                  }
+                  setResetCounter(prev => prev + 1)
                 }} 
-                className={cn(
-                  "h-5 px-1 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text",
-                  (zoom !== 1.0 || centerX !== 0 || centerY !== 75) && "text-amber-500 border-amber-500/30 bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30 dark:bg-amber-950/20"
-                )}
+                className="h-5 px-1 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
               >
                 <RefreshCw className="h-2.5 w-2.5 mr-1" />
                 Reset
               </Button>
             </Tooltip>
           </div>
+
 
           <Tooltip content={isFocused ? "Collapse: Restores the panel to normal size." : "Expand: Maximizes the workspace trace."} align="center">
             <Button
@@ -1257,32 +870,34 @@ export function XYTrace() {
       </div>
 
       {/* Graph Area Wrapper */}
-      <div className="relative flex-1 min-h-0 w-full">
-        {/* Zoom Indicator badge — top-left */}
-        {zoom !== 1.0 && (
-          <div className="absolute top-2 left-2 bg-hmi-panel/90 backdrop-blur-md border border-hmi-grid/80 px-2 py-1 rounded text-[10px] font-mono text-amber-600 dark:text-amber-400 shadow-md pointer-events-none select-none z-10">
-            Zoom: {Math.round(zoom * 100)}%
-          </div>
-        )}
-
-        <canvas 
-          ref={canvasRef} 
-          className={cn(
-            "absolute inset-0 w-full h-full select-none touch-none",
-            isPicking 
-              ? "cursor-crosshair" 
-              : isDragging 
-                ? "cursor-grabbing" 
-                : "cursor-grab"
-          )}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          onWheel={handleWheel}
-          onDoubleClick={handleDoubleClick}
-          onClick={handleCanvasClick}
+      <div ref={wrapperRef} className="relative flex-1 min-h-0 w-full">
+        <SCARA3DCanvas
+          width={containerSize.width}
+          height={containerSize.height}
+          showArm={showArm}
+          recordingState={state.recordingState}
+          bootPose={state.bootPose}
+          targetX={state.currentMove?.xf ?? state.bootPose?.x}
+          targetY={state.currentMove?.yf ?? state.bootPose?.y}
+          points={activeBuf}
+          prevPoints={state.prevTBuffer}
+          showGhost={state.showGhost}
+          ghostOpacity={ghostOpacity}
+          getCurrentAngles={getCurrentAngles}
+          isPicking={isPicking}
+          onPickPoint={(coords) => {
+            dispatch({ type: 'PICK_TARGET', target: { x: coords.x, y: coords.y } })
+            setIsPicking(false)
+            setHoverPoint(null)
+          }}
+          hoverPoint={hoverPoint}
+          setHoverPoint={setHoverPoint}
+          previewTarget={state.previewTarget}
+          currentPos={currentPos}
+          resetTrigger={resetCounter}
         />
+
+
 
         {/* Pick Point Mode active banner */}
         {isPicking && (
@@ -1331,7 +946,7 @@ export function XYTrace() {
 
         {/* Glassmorphic Stats telemetry overlay — bottom-left */}
         <div className={cn(
-          "absolute bottom-3 left-16 font-sans text-xs text-hmi-text backdrop-blur-md px-3 py-2 rounded-lg shadow-lg flex flex-col gap-1.5 min-w-[190px] z-10 transition-all duration-500",
+          "absolute bottom-3 left-3 font-sans text-xs text-hmi-text backdrop-blur-md px-3 py-2 rounded-lg shadow-lg flex flex-col gap-1.5 min-w-[190px] z-10 transition-all duration-500",
           isLive
             ? "bg-hmi-panel/90 border border-amber-500/30 shadow-[0_0_12px_2px_rgba(245,158,11,0.08)]"
             : "bg-hmi-panel/85 border border-hmi-grid/80"

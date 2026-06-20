@@ -23,6 +23,7 @@ For in-depth developer references, see the centralized documentation folder:
 | `/` | `SCARA` | Primary dashboard — Monitor, Analysis, Rest Analysis, and README tabs |
 | `/zn` | `ZN` | Ziegler-Nichols joint tuning page with step commands and caliper analyzer |
 | `/test` | `TEST` | Engineering test bench — adds Params Tuner (33 parameters) and Raw Signal sections |
+| `/pcb` | — | Interactive ESP32 Controller PCB layout, schematic, and CAD viewer |
 | `/login` | — | Google OAuth sign-in portal |
 | `/dashboard` | — | Saved Runs History with comparison tabs (Trajectory, Velocity, PID, Feedforward, Metrics, Advanced, AI Copilot) — Protected |
 | `/eksperimen` | `TEST` | Automated experiment sequences (EXP-1 through EXP-6) — Protected |
@@ -35,7 +36,7 @@ All routes share a single `HMIProvider` serial session. Switch pages via the hea
 ## Home Page Tabs (`/`)
 
 ### 1. Monitor Tab
-* **XY Workspace Trace (`XYTrace`)**: Canvas-based 2D workspace with link segments ($l_1 = 100$ mm, $l_2 = 70$ mm), reach boundaries ($R = 170$ mm), inner singularity zone ($r = 70.7$ mm), ideal vs actual paths, ghost trail, and pick-point targeting.
+* **3D XY Workspace Trace (`SCARA3DCanvas`)**: Interactive 3D React Three Fiber (R3F) and OrbitControls workspace visualizer. Renders solid CAD link models (darkened to `#3B82F6` and `#F97316` to prevent blowout), ideal path (dashed blue `#2563EB`), actual path (red `#DC2626`), start point sphere, target flagpole, and previous run ghost trail. Implements a `CameraInitializer` with Z-axis offset (`-0.074999`) to prevent polar singularity/gimbal lock. Reachable boundaries are rendered in high-contrast electric blue (`#00e5ff`) in dark mode or cyan in light mode. Includes an invisible raycast floor catcher (`RaycastFloor`) for coordinate targeting.
 * **Telemetry Charts (`ChartPanel`)**: Seven chart tabs — **CTE** (cross-tracking error), **ATE** (along-tracking error), joint **Position**, **Velocity**, **PID breakdown**, **J1 control**, and **J2 velocity**.
 * **Run Metrics (`MetricsPanel`)**: Post-run summary grid — Accuracy Index, MCTE, RMS ATE, error bias, RMSE per joint, control variance, jitter, and settling time.
 * **Tuning & Control Panel (`ControlPanel`)**: Coordinate moves, elbow configuration, dual-joint PID gains, feedforward blend factors, and microstepping.
@@ -74,6 +75,9 @@ Dedicated Ziegler-Nichols tuning workspace (`ZNTunerTab`):
 
 ### Test Page (`/test`)
 Engineering mode with four tabs: Monitor, Analysis (includes `RawSignalSection`), Rest Analysis, and **Params Tuner** (`AdvTunerTab`) for all 33 runtime parameters.
+
+### PCB Page (`/pcb`)
+Interactive Controller PCB page providing a 3-tab layout: **PCB Layout** (assembly/layout SVG viewer), **Schematic** (circuit diagram viewer), and **CAD** (interactive 3D CAD step viewer), alongside component specification listings and GPIO maps.
 
 ---
 
@@ -116,7 +120,7 @@ Configurable via the settings menu. Defaults include tab switching (`1`/`2`/`3`)
 * **AI Copilot**: Google Gemini API with model fallback chain, Cloudflare KV for history
 * **Styling**: Tailwind CSS v4 — industrial dark mode palette (zinc bases)
 * **Hardware Interface**: Web Serial API at **921600** baud
-* **Graphics**: HTML5 Canvas (workspace) and Recharts v3.8.1 (telemetry)
+* **Graphics**: React Three Fiber & Three.js (3D workspace visualizer), Recharts v3.8.1 (telemetry charts)
 * **UI Primitives**: Radix UI, Sonner toasts, react-resizable-panels
 * **Packaging**: JSZip (client-side ZIP export of graphs, CSV, and SVG reports)
 

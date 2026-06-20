@@ -15,8 +15,10 @@ This project is a web-based **Human-Machine Interface (HMI)** dashboard designed
 *   **Hardware Interface Layer**: HTML5 Web Serial API (`navigator.serial`).
 *   **Styling**: Tailwind CSS v4 (configured with a high-contrast industrial dark mode palette).
 *   **Visualizations**:
-    *   **HTML5 Canvas**: High-performance rendering of the physical arm, trajectory paths, and workspace boundaries.
+    *   **React Three Fiber (R3F) & Three.js**: Interactive 3D rendering of physical CAD linkage models, coordinate trajectory tracking paths, and reachable workspace safety limits.
     *   **Recharts v3.8.1**: Declarative plots for telemetry streams, Discrete Fourier Transforms (DFT/FFT), and control effort curves.
+*   **Interactive Hardware Viewer**:
+    *   **Embedded CAD & PCB Layout**: SVG-based board placement layouts and interactive 3D step CAD viewer.
 *   **UI Primitives**: Radix UI wrappers styled with Tailwind v4.
 *   **Build/Package Manager**: Bun / NPM.
 
@@ -26,8 +28,8 @@ This project is a web-based **Human-Machine Interface (HMI)** dashboard designed
 │               HMI LAYER (Web Browser Client)           │
 │                                                        │
 │  ┌──────────────────┐           ┌───────────────────┐  │
-│  │   HTML5 Canvas   │           │    useSerial      │  │
-│  │ (XYTrace / Arm)  │           │   (Read Loop)     │  │
+│  │  R3F / Three.js  │           │    useSerial      │  │
+│  │ (SCARA3DCanvas)  │           │   (Read Loop)     │  │
 │  └────────▲─────────┘           └────────▲──────────┘  │
 │           │                              │             │
 │   React Context State Dispatch           │             │
@@ -87,6 +89,10 @@ hmi/
 │   ├── test/                         # Public: /test
 │   │   ├── page.tsx
 │   │   └── test-page-content.tsx
+│   ├── pcb/                          # Public: /pcb
+│   │   ├── page.tsx
+│   │   ├── pcb-page-content.tsx
+│   │   └── pcb-data.json             # Components list and GPIO mappings
 │   ├── globals.css                   # [Config] Tailwind CSS v4 Theme, Keyframes, Scrollbars
 │   ├── layout.tsx                    # [Entry] Root layout + Providers wrapper
 │   └── providers.tsx                 # [Entry] HMIProvider, ModeRouter, KeybindingsHandler
@@ -102,7 +108,7 @@ hmi/
 │   │   ├── chart-card.tsx            # Generic chart card wrapper
 │   │   ├── dashboard-xy-trace.tsx    # Dedicated XY trace for dashboard
 │   │   └── run-selector.tsx          # Run selection sidebar
-│   ├── hmi/                          # Core HMI Features & Views (29 components)
+│   ├── hmi/                          # Core HMI Features & Views (30 components)
 │   │   ├── advanced-analysis.tsx     # FFT, control effort, CTC torques, loop diagnostics
 │   │   ├── adv-tuner-tab.tsx         # 33 runtime constants tuner (Test page only)
 │   │   ├── analysis-tab.tsx          # Post-run diagnostics layout
@@ -124,12 +130,13 @@ hmi/
 │   │   ├── readme-tab.tsx            # In-app user guide
 │   │   ├── run-button.tsx            # Run + Save button
 │   │   ├── save-run-dialog.tsx       # Dialog for naming & saving runs
+│   │   ├── scara-arm-3d.tsx          # R3F 3D SCARA canvas container & camera limits
 │   │   ├── serial-log.tsx            # Serial log console content
 │   │   ├── serial-terminal.tsx       # Bottom-sheet serial monitor shell
 │   │   ├── step-metrics.tsx          # Step metrics for rest analysis
 │   │   ├── theme-provider.tsx        # Theme context provider (dark/light)
 │   │   ├── theme-toggle.tsx          # Theme toggle button
-│   │   ├── xy-trace.tsx              # Canvas workspace map
+│   │   ├── xy-trace.tsx              # Workspace trace plotter (embeds 3D canvas)
 │   │   ├── zn-analysis-tab.tsx       # Rest Analysis tab
 │   │   └── zn-tuner-tab.tsx          # ZN page tuner workspace
 │   ├── mode-badge.tsx                # ModeBadge component (at components/root)
@@ -181,13 +188,15 @@ hmi/
 
 #### 4. `XYTrace`
 *   **File Path**: [xy-trace.tsx](../../hmi/components/hmi/xy-trace.tsx)
-*   **Purpose**: Visualizes the 2D Cartesian workspace of the SCARA arm, traces movements, draws joint links, and previews moves with safety indicators.
+*   **Purpose**: Renders the 3D SCARA workspace visualizer client wrapper, integrating safety limits checking and coordinate path traces.
 *   **Props**: None.
 *   **Controls/Renders**:
-1. HTML5 `<canvas>` rendering: Outer reach limits ($R=170\text{ mm}$), inner singularity zone ($r=70.7\text{ mm}$), grid lines, ideal coordinate path (dashed blue), actual coordinate path (solid red), previous run ghost path (drawn with adjustable opacity loaded dynamically from `localStorage`), current destination flag (orange), and joint links (J1 in blue, J2 in orange).
-2. Safety reachability indicators: Red border and crossing alert markers drawn on canvas if the previewed straight-line move violates safety constraints.
-3. Toggles: Ghost Trail ON/OFF, Link skeleton overlay ON/OFF, Focus Mode (expands graph to full screen).
-4. Bottom-left status board: Displays live numerical Cartesian coordinate positions and deviation error.
+1. **Three.js WebGL rendering via `SCARA3DCanvas`**: Incorporates realistic CAD models for robot links J1 and J2 with darkened colors (`#3B82F6` and `#F97316`) for shading contrast, stacked at J1 (Z=35 mm) and J2 (Z=5 mm) heights.
+2. **Path Visualizations**: Draws ideal planned trajectories (dashed blue, `#2563EB`) and actual tracking results (solid red, `#DC2626`) directly in the 3D space.
+3. **Workspace Boundaries**: Shows reachable boundaries in electric blue (`#00e5ff` in dark mode) or cyan (in light mode) to provide crisp contrast.
+4. **Orientation and Stabilizers**: Employs a tiny camera offset (`-0.074999` in Z-axis) via `CameraInitializer` to avoid gimbal lock/polar singularities on reset.
+5. **Interactive Controls**: Toggle switches for Ghost Trail rendering (opacity loaded from `localStorage`), Arm visibility, OrbitControls zoom/pan/rotate, and Focus Mode.
+6. **Safety Indicators**: Integrates boundary alerts (red trajectory paths and warning cards) when proposed coordinates trigger safety violations ($R < 70.7\text{ mm}$ singularity or $R > 170\text{ mm}$ reach boundary).
 *   **Events**: Listens for the custom `hmi_config_updated` window event to reactively update the ghost trail opacity.
 
 #### 5. `ChartPanel`, `MetricsPanel` & Helper Charts
@@ -471,7 +480,7 @@ S
 ```
 
 #### 3. Spatial Path Sample (`T`)
-Fires periodically to populate the 2D workspace coordinates shown in the `XYTrace` canvas.
+Fires periodically to populate the Cartesian trajectories shown in the 3D workspace viewer.
 ```text
 T,xi,yi,xa,ya
 ```
@@ -569,9 +578,9 @@ export interface HMIState {
   hasSyncedParams: boolean                  // Sync state flag indicating device params synced
   queueStatus: { pendingStatus: number; pendingX: number; pendingY: number } | null
   logLines: string[]                        // Terminal line logs list
-  previewTarget: { x: number; y: number } | null  // Canvas hover target coordinates
+  previewTarget: { x: number; y: number } | null  // 3D workspace hover target coordinates
   bootPose: { x: number; y: number; th1: number; th2: number } | null  // Initial boot FK pose
-  pickedTarget: { x: number; y: number } | null   // Coordinates selected on XY Trace canvas
+  pickedTarget: { x: number; y: number } | null   // Coordinates selected on 3D workspace viewer
   estopped: boolean                         // E-STOP latch state from ESTOP packet
   targetInputX: number | null               // Current X target from control panel (for save)
   targetInputY: number | null               // Current Y target from control panel (for save)
@@ -593,7 +602,7 @@ Except for status states like `serialStatus` and `online`, the global state is a
 #### HMI Configuration & Exporter Settings
 Multiple local configurations and exporter preferences are stored in the browser's `localStorage` and kept synchronized across reactive components using a custom window event:
 *   `hmi_angular_unit` (`'radians' | 'degrees'`): Dictates the angular units displayed on all chart series, legends, tooltips, axis labels, and analysis inputs.
-*   `hmi_ghost_opacity` (decimal float value string, e.g. `'0.20'`): Regulates the transparency/opacity of the previous run trace overlay in the XY Trace canvas.
+*   `hmi_ghost_opacity` (decimal float value string, e.g. `'0.20'`): Regulates the transparency/opacity of the previous run trace overlay in the 3D workspace.
 *   `hmi_export_format` (`'image/png' | 'image/jpeg'`): Selects the output file format when exporting graphs via the Capture Menu.
 *   `hmi_export_scale` (integer multiplier value, `1` | `2` | `3`): Represents standard, retina, or print DPI scaling for rendering sharp charts.
 *   `hmi_filename_prefix` (string, e.g. `'scara_hmi'`): Prefix used to label generated image and zip diagnostics files.
@@ -607,7 +616,7 @@ Multiple local configurations and exporter preferences are stored in the browser
 
 Some UI components manage their own local state:
 *   **`XYTrace`**:
-    *   `isFocused`: Boolean. Toggles the full-screen canvas view.
+    *   `isFocused`: Boolean. Toggles the full-screen 3D visualizer view.
     *   `showArm`: Boolean. Toggles rendering of physical SCARA arm link segments.
 *   **`ChartPanel`**:
     *   `isFocused`: Boolean. Toggles full-screen chart display.
@@ -692,7 +701,7 @@ Every straight-line trajectory planned from the robot's current Cartesian positi
 
 ### Frontend Integration & Previews
 *   **Coordinate Move Input Fields**: In `ControlPanel`, when typing or updating $X_f$ or $Y_f$, the validation function `checkStraightLineTrajectory` runs reactively. If invalid, the "Send Move" button is disabled and a warning card displays the violation details.
-*   **Canvas Hover Previews**: In `XYTrace`, when hovering or clicking to select a target on the workspace plot, the safety path is calculated. If a violation is found, the planned path line glows bright red and a safety indicator flag warning is drawn onto the HTML5 Canvas context.
+*   **3D Workspace Hover Previews**: In `XYTrace`, when hovering or clicking to select a target on the workspace plot, the safety path is calculated. If a violation is found, the planned path line glows bright red and safety indicator flags are rendered into the 3D scene and interface.
 
 ---
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-20T04:17:34.041Z",
+  "generatedAt": "2026-06-20T10:41:54.648Z",
   "components": [
     {
       "ref": "A4988",
@@ -34,7 +34,7 @@
     {
       "ref": "J_EXP",
       "label": "Expansion Screw Terminal",
-      "description": "8-position 3.5mm screw terminal breaking out spare ESP32 pins for future sensors: 3V3, GND, IO21 (I2C SDA), IO22 (I2C SCL), IO19, IO23, IO27, and IO34 (input-only, ADC1). All are firmware-untouched and non-strapping.",
+      "description": "8-position 3.5mm screw terminal breaking out spare ESP32 pins for future sensors: 3V3, GND, IO21 (I2C SDA), IO22 (I2C SCL), IO19, IO23, IO5, and IO4 (ADC2). All firmware-untouched. NOTE: IO5 is a boot-strapping pin (idles HIGH) — don't hold it LOW at power-on. IO27/IO34 were moved here to keep expansion nets on the ESP32 right column (no DIP crossing).",
       "type": "simple_connector"
     },
     {
@@ -131,9 +131,9 @@
     },
     {
       "signal": "Expansion (J_EXP)",
-      "pin": "21/22/19/23/27/34",
+      "pin": "21/22/19/23/5/4",
       "type": "GPIO",
-      "purpose": "Spare GPIO + I2C on a screw terminal for future sensors"
+      "purpose": "Spare GPIO + I2C on a screw terminal for future sensors (IO5 boot-strap, IO4 ADC2)"
     }
   ]
 }

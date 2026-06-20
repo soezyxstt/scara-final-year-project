@@ -65,7 +65,7 @@ npx tscircuit dev
 | POT1 | 3-pin header + bypass | Joint 1 (DC) position pot → IO39. Brush-EMI filtering is done off-board (external LPF); C_POT1 (1µF) is just a local bypass at the ADC pin. |
 | POT2 | 3-pin header + bypass | Joint 2 (stepper) position pot → IO36, with C_POT2 (1µF) bypass. |
 | ENC | 4-pin header | Joint 1 quadrature encoder: 3V3, GND, ENC_A=IO25, ENC_B=IO26. |
-| J_EXP | 8-pos 3.5mm screw terminal | Spare-GPIO expansion for future sensors: 3V3, GND, IO21 (I2C SDA), IO22 (I2C SCL), IO19, IO23, IO27, IO34 (input-only/ADC1). All firmware-untouched & non-strapping. |
+| J_EXP | 8-pos 3.5mm screw terminal | Spare-GPIO expansion for future sensors: 3V3, GND, IO21 (I2C SDA), IO22 (I2C SCL), IO19, IO23, IO5, IO4 (ADC2). All firmware-untouched. IO5 is boot-strapping (idles HIGH) — don't pull LOW at power-on. (IO27/IO34 were remapped here onto the ESP32 right column so expansion nets don't cross the DIP.) |
 
 ## ESP32 GPIO map (matches `firmware/include/config.h`)
 

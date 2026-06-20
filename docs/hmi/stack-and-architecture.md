@@ -18,7 +18,7 @@ This document outlines the software architecture, state lifecycle, routing topol
 - **Security Boundary**: NextAuth.js v5 (auth.js) with Google OAuth 2.0 Credentials Provider.
 - **Styling Engine**: Tailwind CSS v4 configured with a high-contrast industrial dark mode palette (`#09090b` zinc bases, custom slate borders).
 - **Plotting Engines**:
-  - **HTML5 Canvas**: Multi-layered, fast render context for rendering the SCARA link models, safety warnings, and trajectory overlay traces.
+  - **React Three Fiber (R3F) / Three.js**: Fully 3D workspace visualizer rendering solid CAD link models (J1/J2), reachable workspace limits (high-contrast electric blue in dark mode, cyan in light mode), target flags, and 3D trajectory lines.
   - **Recharts v3.8.1**: Time-series plots for tracking errors, FFT spectrums, and PID gain breakouts.
 - **UI Components**: Radix UI primitive templates (Dialog, Dropdown, Collapsible, Sheet).
 - **Diagnostic Toasts**: Sonner library for toast notifications on error logs (`ERR:`, `WARN:`).
@@ -56,12 +56,16 @@ hmi/
 │   ├── test/                         # /test - PUBLIC
 │   │   ├── page.tsx
 │   │   └── test-page-content.tsx
+│   ├── pcb/                          # /pcb - PUBLIC
+│   │   ├── page.tsx
+│   │   ├── pcb-page-content.tsx
+│   │   └── pcb-data.json             # Components list and GPIO mappings
 │   ├── globals.css                   # Tailwind v4 theme, custom scrollbars, keyframes
 │   ├── layout.tsx                    # Root layout with SessionProvider + HMIProvider
 │   └── providers.tsx                 # HMIProvider wrapper (Serial, ModeRouter, KeybindingsHandler)
 ├── components/                       # React Components Layer
 │   ├── dashboard/                    # 10 components: trajectory-tab, velocity-tab, pid-tab, feedforward-tab, metrics-tab, advanced-tab, copilot-tab, chart-card, dashboard-xy-trace, run-selector
-│   ├── hmi/                          # 29 components: monitor-tab, analysis-tab, zn-analysis-tab, readme-tab, chart-panel, control-panel, xy-trace, serial-log, serial-terminal, capture-menu, capture-charts-host, command-palette, run-button, save-run-dialog, hmi-tutorial, theme-toggle, theme-provider, step-metrics, etc.
+│   ├── hmi/                          # 30 components: monitor-tab, analysis-tab, zn-analysis-tab, readme-tab, chart-panel, control-panel, xy-trace, scara-arm-3d, serial-log, serial-terminal, capture-menu, capture-charts-host, command-palette, run-button, save-run-dialog, hmi-tutorial, theme-toggle, theme-provider, step-metrics, etc.
 │   ├── mode-badge.tsx                # Mode indicator component
 │   └── ui/                           # Radix + Tailwind primitive wrappers
 ├── lib/
@@ -108,6 +112,7 @@ To secure database writes and user-saved directories:
   - / (Home Dashboard)                   (auth.js Middleware verification)
   - /zn (ZN Joint Tuner)                 - /dashboard (Saved runs comparisons)
   - /test (Params Tuner)                 - /eksperimen (Automation sequencer)
+  - /pcb (Interactive PCB Viewer)
   - /hasil-eksperimen (Analytics)
 ```
 

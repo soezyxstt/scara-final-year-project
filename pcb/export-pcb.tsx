@@ -48,7 +48,7 @@ const REF_METADATA: Record<string, { label: string; desc: string }> = {
   },
   J_EXP: {
     label: "Expansion Screw Terminal",
-    desc: "8-position 3.5mm screw terminal breaking out spare ESP32 pins for future sensors: 3V3, GND, IO21 (I2C SDA), IO22 (I2C SCL), IO19, IO23, IO27, and IO34 (input-only, ADC1). All are firmware-untouched and non-strapping."
+    desc: "8-position 3.5mm screw terminal breaking out spare ESP32 pins for future sensors: 3V3, GND, IO21 (I2C SDA), IO22 (I2C SCL), IO19, IO23, IO5, and IO4 (ADC2). All firmware-untouched. NOTE: IO5 is a boot-strapping pin (idles HIGH) — don't hold it LOW at power-on. IO27/IO34 were moved here to keep expansion nets on the ESP32 right column (no DIP crossing)."
   },
   C_BULK: {
     label: "100µF VMOT Bulk Cap",
@@ -76,7 +76,7 @@ const GPIO_MAP = [
   { signal: "Encoder Channel A", pin: "IO25", type: "Digital Input", purpose: "Joint 1 quadrature encoder A (new)" },
   { signal: "Encoder Channel B", pin: "IO26", type: "Digital Input", purpose: "Joint 1 quadrature encoder B (new)" },
   { signal: "Microstep MS1/2/3", pin: "3V3", type: "GPIO", purpose: "Hardwired high on PCB → fixed 1/16 step" },
-  { signal: "Expansion (J_EXP)", pin: "21/22/19/23/27/34", type: "GPIO", purpose: "Spare GPIO + I2C on a screw terminal for future sensors" }
+  { signal: "Expansion (J_EXP)", pin: "21/22/19/23/5/4", type: "GPIO", purpose: "Spare GPIO + I2C on a screw terminal for future sensors (IO5 boot-strap, IO4 ADC2)" }
 ]
 
 async function exportAll() {

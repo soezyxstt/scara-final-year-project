@@ -241,6 +241,7 @@ export function ReadmeTab() {
         { href: '#pages-nav', label: 'App Routes & Navigation' },
         { href: '#zn-page', label: 'ZN Tuner Page (/zn)' },
         { href: '#test-page', label: 'Test Page (/test)' },
+        { href: '#pcb-page', label: 'PCB Viewer Page (/pcb)' },
         { href: '#dashboard-page', label: 'Saved Runs Dashboard (/dashboard)' },
         { href: '#experiment-page', label: 'Automation & Results' },
       ],
@@ -314,7 +315,7 @@ export function ReadmeTab() {
   // Determine active category based on active scroll ID
   const getActiveCategory = (id: string) => {
     if (['overview', 'connect', 'move', 'modes'].includes(id)) return 'connect'
-    if (['pages-nav', 'zn-page', 'test-page', 'dashboard-page', 'experiment-page'].includes(id)) return 'pages'
+    if (['pages-nav', 'zn-page', 'test-page', 'pcb-page', 'dashboard-page', 'experiment-page'].includes(id)) return 'pages'
     if (['xy-trace', 'charts', 'metrics', 'control-panel'].includes(id)) return 'xy-trace'
     if (['advanced', 'comparison-table'].includes(id)) return 'performance'
     if (['rest-about', 'rest-interface', 'rest-calipers'].includes(id)) return 'rest-analysis'
@@ -653,6 +654,7 @@ export function ReadmeTab() {
               <Property name="/  (Home)" type="SCARA MODE" description="Monitor, Analysis, Rest Analysis, and README tabs. Primary dashboard for Cartesian moves and post-run diagnostics." />
               <Property name="/zn" type="ZN MODE" description="Dedicated Ziegler-Nichols tuning page with per-joint step commands and caliper analyzer." />
               <Property name="/test" type="TEST MODE" description="Engineering test bench with Monitor, Analysis (+ raw signals), Rest Analysis, and Params Tuner tabs." />
+              <Property name="/pcb" type="PUBLIC ROUTE" description="Interactive PCB details viewer with layout SVG placement lookup, schematic viewer, and 3D structural CAD assembly viewer." />
               <Property name="/login" type="PUBLIC ROUTE" description="Authentication portal using NextAuth.js to sign in via Google. Unlocks database saving and dashboard histories." />
               <Property name="/dashboard" type="PROTECTED ROUTE" description="Saved runs history comparison dashboard. Select multiple runs to compare trajectories, velocities, feedforward values, and performance metrics." />
               <Property name="/eksperimen" type="PROTECTED ROUTE" description="Automation suite page running automated experimentation sequences (EXP-1 to EXP-6) with motor rest cooldown timers." />
@@ -685,6 +687,22 @@ export function ReadmeTab() {
               <li><strong>Params Tuner</strong> — adjust all 33 runtime parameters (velocity limits, filter bandwidths, deadbands, trajectory flags, VFF gains) live with sync status LEDs.</li>
               <li><strong>Raw Signal Section</strong> — overlay unfiltered ADC readings on top of filtered position data to diagnose sensor noise.</li>
               <li>Same Monitor, Analysis, and Rest Analysis tabs as the home page.</li>
+            </ul>
+          </section>
+
+          <section id="pcb-page" className="scroll-mt-16 mb-12">
+            <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
+              <span>PCB Viewer Page (/pcb)</span>
+              <a href="#pcb-page" onClick={(e) => { e.preventDefault(); handleScrollTo('#pcb-page') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              Navigate to <InlineCode>/pcb</InlineCode> for interactive hardware diagnostics and board schematics reference:
+            </p>
+            <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400 leading-relaxed">
+              <li><strong>Interactive Layout SVG</strong> — click components on the PCB graphic to view details about their role, reference designators, and hardware functions.</li>
+              <li><strong>Schematic Viewer</strong> — view high-resolution circuit diagrams directly in-app.</li>
+              <li><strong>3D CAD Viewer</strong> — explore the 3D structural CAD assembly of the controller board.</li>
+              <li><strong>GPIO Assignments</strong> — look up ESP32 microcontroller pin mappings to stepper configurations, limit switches, and DC motor PWM outputs.</li>
             </ul>
           </section>
 
@@ -728,11 +746,11 @@ export function ReadmeTab() {
           {/* 💡 SECTION: XY TRACE */}
           <section id="xy-trace" className="scroll-mt-16 mb-12">
             <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
-              <span>XY Trace Canvas</span>
+              <span>3D Workspace Visualizer</span>
               <a href="#xy-trace" onClick={(e) => { e.preventDefault(); handleScrollTo('#xy-trace') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              Positioned on the left of the Monitor tab, the **XY Trace Canvas** renders a high-precision graphic visualization of the SCARA arm's workspace, showing ideal trajectory calculations alongside physical feedback paths.
+              Positioned on the left of the Monitor tab, the **3D Workspace Visualizer** renders a real-time WebGL visualization (powered by React Three Fiber and Three.js) of the SCARA arm's workspace envelope, joint configuration, and trajectories.
             </p>
 
             <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">Visual Indicator Elements</h3>
@@ -740,22 +758,22 @@ export function ReadmeTab() {
               <Property
                 name="Ideal Trajectory"
                 type="DASHED BLUE LINE"
-                description="The reference path generated by the trajectory generator on the ESP32 representing mathematical movement targets."
+                description="The reference path generated by the trajectory generator on the ESP32 representing mathematical movement targets (#2563EB)."
               />
               <Property
                 name="Actual Feedback Path"
                 type="SOLID RED LINE"
-                description="The real-time position of the end-effector calculated via forward kinematics from actual encoder and potentiometer angles."
+                description="The real-time position of the end-effector calculated via forward kinematics from actual encoder and potentiometer angles (#DC2626)."
               />
               <Property
-                name="Link Overlay"
-                type="BLUE & ORANGE GLOW"
-                description="A visual representation of the physical SCARA robot skeleton (Inner Link Joint 1 in Blue, Outer Link Joint 2 in Orange)."
+                name="3D CAD Link Overlay"
+                type="SOLID BLUE & ORANGE LINKS"
+                description="3D solid-shaded models of physical linkages: J1 base is solid blue (#3B82F6) mounted at Z=35 mm height; J2 outer is solid orange (#F97316) mounted at Z=5 mm height."
               />
               <Property
-                name="Workspace Boundaries"
-                type="CYAN ARCS & PATTERNED RED"
-                description="The annular operating sector. The blue dashed arcs show the boundaries, and the red patterned area represents kinematically unreachable territory."
+                name="Reachable Workspace"
+                type="ELECTRIC BLUE / CYAN SECTOR"
+                description="Annular operating sector matching inner dead-zone singularity (70.7 mm) and outer reach (170 mm). Renders in vibrant electric blue (#00e5ff) in dark mode, and cyan in light mode."
               />
               <Property
                 name="Ghost Trail"
@@ -767,10 +785,12 @@ export function ReadmeTab() {
             <h3 className="text-sm font-semibold text-zinc-200 mt-6 mb-2">Workspace Controls & State Badges</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
               <div className="p-4 rounded-xl border border-zinc-800 bg-[#141418]/20">
-                <p className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-2">Canvas Buttons</p>
+                <p className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-2">Workspace Controls</p>
                 <ul className="space-y-1.5 text-xs text-zinc-400 leading-relaxed list-disc pl-4">
+                  <li><strong>OrbitControls:</strong> Left-click and drag to rotate, right-click and drag to pan, and scroll to zoom.</li>
+                  <li><strong>Reset:</strong> Snaps camera back to a perfect top-down view centered on the workspace, using a tiny Z-axis offset (-0.074999) to avoid gimbal lock/polar singularity.</li>
                   <li><strong>Ghost:</strong> Toggle the previous trajectory overlay visibility.</li>
-                  <li><strong>Arm Links:</strong> Hide/show the joint link skeleton overlay.</li>
+                  <li><strong>Arms:</strong> Hide/show the 3D physical arm CAD models.</li>
                   <li><strong>Focus (⊕):</strong> Opens full-screen view. Press <kbd className="text-[10px] px-1 bg-zinc-800 rounded border border-zinc-700">ESC</kbd> to return.</li>
                 </ul>
               </div>
@@ -1021,7 +1041,7 @@ export function ReadmeTab() {
               The ☰ button in the header opens the settings sidebar with four sections:
             </p>
             <PropertyList>
-              <Property name="Dashboard Preferences" description="Toggle angular units (radians/degrees) and adjust ghost trail opacity on the XY canvas." />
+              <Property name="Dashboard Preferences" description="Toggle angular units (radians/degrees) and adjust ghost trail opacity on the 3D visualizer." />
               <Property name="Help &amp; Onboarding" description="Re-launch the interactive step-by-step onboarding tour guide at any time." />
               <Property name="Graph Exports" description="Download individual charts as PNG/JPEG at 1×, 2×, or 3× DPI, or package all graphs + CSV + params report into a ZIP." />
               <Property name="Keyboard Shortcuts" description="View and rebind hotkeys for tab switching, E-STOP, ghost toggle, serial connect, and more." />
@@ -1050,7 +1070,7 @@ export function ReadmeTab() {
                     ['2', 'Switch to Analysis tab'],
                     ['3', 'Switch to README tab'],
                     ['Backspace', 'Emergency Stop'],
-                    ['p', 'Toggle pick-point mode on XY canvas'],
+                    ['p', 'Toggle pick-point mode on 3D visualizer'],
                     ['x / y', 'Focus Xf / Yf input fields'],
                     ['g', 'Toggle ghost trail'],
                     ['a', 'Toggle arm link overlay'],
@@ -1244,7 +1264,7 @@ Serial.println(yf, 3); // target Y mm (float)`}
 
               <div className="pt-4 border-t border-zinc-800/40">
                 <p className="text-xs font-bold text-zinc-200 mb-1">T — Trajectory sample (sent every control tick, ~10–50 ms)</p>
-                <p className="text-xs text-zinc-400 mb-2">Sends the target and actual end-effector coordinates to plot on the XY Trace canvas.</p>
+                <p className="text-xs text-zinc-400 mb-2">Sends the target and actual end-effector coordinates to plot on the 3D Workspace Visualizer.</p>
                 <CodeBlock
                   filename="Arduino Print Output"
                   code={`// xi, yi = ideal target position (mm)

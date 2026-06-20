@@ -16,6 +16,7 @@ The HMI application features a route-dependent architecture where the expected f
 | `/` | `SCARA` | Monitor, Analysis, Rest Analysis, README | Public |
 | `/zn` | `ZN` | Ziegler-Nichols Tuner Workspace | Public |
 | `/test` | `TEST` | Monitor, Analysis (+ Raw Signal overlay), Rest Analysis, Parameter Tuner | Public |
+| `/pcb` | — | Interactive Controller PCB details, schematics, and 3D viewer | Public |
 | `/login` | — | Google OAuth Portal | Public |
 | `/hasil-eksperimen` | — | Automated Comparative Analytics Spreadsheet | Public |
 | `/dashboard` | — | History comparison workspace | Google OAuth Protected |
@@ -26,10 +27,13 @@ The HMI application features a route-dependent architecture where the expected f
 ## 2. Exhaustive Feature Specifications
 
 ### A. Monitor Tab & Safety Constraints
-1. **XY Trace Canvas (`XYTrace`)**:
-   - Visualizes the SCARA workspace envelope: Outer radius limit $R_{max} = 170\text{ mm}$ and inner singularity limit $R_{min} = 70.7\text{ mm}$.
-   - Shows the planned path in dashed blue and the actual tracked path in solid red.
-   - **Path Safety Checking**: If a proposed Cartesian straight-line path crosses $R < 70\text{ mm}$, goes outside $R > 170\text{ mm}$, or drops below the horizontal baseline ($Y < 0$), the HMI disables the move button, displays safety alerts in the sidebar, and overlays a red warning path on the canvas.
+1. **3D XY Trace Visualizer (`SCARA3DCanvas`)**:
+   - Visualizes the SCARA workspace envelope, joint configuration, and trajectories in interactive 3D using React Three Fiber (R3F) and OrbitControls.
+   - Shows the planned path in dashed blue (`#2563EB` for both themes) and the actual tracked path in solid red (`#DC2626` for both themes).
+   - Renders solid CAD link models (J1/J2) with realistic shading, using darkened values (`#3B82F6` and `#F97316` for both themes) to prevent overexposure under 3D shading, with corrected link stack-up heights (J1 at Z=35mm, J2 at Z=5mm).
+   - Displays reachable workspace boundaries (`ReachableWorkspace3D`) in vibrant electric blue (`#00e5ff` in dark mode) or cyan (in light mode) for high contrast.
+   - Standardizes camera orientation on initial load and reset triggers via a `CameraInitializer` using a tiny Z-offset (`-0.074999`) to prevent polar singularity/gimbal lock.
+   - **Path Safety Checking**: If a proposed Cartesian straight-line path crosses $R < 70.7\text{ mm}$, goes outside $R > 170\text{ mm}$, or drops below the horizontal baseline ($Y < 0$), the HMI disables the move button, displays safety alerts in the sidebar, and overlays a red warning path.
 2. **Telemetry Charts (`ChartPanel`)**:
    - **CTE (Cross-Tracking Error)**: Radial deviation perpendicular to the planned path segment.
    - **ATE (Along-Tracking Error)**: Linear deviation along the path direction.
@@ -54,7 +58,13 @@ Allows side-by-side comparison of saved trajectories:
 - **Advanced** tab shows combined analysis with FFT and advanced metrics.
 - **AI Copilot** tab: Streaming AI analysis using Google Gemini with model fallback chain (Pro → Flash → Flash Lite). Supports `explain`, `diagnose`, and `recommend` modes. Uses Cloudflare KV for historical run context and run telemetry (downsampled to 60 points) as context.
 
-### D. Automated Experiments (/eksperimen)
+### D. Controller PCB Viewer (/pcb)
+Offers an interactive interface for hardware diagnostics and schematic lookup:
+- **Viewer Tabs**: Allows switching between `PCB Layout` (assembly/layout SVG viewer), `Schematic` (circuit diagram view), and `CAD` (interactive 3D CAD viewer for structural reference).
+- **Component Breakdowns**: Displays interactive lookup lists of all hardware components (MCU, drivers, connectors) mapping designators to technical specs and purposes.
+- **GPIO Assignment Map**: Integrates the firmware pinout assignments mapping ESP32 IO pins to hardware functions (stepper controls, DC PWM, encoder signals) directly.
+
+### E. Automated Experiments (/eksperimen)
 Runs automated sequences to evaluate specific control mechanisms.
 - **EXP-1 (TD Filter)**: Moves the arm with Tracking Differentiator active (`tden,1`) vs inactive finite difference velocity (`tden,0`).
 - **EXP-2 (Inertia Compensation)**: Compares CTC inertia assistance (`ffi,1.0`) vs disabled inertia feedforward (`ffi,0.0`).
