@@ -21,7 +21,7 @@ function pinRow(labels: string[], opts: { x: number; y: number; pitch: number; a
       pcbX={axis === "x" ? x + i * pitch : x}
       pcbY={axis === "x" ? y : y + i * pitch}
       holeDiameter="1mm"
-      outerDiameter="1.8mm"
+      outerDiameter="1.4mm"
       shape="circle"
     />
   ))
@@ -65,8 +65,8 @@ const DEVKITC_RIGHT = ["GND_2", "IO23", "IO22", "TXD0", "RXD0", "IO21", "GND_3",
 
 function DevKitCSocket(props: { name: string; pcbX: number; pcbY: number; schX?: number; schY?: number }) {
   const pitch = 2.54; const rowSpacing = 25.4
-  const leftHoles = DEVKITC_LEFT.map((label, i) => <platedhole key={`l_${label}`} portHints={[label]} pcbX={-rowSpacing / 2} pcbY={(DEVKITC_LEFT.length - 1) * pitch / 2 - i * pitch} holeDiameter="1mm" outerDiameter="1.8mm" shape="circle" />)
-  const rightHoles = DEVKITC_RIGHT.map((label, i) => <platedhole key={`r_${label}`} portHints={[label]} pcbX={rowSpacing / 2} pcbY={(DEVKITC_RIGHT.length - 1) * pitch / 2 - i * pitch} holeDiameter="1mm" outerDiameter="1.8mm" shape="circle" />)
+  const leftHoles = DEVKITC_LEFT.map((label, i) => <platedhole key={`l_${label}`} portHints={[label]} pcbX={-rowSpacing / 2} pcbY={(DEVKITC_LEFT.length - 1) * pitch / 2 - i * pitch} holeDiameter="1mm" outerDiameter="1.4mm" shape="circle" />)
+  const rightHoles = DEVKITC_RIGHT.map((label, i) => <platedhole key={`r_${label}`} portHints={[label]} pcbX={rowSpacing / 2} pcbY={(DEVKITC_RIGHT.length - 1) * pitch / 2 - i * pitch} holeDiameter="1mm" outerDiameter="1.4mm" shape="circle" />)
   return <connector name={props.name} pcbX={props.pcbX} pcbY={props.pcbY} schX={props.schX} schY={props.schY} footprint={<footprint>{[...leftHoles, ...rightHoles]}</footprint>} />
 }
 
@@ -113,8 +113,8 @@ function RadialCapacitor(props: { name: string; pcbX: number; pcbY: number; diam
     <>
       <connector name={props.name} pcbX={props.pcbX} pcbY={props.pcbY} schX={props.schX} schY={props.schY} footprint={
         <footprint>
-          <platedhole portHints={["POS"]} pcbX={-1.27} pcbY={0} holeDiameter="0.8mm" outerDiameter="1.8mm" shape="circle" />
-          <platedhole portHints={["NEG"]} pcbX={1.27} pcbY={0} holeDiameter="0.8mm" outerDiameter="1.8mm" shape="circle" />
+          <platedhole portHints={["POS"]} pcbX={-1.27} pcbY={0} holeDiameter="0.8mm" outerDiameter="1.4mm" shape="circle" />
+          <platedhole portHints={["NEG"]} pcbX={1.27} pcbY={0} holeDiameter="0.8mm" outerDiameter="1.4mm" shape="circle" />
         </footprint>
       } />
       <silkscreencircle pcbX={props.pcbX} pcbY={props.pcbY} radius={props.diameter / 2} strokeWidth={0.3} />
@@ -161,7 +161,13 @@ function ScrewTerminal(props: { name: string; pcbX: number; pcbY: number; schX?:
 // ---- board -----------------------------------------------------------------
 
 export default () => (
-  <board width="96mm" height="66mm" minTraceWidth="0.25mm">
+  <board
+    width="96mm"
+    height="66mm"
+    minTraceWidth="0.25mm"
+    autorouter={{ traceClearance: "0.25mm" }}
+    minTraceToPadEdgeClearance="0.25mm"
+  >
     {/* M3 Corner Mounting Holes for Enclosure */}
     <platedhole pcbX={-44} pcbY={30} holeDiameter="3.0mm" outerDiameter="4.0mm" shape="circle" />
     <platedhole pcbX={44} pcbY={30} holeDiameter="3.0mm" outerDiameter="4.0mm" shape="circle" />
