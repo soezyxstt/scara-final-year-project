@@ -101,7 +101,7 @@ function HMIShell() {
         <nav className="flex h-12 shrink-0 border-l border-hmi-grid/50 pl-4 ml-2">
           <TabLink label="Monitor" active={tab === 'monitor'} href="/?tab=monitor" />
           <TabLink label="Analysis" active={tab === 'analysis'} href="/?tab=analysis" />
-          <TabLink label="Rest Analysis" active={tab === 'rest'} href="/?tab=rest" />
+          <TabLink label="Step & Noise" active={tab === 'rest'} href="/?tab=rest" />
           <TabLink label="README" active={tab === 'readme'} href="/?tab=readme" />
         </nav>
 

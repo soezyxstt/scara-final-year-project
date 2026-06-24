@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-06-20T10:41:54.648Z",
+  "generatedAt": "2026-06-23T01:23:47.487Z",
   "components": [
     {
-      "ref": "A4988",
+      "ref": "A4988_SOCKET",
       "label": "A4988 Stepper Driver Carrier (J2)",
       "description": "Pololu-style A4988 driver carrier socket for the Joint 2 stepper. STEP=IO14, DIR=IO12. MS1/MS2/MS3 are hardwired to 3.3V (fixed 1/16 microstep — firmware never toggles them). ENABLE tied to GND (always on); RESET/SLEEP tied together to 3.3V.",
       "type": "simple_connector"

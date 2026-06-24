@@ -54,6 +54,9 @@ namespace RobotState {
   volatile bool estop_active    = false;
   volatile bool watchdog_halted = false;
 
+  bool          dbtest_active   = false;
+  unsigned long dbtest_start_ms = 0;
+
   unsigned long last_step_us   = 0;
   unsigned long step_period_us = 0;
   float         omega2_prev    = 0.0f;

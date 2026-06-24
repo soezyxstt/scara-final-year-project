@@ -18,9 +18,9 @@ const REF_METADATA: Record<string, { label: string; desc: string }> = {
     label: "LM2596 Buck Module",
     desc: "DC-DC step-down buck converter (no-LED variant). Regulates 12V input voltage down to 5V to power the ESP32 DevKitC through its 5V pin."
   },
-  A4988: {
+  A4988_SOCKET: {
     label: "A4988 Stepper Driver Carrier (J2)",
-    desc: "Pololu-style A4988 driver carrier socket for the Joint 2 stepper. STEP=IO14, DIR=IO12. MS1/MS2/MS3 are hardwired to 3.3V (fixed 1/16 microstep — firmware never toggles them). ENABLE tied to GND (always on); RESET/SLEEP tied together to 3.3V."
+    desc: "Pololu-style A4988 driver carrier socket for the Joint 2 stepper. STEP=IO14, DIR=IO12. MS1/MS2/MS3 are hardwired to 3.3V (fixed 1/16 microstep — firmware never toggles them). ENABLE tied to GND (always on); RESET/SLEEP tied together to 3.3V.",
   },
   PWR_IN: {
     label: "12V Power Input Jack",

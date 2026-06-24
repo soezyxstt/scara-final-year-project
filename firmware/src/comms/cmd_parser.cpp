@@ -90,10 +90,10 @@ void processSerialCommand(const char *cmd_raw) {
     }
     if (input == "dbtest") {
       Serial.println("INFO: DB test — EN=200 selama 400ms");
+      dbtest_active = true;
+      dbtest_start_ms = millis();
       digitalWrite(DC_IN3, LOW); digitalWrite(DC_IN4, HIGH);
-      pwmWrite(200); delay(400); pwmWrite(0);
-      digitalWrite(DC_IN3, LOW); digitalWrite(DC_IN4, LOW);
-      Serial.println("SUCCESS: dbtest selesai.");
+      pwmWrite(200);
       return;
     }
     if (input.startsWith("move,")) {

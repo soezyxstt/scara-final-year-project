@@ -268,10 +268,10 @@ export function ReadmeTab() {
     },
     {
       id: 'rest-analysis',
-      title: 'Rest Analysis tab',
+      title: 'Step & Noise tab',
       icon: <TrendingUp className="h-3.5 w-3.5" />,
       links: [
-        { href: '#rest-about', label: 'About Rest Analysis' },
+        { href: '#rest-about', label: 'About Step & Noise' },
         { href: '#rest-interface', label: 'Workspace Controls' },
         { href: '#rest-calipers', label: 'Caliper Analyzer' },
       ],
@@ -525,7 +525,7 @@ export function ReadmeTab() {
               {[
                 { tab: 'Monitor', desc: 'Live XY trace, charts, metrics, Run+Save, and control panel' },
                 { tab: 'Analysis', desc: 'Post-run phase portrait, CTC torques, and data table' },
-                { tab: 'Rest Analysis', desc: 'Step-response and rest-state telemetry analysis' },
+                { tab: 'Step & Noise', desc: 'Step-response and rest-state telemetry analysis' },
                 { tab: 'README', desc: 'This guide — you are here' },
               ].map((item, idx) => (
                 <div key={idx} className="p-3 border border-zinc-800 rounded-lg bg-hmi-elevated">
@@ -651,9 +651,9 @@ export function ReadmeTab() {
               The HMI features multiple routes sharing a single Web Serial connection and state context. Switch between pages by searching the Command Palette (<InlineCode>Ctrl + K</InlineCode> or <InlineCode>Cmd + K</InlineCode>).
             </p>
             <PropertyList>
-              <Property name="/  (Home)" type="SCARA MODE" description="Monitor, Analysis, Rest Analysis, and README tabs. Primary dashboard for Cartesian moves and post-run diagnostics." />
+              <Property name="/  (Home)" type="SCARA MODE" description="Monitor, Analysis, Step & Noise, and README tabs. Primary dashboard for Cartesian moves and post-run diagnostics." />
               <Property name="/zn" type="ZN MODE" description="Dedicated Ziegler-Nichols tuning page with per-joint step commands and caliper analyzer." />
-              <Property name="/test" type="TEST MODE" description="Engineering test bench with Monitor, Analysis (+ raw signals), Rest Analysis, and Params Tuner tabs." />
+              <Property name="/test" type="TEST MODE" description="Engineering test bench with Monitor, Analysis (+ raw signals), Step & Noise, and Params Tuner tabs." />
               <Property name="/pcb" type="PUBLIC ROUTE" description="Interactive PCB details viewer with layout SVG placement lookup, schematic viewer, and 3D structural CAD assembly viewer." />
               <Property name="/login" type="PUBLIC ROUTE" description="Authentication portal using NextAuth.js to sign in via Google. Unlocks database saving and dashboard histories." />
               <Property name="/dashboard" type="PROTECTED ROUTE" description="Saved runs history comparison dashboard. Select multiple runs to compare trajectories, velocities, feedforward values, and performance metrics." />
@@ -686,7 +686,7 @@ export function ReadmeTab() {
             <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400 leading-relaxed">
               <li><strong>Params Tuner</strong> — adjust all 33 runtime parameters (velocity limits, filter bandwidths, deadbands, trajectory flags, VFF gains) live with sync status LEDs.</li>
               <li><strong>Raw Signal Section</strong> — overlay unfiltered ADC readings on top of filtered position data to diagnose sensor noise.</li>
-              <li>Same Monitor, Analysis, and Rest Analysis tabs as the home page.</li>
+              <li>Same Monitor, Analysis, and Step & Noise tabs as the home page.</li>
             </ul>
           </section>
 
@@ -924,11 +924,11 @@ export function ReadmeTab() {
           {/* 💡 SECTION: REST ANALYSIS */}
           <section id="rest-about" className="scroll-mt-16 mb-12">
             <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
-              <span>Rest Analysis Tab</span>
+              <span>Step & Noise Tab</span>
               <a href="#rest-about" onClick={(e) => { e.preventDefault(); handleScrollTo('#rest-about') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              The <strong className="text-zinc-300">Rest Analysis</strong> tab on the home page provides a continuous high-rate telemetry workspace for step-response and rest-state study. Unlike the Monitor tab (which records per-move buffers), this tab accumulates data continuously and supports caliper-based analysis.
+              The <strong className="text-zinc-300">Step & Noise</strong> tab on the home page provides a continuous high-rate telemetry workspace for step-response and rest-state study. Unlike the Monitor tab (which records per-move buffers), this tab accumulates data continuously and supports caliper-based analysis.
             </p>
             <Callout type="info">
               For dedicated Ziegler-Nichols joint tuning with gain increment controls, use the separate <strong>ZN Tuner page</strong> at <InlineCode>/zn</InlineCode> (see Pages &amp; Navigation above).
@@ -937,7 +937,7 @@ export function ReadmeTab() {
 
           <section id="rest-interface" className="scroll-mt-16 mb-12">
             <h2 className="group text-xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800/40 flex items-center">
-              <span>Rest Analysis Workspace</span>
+              <span>Step & Noise Workspace</span>
               <a href="#rest-interface" onClick={(e) => { e.preventDefault(); handleScrollTo('#rest-interface') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">

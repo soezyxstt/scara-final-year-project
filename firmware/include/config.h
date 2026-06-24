@@ -105,7 +105,7 @@ constexpr int J2_RAW_P90 = 2852;
 // ------------------------------------------------------------
 
 constexpr unsigned long TELEMETRY_MS        = 20UL;   // 50 Hz for E/F/T
-constexpr unsigned long SERIAL_WATCHDOG_MS  = 8000UL;
+constexpr unsigned long SERIAL_WATCHDOG_MS  = 3000UL;
 
 // ------------------------------------------------------------
 //  D-LINE RING BUFFER SIZING

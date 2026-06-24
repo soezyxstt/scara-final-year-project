@@ -35,7 +35,7 @@
   <script>
     // Fetch circuit JSON, expose it as window.CIRCUIT_JSON (what the standalone bundle reads),
     // then load the self-contained preview bundle which mounts into #root automatically.
-    fetch('/pcb/circuit.json')
+    fetch('/pcb/circuit.json?v=' + Date.now(), { cache: 'no-store' })
       .then(function(r) { return r.json(); })
       .then(function(circuitJson) {
         window.CIRCUIT_JSON = circuitJson;

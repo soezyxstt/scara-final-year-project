@@ -1002,7 +1002,7 @@ export function ResultsClient({ initialRuns }: Props) {
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 w-36">Run ID</TableHead>
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-16">Run #</TableHead>
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-24">Direction</TableHead>
-                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center">Gains J1</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center">Parameters (Gains & Flags)</TableHead>
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-24">Status</TableHead>
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-right pr-6 w-40">Timestamp</TableHead>
                       <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-12">Del</TableHead>
@@ -1041,7 +1041,10 @@ export function ResultsClient({ initialRuns }: Props) {
                               </span>
                             </TableCell>
                             <TableCell className="text-center font-mono text-[10px] text-slate-400 py-2.5" onClick={() => setExpandedRunId(isExpanded ? null : r.id)}>
-                              Kp={r.kp1.toFixed(2)}, Ki={r.ki1.toFixed(3)}, Kd={r.kd1.toFixed(3)}
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span>Kp={r.kp1.toFixed(2)}, Ki={r.ki1.toFixed(3)}, Kd={r.kd1.toFixed(3)}</span>
+                                <span className="text-[9px] text-slate-500">TD={r.tdEnabled} Trap={r.trapEnabled} FFI={r.ffiEnabled} FFC={r.ffcEnabled} FFG={r.ffgEnabled}</span>
+                              </div>
                             </TableCell>
                             <TableCell className="text-center py-2.5" onClick={() => setExpandedRunId(isExpanded ? null : r.id)}>
                               <span className={cn(

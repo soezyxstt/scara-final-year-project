@@ -66,20 +66,33 @@ Offers an interactive interface for hardware diagnostics and schematic lookup:
 
 ### E. Automated Experiments (/eksperimen)
 Runs automated sequences to evaluate specific control mechanisms.
-- **EXP-1 (TD Filter)**: Moves the arm with Tracking Differentiator active (`tden,1`) vs inactive finite difference velocity (`tden,0`).
-- **EXP-2 (Inertia Compensation)**: Compares CTC inertia assistance (`ffi,1.0`) vs disabled inertia feedforward (`ffi,0.0`).
-- **EXP-3 (Coriolis Compensation)**: Toggles Coriolis feedforward correction (`ffc,1.0` vs `ffc,0.0`).
-- **EXP-4 (Gravity Compensation)**: Evaluates gravity compensation across tilt angles (0°, 15°, 30°, 45°) with `ffg,1.0` vs `ffg,0.0`.
-- **EXP-5 (Trapezoidal Profile)**: Compares trapezoidal trajectory planning (`trapen,1`) vs raw step inputs (`trapen,0`).
-- **EXP-6 (PID Gain Variation)**: Tests performance at scales of 0.5x, 1.0x, and 1.5x of baseline J1/J2 gains.
+- **EXP-1 (TD Filter)**: 8 runs (4 for Condition A `tden,1`, 4 for Condition B `tden,0`).
+- **EXP-2 (Inertia Compensation)**: 8 runs (`ffi,1.0` vs `ffi,0.0`).
+- **EXP-3 (Coriolis Compensation)**: 8 runs (`ffc,1.0` vs `ffc,0.0`).
+- **EXP-4 (Gravity Compensation)**: 4 runs total per angle (2 for `ffg,1.0`, 2 for `ffg,0.0`). Evaluates gravity compensation across tilt angles (0°, 15°, 30°, 45°).
+- **EXP-5 (Trapezoidal Profile)**: 8 runs (`trapen,1` vs `trapen,0`).
+- **EXP-6 (PID Gain Variation)**: 4 runs total. Tests performance at scales of 0.5x, 1.0x, and 1.5x of baseline J1/J2 gains.
 
-#### Automation Workflow & Safety Cooldown
-To protect the GM25-370 DC motor from thermal strain during sequence loops:
-1. The state machine positions the arm at the experiment start point, waiting for positional settling.
-2. The HMI sends configuration parameter commands (e.g. `ffi,1.0`) and triggers the trajectory move.
-3. Positional telemetry is recorded at 50 Hz.
+Each condition alternates its runs in *Forward* (P0 to PF) and *Return* (PF to P0) directions to ensure bidirectional validity (e.g., 2 Forward and 2 Return per condition).
+
+#### Automation Workflow & Safety Constraints
+To protect the GM25-370 DC motor from thermal strain and prevent browser single-thread lockups during sequence loops:
+1. The state machine positions the arm at the experiment start point, skipping the move if it is already within 2.0 mm (`POSITION_SKIP_TOL_MM = 2.0`).
+2. The HMI sends configuration parameter commands and triggers the trajectory move.
+3. Positional telemetry is recorded at 50 Hz. To prevent false-positive failures during JS event loop lag (e.g. from React re-renders), the `TELEMETRY_STALL_MS` watchdog is set to 5000 ms, and Cartesian array alignment `ALIGN_MAX_GAP_MS` is set to 250 ms.
 4. When `S` (move completed) is received, the run metrics are calculated and written to database.
-5. The sequencer triggers a **30-second Cooldown Phase**, locking commands to allow motor windings to cool before starting the next run.
+5. The sequencer triggers a **5-second Cooldown Phase**, locking commands to allow motor windings to cool before starting the next run.
+
+### F. Results Page (/hasil-eksperimen)
+A public analytics dashboard presenting historical automated experiment run results:
+- **Comparative Spreadsheet**: Renders a spreadsheet list of completed experiment runs with details including:
+  - **Run ID**: Unique identifier for the recorded sequence.
+  - **Run #**: Sequence run index.
+  - **Direction**: Indicates the movement direction as `Forward` (from start to target) or `Return` (returning to origin).
+  - **Parameters (Gains & Flags)**: Displays the configured joint controller gains ($K_{p1}, K_{i1}, K_{d1}$) along with the binary flags for that specific run: Tracking Differentiator (`TD`), Trapezoidal velocity profile (`Trap`), Inertia Feedforward (`FFI`), Coriolis Feedforward (`FFC`), and Gravity Feedforward (`FFG`).
+  - **Status**: Flags success (`ok`), failure (`failed`), or retry attempts (`retrying`).
+  - **Timestamp**: Records the date and time of the experiment run.
+- **Detailed Sample Breakdown**: Expanding any individual run row displays its detailed dynamic telemetry charts and performance metrics.
 
 ---
 
@@ -106,7 +119,7 @@ When saving runs offline:
 
 ### B. Database Schema Definitions
 The Turso schema consists of:
-- `runs`: Stores run metadata (id, timestamp, gains `kp1..kd2`, feedforward coefficients `ffi..ffg`, trajectory targets `x0, y0, xf, yf`, and parameters).
+- `runs`: Stores run metadata (id, timestamp, gains `kp1..kd2`, feedforward coefficients `ffi..ffg`, active flags `tdEnabled, trapEnabled, ffiEnabled, ffcEnabled, ffgEnabled`, trajectory targets `x0, y0, xf, yf`, and parameters).
 - `metrics`: Stores calculated indices (AI, max CTE, RMSE J1/J2, settling time, control variance, jitter).
 - `samples`: Stores aligned 50 Hz samples (`run_id`, timestamp, `th1, th2, th1d, th2d, dth1, dth2, pwm1`).
 

@@ -75,20 +75,20 @@ const SETTLE_CAPTURE_MS = 2000     // post-S-packet capture for e_ss
 const COOLDOWN_S = 5
 const WD_SETUP_MS = 5000           // setup command batch
 const WD_POSITIONING_MS = 20000    // positioning move → S-packet
-const WD_M_PACKET_MS = 5000        // trajectory move sent → M-packet
+const WD_M_PACKET_MS = 10000       // trajectory move sent → M-packet
 const WD_RUNNING_MS = 15000        // M-packet → S-packet (traj ≈ 3.4 s + margin)
-const TELEMETRY_STALL_MS = 1500    // max gap between D-packets while moving
-const ALIGN_MAX_GAP_MS = 100       // max timestamp gap when aligning T/F/E to D
+const TELEMETRY_STALL_MS = 5000    // max gap between D-packets while moving
+const ALIGN_MAX_GAP_MS = 250       // max timestamp gap when aligning T/F/E to D
 const POSITION_SKIP_TOL_MM = 2.0   // skip positioning move if already this close
 const MAX_RUN_RETRIES = 3          // per-slot retries before aborting sequence
 
 // ─── Shared Direction Helper ────────────────────────────────────────────────
 // successCount is 1-based (the upcoming run's target success index)
-// For EXP-4: 3 runs per condition (6 total), so indexInCond cycles 1-3 then 1-3
-// For EXP-6: single condition of 10 runs (sub/level fixed by UI)
-// For standard: 10 runs per condition (20 total), cycle 1-10 then 1-10
+// For EXP-4: 2 runs per condition (4 total), so indexInCond cycles 1-2
+// For EXP-6: single condition of 4 runs (sub/level fixed by UI), cycles 1-4
+// For standard: 4 runs per condition (8 total), cycle 1-4 then 1-4
 function computeIndexInCond(successCount: number, tab: string): number {
-  const condSize = tab === 'EXP-4' ? 3 : (tab === 'EXP-6' ? 10 : 10)
+  const condSize = tab === 'EXP-4' ? 2 : 4
   return ((successCount - 1) % condSize) + 1
 }
 
@@ -98,13 +98,13 @@ function computeIsForward(successCount: number, tab: string): boolean {
 }
 
 function computeIsConditionA(successCount: number, tab: string): boolean {
-  if (tab === 'EXP-4') return successCount <= 3
+  if (tab === 'EXP-4') return successCount <= 2
   if (tab === 'EXP-6') return true // EXP-6 conditions are set by user UI, not by run count
-  return successCount <= 10
+  return successCount <= 4
 }
 
 function computeTotalRuns(tab: string): number {
-  return tab === 'EXP-4' ? 6 : (tab === 'EXP-6' ? 10 : 20)
+  return tab === 'EXP-4' ? 4 : (tab === 'EXP-6' ? 4 : 8)
 }
 
 // ─── OFAT baseline-lock commands per experiment ─────────────────────────────
@@ -935,24 +935,30 @@ export function ExperimentClient() {
         saveRes = await saveRun(runPayload, metricsPayload, alignedSamples, false)
 
         if (!saveRes.ok) {
-          addLog('❌ Database save failed after all retries. Backing up locally.')
-          finalStatus = 'failed'
-          runPayload.status = 'failed'
+          addLog('❌ Database save failed after all retries. Backing up locally and queuing for sync.')
+          finalStatus = 'ok'
+          runPayload.status = 'ok'
           await saveRun(runPayload, metricsPayload, alignedSamples, true)
+          setOfflineQueue(prev => [...prev, { run: runPayload, metrics: metricsPayload, samples: alignedSamples }])
+          toast.warning(`Database save failed. Run #${nextSuccessSlot} saved locally and queued for sync.`)
         }
       }
     }
 
-    if (finalStatus !== 'failed') {
-      addLog(`✅ Saved successfully. Run ID: ${runId} (success #${nextSuccessSlot})`)
-      toast.success(`Run #${nextSuccessSlot} saved successfully!`)
+    if ((finalStatus as string) !== 'failed') {
+      if (saveRes.ok) {
+        addLog(`✅ Saved successfully. Run ID: ${runId} (success #${nextSuccessSlot})`)
+        toast.success(`Run #${nextSuccessSlot} saved successfully!`)
+      } else {
+        addLog(`⚠ Saved locally and queued for sync. Run ID: ${runId} (success #${nextSuccessSlot})`)
+      }
     } else {
       toast.error(`Run #${nextSuccessSlot} failed to save to database.`)
     }
 
     const cardResult: RunResultCard = {
       attemptNumber: totalAttemptsRef.current,
-      successIndex: finalStatus !== 'failed' ? nextSuccessSlot : successCountRef.current,
+      successIndex: (finalStatus as string) !== 'failed' ? nextSuccessSlot : successCountRef.current,
       direction: runPayload.direction,
       mate: mate_mean,
       mcte: mcte_mean,
@@ -963,7 +969,7 @@ export function ExperimentClient() {
     }
     setResults(prev => [...prev, cardResult])
 
-    if (finalStatus !== 'failed') {
+    if ((finalStatus as string) !== 'failed') {
       // Increment success count only if actually saved
       setSuccessCount(prev => {
         successCountRef.current = prev + 1
@@ -1253,24 +1259,24 @@ export function ExperimentClient() {
 
     if (tab === 'EXP-1') {
       desc = 'Evaluate the effect of the Tracking Differentiator (TD) filter in the feedback loop. All feedforward locked OFF (ffi=ffc=ffg=0) to isolate velocity estimation.'
-      cmds = 'tden,1 (Runs 1-10, Cond A) | tden,0 (Runs 11-20, Cond B) + lock: ffi,0 ffc,0 ffg,0'
+      cmds = 'tden,1 (Runs 1-4, Cond A) | tden,0 (Runs 5-8, Cond B) + lock: ffi,0 ffc,0 ffg,0'
     } else if (tab === 'EXP-2') {
       desc = 'Evaluate the inertia moment compensation in the dynamic model. Locks: tden=1, trapen=1, ffc=0, ffg=0.'
-      cmds = 'ffi,1.0 (Runs 1-10) | ffi,0.0 (Runs 11-20)'
+      cmds = 'ffi,1.0 (Runs 1-4) | ffi,0.0 (Runs 5-8)'
     } else if (tab === 'EXP-3') {
       desc = 'Evaluate the contribution of the Coriolis & Centrifugal force compensation feedforward. Locks: tden=1, trapen=1, ffi=1.0, ffg=0.'
-      cmds = 'ffc,1.0 (Runs 1-10) | ffc,0.0 (Runs 11-20)'
+      cmds = 'ffc,1.0 (Runs 1-4) | ffc,0.0 (Runs 5-8)'
     } else if (tab === 'EXP-4') {
       desc = `Evaluate the model gravity compensation at tilt angle α = ${exp4Alpha}°. Locks: tden=1, trapen=1, ffi=1.0, ffc=1.0.`
-      cmds = `atilt,${exp4Alpha} & ffg,1.0 (Runs 1-3) | ffg,0.0 (Runs 4-6)`
+      cmds = `atilt,${exp4Alpha} & ffg,1.0 (Runs 1-2) | ffg,0.0 (Runs 3-4)`
     } else if (tab === 'EXP-5') {
-      desc = 'Test the input trajectory filter. Compare Trapezoidal profile (Runs 1-10) vs Raw Step input (Runs 11-20). Locks: tden=1, all FF on.'
-      cmds = 'trapen,1 (Runs 1-10) | trapen,0 (Runs 11-20)'
+      desc = 'Test the input trajectory filter. Compare Trapezoidal profile (Runs 1-4) vs Raw Step input (Runs 5-8). Locks: tden=1, all FF on.'
+      cmds = 'trapen,1 (Runs 1-4) | trapen,0 (Runs 5-8)'
     } else if (tab === 'EXP-6') {
       const scale = parseFloat(exp6Level)
       const subLabel = exp6Sub === '6A' ? 'Kp1' : exp6Sub === '6B' ? 'Ki1' : 'Kd1'
       desc = `Analyze the variation of gain ${subLabel} by ${exp6Level}x baseline. Baseline gains are re-captured at sequence start and restored afterwards. Locks: tden=1, trapen=1, all FF on.`
-      cmds = `${subLabel.toLowerCase()},${(subLabel === 'Kp1' ? baseKp * scale : subLabel === 'Ki1' ? baseKi * scale : baseKd * scale).toFixed(3)}`
+      cmds = `${subLabel.toLowerCase()},${(subLabel === 'Kp1' ? baseKp * scale : subLabel === 'Ki1' ? baseKi * scale : baseKd * scale).toFixed(3)} (Runs 1-4)`
       activeGains = `Kp1=${(exp6Sub === '6A' ? baseKp * scale : baseKp).toFixed(3)}, Ki1=${(exp6Sub === '6B' ? baseKi * scale : baseKi).toFixed(3)}, Kd1=${(exp6Sub === '6C' ? baseKd * scale : baseKd).toFixed(3)}`
     }
 

@@ -15,6 +15,7 @@ using namespace CtcState;
 using namespace Params;
 
 void controlJoint1() {
+  if (dbtest_active) return;
   float e1 = theta1_d - theta1;
 
   // ---- Error deadzone (hold mode only) ----

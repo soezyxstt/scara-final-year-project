@@ -131,6 +131,7 @@ void allOutputsOff() {
   pending_move    = false;
   is_resting      = false;
   rest_ticks      = 0;
+  dbtest_active   = false;
 
   dTheta1_d  = dTheta2_d  = 0.0f;
   ddTheta1_d = ddTheta2_d = 0.0f;

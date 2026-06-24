@@ -79,6 +79,10 @@ namespace RobotState {
   extern volatile bool estop_active;
   extern volatile bool watchdog_halted;
 
+  // Diagnostic non-blocking dbtest state
+  extern bool          dbtest_active;
+  extern unsigned long dbtest_start_ms;
+
   // Stepper state
   extern unsigned long last_step_us;
   extern unsigned long step_period_us;

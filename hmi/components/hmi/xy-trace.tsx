@@ -908,7 +908,7 @@ export function XYTrace() {
         )}
 
         {/* Vector HTML Legend Overlay */}
-        <div className="absolute top-2 right-2 bg-hmi-panel/85 backdrop-blur-md border border-hmi-grid p-2 rounded-lg shadow-lg flex flex-col gap-1 min-w-[95px] pointer-events-none select-none z-10">
+        <div className="absolute top-2 right-2 bg-hmi-panel/75 hover:bg-hmi-panel/90 backdrop-blur-md border border-hmi-grid/80 p-2 rounded-lg shadow-lg flex flex-col gap-1 min-w-[105px] pointer-events-auto select-none z-10 opacity-70 hover:opacity-100 transition-all duration-300">
           <div className="flex items-center gap-2 text-xs">
             <span className="w-3.5 h-0.5 border-t-2 border-dashed border-hmi-ideal" />
             <span className="text-hmi-text font-medium text-[11px]">Ideal Path</span>
@@ -941,6 +941,14 @@ export function XYTrace() {
               <path d="M1 0 L9 3.5 L1 7 Z" fill="currentColor" />
             </svg>
             <span className="text-hmi-text font-medium text-[11px]">Target</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="w-3.5 h-0.5 border-t-2 border-dashed border-cyan-400" />
+            <span className="text-hmi-text font-medium text-[11px]">Work Envelope</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="w-3.5 h-3.5 rounded bg-red-500/10 border border-red-500/25 scale-75" />
+            <span className="text-hmi-text font-medium text-[11px]">Dead Zone</span>
           </div>
         </div>
 

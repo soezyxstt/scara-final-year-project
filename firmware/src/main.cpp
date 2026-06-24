@@ -150,6 +150,14 @@ void loop() {
   // --- Serial RX ---
   serviceSerial();
 
+  // --- Non-blocking dbtest timer ---
+  if (dbtest_active && (now_ms - dbtest_start_ms >= 400)) {
+    pwmWrite(0);
+    digitalWrite(DC_IN3, LOW); digitalWrite(DC_IN4, LOW);
+    dbtest_active = false;
+    Serial.println("SUCCESS: dbtest selesai.");
+  }
+
   // --- Telemetry E / F / T at 50 Hz ---
   if (op_mode != MODE_IDLE && !estop_active
       && (now_ms - last_telemetry_ms >= TELEMETRY_MS)) {

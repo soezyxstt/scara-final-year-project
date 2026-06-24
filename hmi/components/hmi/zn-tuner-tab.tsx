@@ -5,18 +5,7 @@ import { useHMISlow } from '@/lib/hmi-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ReferenceLine,
-  ReferenceArea,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts'
+import UniversalTimeSeriesChart, { ChartSeries } from './universal-time-series-chart'
 import {
   ChevronUp,
   ChevronDown,
@@ -890,6 +879,82 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     await serial.sendCommand('getgains')
   }
 
+  const seriesList = useMemo(() => {
+    return [
+      {
+        key: activeJoint === 1 ? 't1_raw' : 't2_raw',
+        name: 'Raw ADC (°)',
+        stroke: '#94a3b8',
+        strokeWidth: 1,
+        strokeOpacity: 0.4,
+        yAxisId: 'default'
+      },
+      {
+        key: activeJoint === 1 ? 't1_target' : 't2_target',
+        name: 'Target (°)',
+        stroke: '#06B6D4',
+        strokeDasharray: '4 4',
+        strokeWidth: 1.5,
+        yAxisId: 'default'
+      },
+      {
+        key: activeJoint === 1 ? 't1_actual' : 't2_actual',
+        name: 'TD Filtered (°)',
+        stroke: '#FF9800',
+        strokeWidth: 2,
+        yAxisId: 'default'
+      },
+      {
+        key: 'pwm1',
+        name: 'PWM Output',
+        stroke: '#4CAF50',
+        strokeWidth: 1.5,
+        strokeOpacity: 0.4,
+        yAxisId: 'pwm'
+      }
+    ] as ChartSeries[]
+  }, [activeJoint])
+
+  const secondaryYAxisProps = useMemo(() => {
+    return {
+      id: 'pwm',
+      domain: [-260, 260] as [number, number],
+      width: 40,
+      tickFormatter: (v: any) => `${v}`
+    }
+  }, [])
+
+  const refLines = useMemo(() => {
+    return [
+      {
+        y: deadband,
+        yAxisId: 'pwm',
+        stroke: '#EF5350',
+        strokeDasharray: '3 3',
+        strokeOpacity: 0.5,
+        label: { value: `+${deadband}db`, fill: '#EF5350', fontSize: 9, position: 'insideRight' }
+      },
+      {
+        y: -deadband,
+        yAxisId: 'pwm',
+        stroke: '#EF5350',
+        strokeDasharray: '3 3',
+        strokeOpacity: 0.5,
+        label: { value: `-${deadband}db`, fill: '#EF5350', fontSize: 9, position: 'insideRight' }
+      }
+    ]
+  }, [deadband])
+
+  const refArea = selectStart !== null && selectEnd !== null ? {
+    x1: Math.min(selectStart, selectEnd),
+    x2: Math.max(selectStart, selectEnd),
+    fill: "#FFD700",
+    fillOpacity: 0.15,
+    stroke: "#FFD700",
+    strokeOpacity: 0.4,
+    yAxisId: "default"
+  } : undefined
+
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)] overflow-hidden bg-hmi-bg text-hmi-text font-sans">
       {/* Scrollable Layout Core */}
@@ -957,121 +1022,29 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
             </div>
 
             <div className="flex-1 min-h-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={visibleData}
-                  margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
-                  onMouseDown={handleMouseDown}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  className="select-none"
-                >
-                  <CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="t"
-                    type="number"
-                    domain={[chartEndTime - 10, chartEndTime]}
-                    tick={{ fill: '#9CA3AF', fontSize: 10, fontFamily: 'monospace' }}
-                    axisLine={{ stroke: '#2E2E2E' }}
-                    tickLine={false}
-                    tickFormatter={(v) => `${v.toFixed(1)}s`}
-                  />
-                  {/* Primary Y-axis: Joint Angle in Degrees */}
-                  <YAxis
-                    yAxisId="angle"
-                    domain={['auto', 'auto']}
-                    tick={{ fill: '#9CA3AF', fontSize: 10, fontFamily: 'monospace' }}
-                    axisLine={{ stroke: '#2E2E2E' }}
-                    tickLine={false}
-                    tickFormatter={(v) => `${v.toFixed(1)}°`}
-                    width={45}
-                  />
-                  {/* Secondary Y-axis: Raw PWM Output (-255 to +255) */}
-                  <YAxis
-                    yAxisId="pwm"
-                    orientation="right"
-                    domain={[-260, 260]}
-                    tick={{ fill: '#9CA3AF', fontSize: 10, fontFamily: 'monospace' }}
-                    axisLine={{ stroke: '#2E2E2E' }}
-                    tickLine={false}
-                    width={40}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'rgba(28,28,28,0.95)',
-                      borderColor: '#2E2E2E',
-                      color: '#EAEAEA',
-                      fontFamily: 'monospace',
-                      fontSize: '11px',
-                    }}
-                    labelFormatter={(label) => `Time: ${Number(label).toFixed(3)} s`}
-                  />
-                  <Legend verticalAlign="top" height={24} iconType="plainline" wrapperStyle={{ fontSize: '11px' }} />
-                  
-                  {/* Draw calipers selection range */}
-                  {selectStart !== null && selectEnd !== null && (
-                    <ReferenceArea
-                      x1={Math.min(selectStart, selectEnd)}
-                      x2={Math.max(selectStart, selectEnd)}
-                      fill="#FFD700"
-                      fillOpacity={0.15}
-                      stroke="#FFD700"
-                      strokeOpacity={0.4}
-                      yAxisId="angle"
-                    />
-                  )}
-
-                  {/* Draw PWM Deadband bounds reference lines */}
-                  <ReferenceLine y={deadband} yAxisId="pwm" stroke="#EF5350" strokeDasharray="3 3" strokeOpacity={0.5} label={{ value: `+${deadband}db`, fill: '#EF5350', fontSize: 9, position: 'insideRight' }} />
-                  <ReferenceLine y={-deadband} yAxisId="pwm" stroke="#EF5350" strokeDasharray="3 3" strokeOpacity={0.5} label={{ value: `-${deadband}db`, fill: '#EF5350', fontSize: 9, position: 'insideRight' }} />
-
-                  {/* Telemetry Curves */}
-                  {/* Raw ADC signal (before TD filter) — grey noise floor overlay */}
-                  <Line
-                    yAxisId="angle"
-                    type="monotone"
-                    dataKey={activeJoint === 1 ? 't1_raw' : 't2_raw'}
-                    stroke="#94a3b8"
-                    strokeWidth={1}
-                    strokeOpacity={0.4}
-                    dot={false}
-                    name="Raw ADC (°)"
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    yAxisId="angle"
-                    type="monotone"
-                    dataKey={activeJoint === 1 ? 't1_target' : 't2_target'}
-                    stroke="#06B6D4"
-                    strokeDasharray="4 4"
-                    strokeWidth={1.5}
-                    dot={false}
-                    name="Target (°)"
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    yAxisId="angle"
-                    type="monotone"
-                    dataKey={activeJoint === 1 ? 't1_actual' : 't2_actual'}
-                    stroke="#FF9800"
-                    strokeWidth={2}
-                    dot={false}
-                    name="TD Filtered (°)"
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    yAxisId="pwm"
-                    type="monotone"
-                    dataKey="pwm1"
-                    stroke="#4CAF50"
-                    strokeWidth={1.5}
-                    strokeOpacity={0.4}
-                    dot={false}
-                    name="PWM Output"
-                    isAnimationActive={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <UniversalTimeSeriesChart
+                data={visibleData}
+                xAxisKey="t"
+                xDomain={[chartEndTime - 10, chartEndTime]}
+                yAxisTickFormatter={(v) => `${v.toFixed(1)}°`}
+                tooltipLabelFormatter={(label) => `Time: ${Number(label).toFixed(3)} s`}
+                tooltipValueFormatter={(v, name) => {
+                  if (v == null || isNaN(Number(v))) return String(v)
+                  if (String(name).toLowerCase().includes('pwm')) {
+                    return `${Number(v).toFixed(1)}`
+                  }
+                  return `${Number(v).toFixed(4)}°`
+                }}
+                isEmpty={visibleData.length === 0}
+                msg="No data available"
+                series={seriesList}
+                secondaryYAxis={secondaryYAxisProps}
+                referenceLines={refLines}
+                referenceArea={refArea}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+              />
             </div>
           </div>
 

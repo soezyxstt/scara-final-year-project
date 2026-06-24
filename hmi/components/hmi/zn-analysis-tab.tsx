@@ -9,19 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 // Remove next/navigation imports to prevent warnings
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as ChartTooltip,
-  Legend,
-  ResponsiveContainer,
-  ReferenceArea,
-  AreaChart,
-  Area
-} from 'recharts'
+import UniversalTimeSeriesChart, { ChartSeries } from './universal-time-series-chart'
 import {
   Play,
   Pause,
@@ -48,24 +36,6 @@ function downsample<T>(arr: T[], max = 500): T[] {
 }
 
 // Industrial Design Spec Constants (matching chart-panel.tsx)
-const GRID = 'rgba(255, 255, 255, 0.05)'
-const AT = {
-  fill: '#9CA3AF',
-  fontSize: 10,
-  fontFamily: 'monospace',
-  fontWeight: 500,
-}
-const AL = { stroke: '#1F2937' }
-const TS = {
-  backgroundColor: 'rgba(17, 24, 39, 0.95)',
-  backdropFilter: 'blur(8px)',
-  border: '1px solid #1F2937',
-  borderRadius: '6px',
-  color: '#F3F4F6',
-  fontFamily: 'monospace',
-  fontSize: '11px',
-  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
-}
 
 // Radix-2 Cooley-Tukey FFT implementation
 function fft(re: number[], im: number[]): { re: number[]; im: number[] } {
@@ -712,6 +682,50 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
     setIsExportModalOpen(false)
   }
 
+  const seriesList = useMemo(() => {
+    if (viewMode === 'pos') {
+      return [
+        { key: activeJoint === 1 ? 't1_target' : 't2_target', name: 'Target Position (°)', stroke: '#06B6D4', strokeDasharray: '4 4', strokeWidth: 1.5 },
+        { key: activeJoint === 1 ? 't1_actual' : 't2_actual', name: 'Filtered Position (°)', stroke: '#FF9800', strokeWidth: 2 }
+      ] as ChartSeries[]
+    }
+    if (viewMode === 'raw') {
+      return [
+        { key: activeJoint === 1 ? 't1_raw' : 't2_raw', name: 'Raw ADC Position (°)', stroke: '#94a3b8', strokeWidth: 1.75 }
+      ] as ChartSeries[]
+    }
+    if (viewMode === 'compare') {
+      return [
+        { key: activeJoint === 1 ? 't1_target' : 't2_target', name: 'Target Position (°)', stroke: '#06B6D4', strokeDasharray: '4 4', strokeWidth: 1.5 },
+        { key: activeJoint === 1 ? 't1_raw' : 't2_raw', name: 'Raw ADC Position (Dimmed) (°)', stroke: '#64748b', strokeOpacity: 0.35, strokeWidth: 1 },
+        { key: activeJoint === 1 ? 't1_actual' : 't2_actual', name: 'Filtered Position (°)', stroke: '#FF9800', strokeWidth: 2 }
+      ] as ChartSeries[]
+    }
+    if (viewMode === 'vel') {
+      return [
+        { key: activeJoint === 1 ? 'v1' : 'v2', name: 'Joint Velocity (°/s)', stroke: '#10B981', strokeWidth: 1.75 }
+      ] as ChartSeries[]
+    }
+    if (viewMode === 'ctrl') {
+      return [
+        { key: 'p1_norm', name: 'P Output (frac)', stroke: '#3B82F6', strokeWidth: 1.5 },
+        { key: 'i1_norm', name: 'I Output (frac)', stroke: '#A78BFA', strokeWidth: 1.5 },
+        { key: 'd1_norm', name: 'D Output (frac)', stroke: '#FF9800', strokeWidth: 1.5 },
+        { key: 'ff_norm', name: 'FF Output (frac)', stroke: '#10B981', strokeWidth: 1.5, strokeDasharray: '3 3' }
+      ] as ChartSeries[]
+    }
+    return [] as ChartSeries[]
+  }, [viewMode, activeJoint])
+
+  const refArea = selectStart !== null && selectEnd !== null ? {
+    x1: Math.min(selectStart, selectEnd),
+    x2: Math.max(selectStart, selectEnd),
+    fill: "#06B6D4",
+    fillOpacity: 0.12,
+    stroke: "#06B6D4",
+    strokeOpacity: 0.4
+  } : undefined
+
   return (
     <div className="flex flex-col h-full overflow-y-auto p-4 gap-4 bg-hmi-bg text-hmi-text font-sans">
       
@@ -903,257 +917,60 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                     Select a region containing at least 8 samples on any other graph view to preview spectrum.
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={fftData} margin={{ top: 12, right: 12, left: 10, bottom: 8 }}>
-                      <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-                      <XAxis
-                        dataKey="freq"
-                        type="number"
-                        domain={[0, nyquistFreq]}
-                        tick={AT}
-                        axisLine={AL}
-                        tickLine={false}
-                        tickFormatter={(v) => `${v}Hz`}
-                      />
-                      <YAxis
-                        tick={AT}
-                        axisLine={AL}
-                        tickLine={false}
-                        tickFormatter={(v) => (v != null && !isNaN(Number(v))) ? `${Number(v).toFixed(3)}°` : ''}
-                        width={45}
-                      />
-                      <ChartTooltip
-                        contentStyle={TS}
-                        labelFormatter={(label) => `Freq: ${label} Hz`}
-                      />
-                      <Legend 
-                        verticalAlign="top" 
-                        align="left"
-                        height={24} 
-                        onClick={handleLegendClick}
-                        wrapperStyle={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 600, cursor: 'pointer', paddingBottom: '8px' }} 
-                      />
-                      <Area
-                        type="linear"
-                        dataKey="t1_raw"
-                        stroke="#94a3b8"
-                        fill="#94a3b8"
-                        fillOpacity={0.15}
-                        strokeWidth={1.5}
-                        name="Raw ADC FFT Amplitude"
-                        isAnimationActive={false}
-                        hide={!!hiddenLines.t1_raw}
-                      />
-                      <Area
-                        type="linear"
-                        dataKey="t1_actual"
-                        stroke="#FF9800"
-                        fill="#FF9800"
-                        fillOpacity={0.15}
-                        strokeWidth={1.5}
-                        name="Filtered FFT Amplitude"
-                        isAnimationActive={false}
-                        hide={!!hiddenLines.t1_actual}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  <UniversalTimeSeriesChart
+                    data={fftData}
+                    xAxisKey="freq"
+                    xDomain={[0, nyquistFreq]}
+                    yAxisTickFormatter={(v) => (v != null && !isNaN(Number(v))) ? `${Number(v).toFixed(3)}°` : ''}
+                    tooltipLabelFormatter={(label) => `Freq: ${label} Hz`}
+                    tooltipValueFormatter={(v) => (v != null && !isNaN(Number(v))) ? `${Number(v).toFixed(4)}°` : String(v)}
+                    hiddenSeries={hiddenLines}
+                    onLegendClick={(key) => setHiddenLines((prev) => ({ ...prev, [key]: !prev[key] }))}
+                    isEmpty={fftData.length === 0}
+                    msg=""
+                    series={[
+                      {
+                        key: 't1_raw',
+                        name: 'Raw ADC FFT Amplitude',
+                        stroke: '#94a3b8',
+                        fill: '#94a3b8',
+                        type: 'area',
+                        strokeWidth: 1.5
+                      },
+                      {
+                        key: 't1_actual',
+                        name: 'Filtered FFT Amplitude',
+                        stroke: '#FF9800',
+                        fill: '#FF9800',
+                        type: 'area',
+                        strokeWidth: 1.5
+                      }
+                    ]}
+                  />
                 )
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={visibleData}
-                    margin={{ top: 12, right: 12, left: 10, bottom: 8 }}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                  >
-                    <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-                    <XAxis
-                      dataKey="t"
-                      type="number"
-                      domain={[chartEndTime - 10, chartEndTime]}
-                      tick={AT}
-                      axisLine={AL}
-                      tickLine={false}
-                      tickFormatter={(v) => (v != null && !isNaN(Number(v))) ? `${Number(v).toFixed(1)}s` : ''}
-                    />
-                    <YAxis
-                      domain={['auto', 'auto']}
-                      tick={AT}
-                      axisLine={AL}
-                      tickLine={false}
-                      tickFormatter={(v) => {
-                        if (v == null || isNaN(Number(v))) return ''
-                        if (viewMode === 'vel') return `${Number(v).toFixed(0)}°/s`
-                        if (viewMode === 'ctrl') return Number(v).toFixed(2)
-                        return `${Number(v).toFixed(1)}°`
-                      }}
-                      width={45}
-                    />
-                    <ChartTooltip
-                      contentStyle={TS}
-                      labelFormatter={(label) => `Time: ${label != null && !isNaN(Number(label)) ? Number(label).toFixed(3) : '0'} s`}
-                    />
-                    <Legend 
-                      verticalAlign="top" 
-                      align="left"
-                      height={24} 
-                      iconType="plainline" 
-                      onClick={handleLegendClick} 
-                      wrapperStyle={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 600, cursor: 'pointer', paddingBottom: '8px' }} 
-                    />
-                    
-                    {selectStart !== null && selectEnd !== null && (
-                      <ReferenceArea
-                        x1={Math.min(selectStart, selectEnd)}
-                        x2={Math.max(selectStart, selectEnd)}
-                        fill="#06B6D4"
-                        fillOpacity={0.12}
-                        stroke="#06B6D4"
-                        strokeOpacity={0.4}
-                      />
-                    )}
-
-                    {viewMode === 'pos' && (
-                      <>
-                        <Line
-                          type="monotone"
-                          dataKey={activeJoint === 1 ? 't1_target' : 't2_target'}
-                          stroke="#06B6D4"
-                          strokeDasharray="4 4"
-                          strokeWidth={1.5}
-                          dot={false}
-                          name="Target Position (°)"
-                          isAnimationActive={false}
-                          hide={!!hiddenLines.t1_target}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey={activeJoint === 1 ? 't1_actual' : 't2_actual'}
-                          stroke="#FF9800"
-                          strokeWidth={2}
-                          dot={false}
-                          name="Filtered Position (°)"
-                          isAnimationActive={false}
-                          hide={!!hiddenLines.t1_actual}
-                        />
-                      </>
-                    )}
-
-                    {viewMode === 'raw' && (
-                      <>
-                        <Line
-                          type="monotone"
-                          dataKey={activeJoint === 1 ? 't1_raw' : 't2_raw'}
-                          stroke="#94a3b8"
-                          strokeWidth={1.75}
-                          dot={false}
-                          name="Raw ADC Position (°)"
-                          isAnimationActive={false}
-                          hide={!!hiddenLines.t1_raw}
-                        />
-                      </>
-                    )}
-
-                    {viewMode === 'compare' && (
-                      <>
-                        <Line
-                          type="monotone"
-                          dataKey={activeJoint === 1 ? 't1_target' : 't2_target'}
-                          stroke="#06B6D4"
-                          strokeDasharray="4 4"
-                          strokeWidth={1.5}
-                          dot={false}
-                          name="Target Position (°)"
-                          isAnimationActive={false}
-                          hide={!!hiddenLines.t1_target}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey={activeJoint === 1 ? 't1_raw' : 't2_raw'}
-                          stroke="#64748b"
-                          strokeOpacity={0.35}
-                          strokeWidth={1}
-                          dot={false}
-                          name="Raw ADC Position (Dimmed) (°)"
-                          isAnimationActive={false}
-                          hide={!!hiddenLines.t1_raw}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey={activeJoint === 1 ? 't1_actual' : 't2_actual'}
-                          stroke="#FF9800"
-                          strokeWidth={2}
-                          dot={false}
-                          name="Filtered Position (°)"
-                          isAnimationActive={false}
-                          hide={!!hiddenLines.t1_actual}
-                        />
-                      </>
-                    )}
-
-                    {viewMode === 'vel' && (
-                      <>
-                        <Line
-                          type="monotone"
-                          dataKey={activeJoint === 1 ? 'v1' : 'v2'}
-                          stroke="#10B981"
-                          strokeWidth={1.75}
-                          dot={false}
-                          name="Joint Velocity (°/s)"
-                          isAnimationActive={false}
-                          hide={!!hiddenLines.v1}
-                        />
-                      </>
-                    )}
-
-                    {viewMode === 'ctrl' && (
-                      <>
-                        <Line
-                          type="monotone"
-                          dataKey="p1_norm"
-                          stroke="#3B82F6"
-                          strokeWidth={1.5}
-                          dot={false}
-                          name="P Output (frac)"
-                          isAnimationActive={false}
-                          hide={!!hiddenLines.p1_norm}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="i1_norm"
-                          stroke="#A78BFA"
-                          strokeWidth={1.5}
-                          dot={false}
-                          name="I Output (frac)"
-                          isAnimationActive={false}
-                          hide={!!hiddenLines.i1_norm}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="d1_norm"
-                          stroke="#FF9800"
-                          strokeWidth={1.5}
-                          dot={false}
-                          name="D Output (frac)"
-                          isAnimationActive={false}
-                          hide={!!hiddenLines.d1_norm}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="ff_norm"
-                          stroke="#10B981"
-                          strokeWidth={1.5}
-                          strokeDasharray="3 3"
-                          dot={false}
-                          name="FF Output (frac)"
-                          isAnimationActive={false}
-                          hide={!!hiddenLines.ff_norm}
-                        />
-                      </>
-                    )}
-                  </LineChart>
-                </ResponsiveContainer>
+                <UniversalTimeSeriesChart
+                  data={visibleData}
+                  xAxisKey="t"
+                  xDomain={[chartEndTime - 10, chartEndTime]}
+                  yAxisTickFormatter={(v) => {
+                    if (v == null || isNaN(Number(v))) return ''
+                    if (viewMode === 'vel') return `${Number(v).toFixed(0)}°/s`
+                    if (viewMode === 'ctrl') return Number(v).toFixed(2)
+                    return `${Number(v).toFixed(1)}°`
+                  }}
+                  tooltipLabelFormatter={(label) => `Time: ${label != null && !isNaN(Number(label)) ? Number(label).toFixed(3) : '0'} s`}
+                  tooltipValueFormatter={(v) => (v != null && !isNaN(Number(v))) ? `${Number(v).toFixed(4)}${viewMode === 'vel' ? '°/s' : viewMode === 'ctrl' ? '' : '°'}` : String(v)}
+                  hiddenSeries={hiddenLines}
+                  onLegendClick={(key) => setHiddenLines((prev) => ({ ...prev, [key]: !prev[key] }))}
+                  isEmpty={visibleData.length === 0}
+                  msg="No data available"
+                  series={seriesList}
+                  referenceArea={refArea}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                />
               )}
             </div>
           </Card>

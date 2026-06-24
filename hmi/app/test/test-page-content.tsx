@@ -118,7 +118,7 @@ function TestTunerShell() {
                 : "border-transparent text-hmi-muted hover:text-hmi-text"
             )}
           >
-            Rest Analysis
+            Step & Noise
           </button>
           <button
             onClick={() => setActiveTab('params')}

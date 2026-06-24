@@ -19,16 +19,12 @@ import {
 
 // ---- helpers --------------------------------------------------------------
 
-function pinRow(labels: string[], opts: { x: number; y: number; pitch: number; axis?: "x" | "y"; gndLabels?: string[] }) {
-  const { x, y, pitch, axis = "x", gndLabels } = opts
+function pinRow(labels: string[], opts: { x: number; y: number; pitch: number; axis?: "x" | "y" }) {
+  const { x, y, pitch, axis = "x" } = opts
   return labels.map((label, i) => (
     <platedhole
       key={`${label}_${i}`}
       portHints={[label]}
-      // connectsTo declares net.GND membership WITHOUT routing a copper trace
-      // (a routed trace is what broke 0.5mm DRC), so the bottom GND pour ties
-      // the pad in directly.
-      connectsTo={gndLabels?.includes(label) ? "net.GND" : undefined}
       pcbX={axis === "x" ? x + i * pitch : x}
       pcbY={axis === "x" ? y : y + i * pitch}
       holeDiameter="1mm"
@@ -136,7 +132,7 @@ function DcPwrJack(props: { name: string; pcbX: number; pcbY: number; schX?: num
         <footprint>
           <platedhole portHints={["SW"]} pcbX={-DC_JACK_SW_VCC_HALF_SPACING} pcbY={0} holeDiameter="2.8mm" outerDiameter="4.0mm" shape="circle" />
           <platedhole portHints={["VCC"]} pcbX={DC_JACK_SW_VCC_HALF_SPACING} pcbY={0} holeDiameter="2.8mm" outerDiameter="4.0mm" shape="circle" />
-          <platedhole portHints={["GND"]} connectsTo="net.GND" pcbX={0.0} pcbY={-DC_JACK_GND_Y_OFFSET} holeDiameter="2.8mm" outerDiameter="4.0mm" shape="circle" />
+          <platedhole portHints={["GND"]} pcbX={0.0} pcbY={-DC_JACK_GND_Y_OFFSET} holeDiameter="2.8mm" outerDiameter="4.0mm" shape="circle" />
         </footprint>
       } />
       <silkscreenrect pcbX={props.pcbX} pcbY={props.pcbY - 1.5} width={DC_JACK_BODY_WIDTH} height={DC_JACK_BODY_HEIGHT} strokeWidth={0.3} />
@@ -167,6 +163,7 @@ function ScrewTerminal(props: { name: string; pcbX: number; pcbY: number; schX?:
     <platedhole
       key={l}
       portHints={[l]}
+     
       pcbX={axis === "x" ? -span / 2 + i * pitch : 0}
       pcbY={axis === "x" ? 0 : span / 2 - i * pitch}
       holeDiameter="1.2mm"
@@ -218,6 +215,22 @@ function ScrewTerminal(props: { name: string; pcbX: number; pcbY: number; schX?:
 const A4988_X = -27
 const A4988_Y = -16
 
+// Via sizes for the GND-tree's bottom-layer-entry vias. Each one sits at the
+// exact center of the through-hole pad it starts from — a tscircuit pcbPath
+// limitation, since switching to the bottom layer requires `via:true` as the
+// FIRST waypoint, which has nowhere else to go but the pad's own location.
+// Matching the via's own diameter to its host pad's diameter makes the two
+// drill hits in the Gerber/Excellon output IDENTICAL (same tool, same XY)
+// instead of two DIFFERENT-sized overlapping holes — fab CAM software
+// treats an identical duplicate drill as a no-op, but two different-sized
+// holes at the same point as a DFM violation that can get an order rejected
+// (confirmed by exporting real gerbers and inspecting drill.drl directly).
+const VIA_HEADER_PIN = { viaPadDiameter: "1.3mm", viaHoleDiameter: "1mm" }    // 0.1" header / ESP32 socket pads
+const VIA_LM2596_PIN = { viaPadDiameter: "2.8mm", viaHoleDiameter: "1.5mm" }  // LM2596 power pads
+const VIA_DCJACK_PIN = { viaPadDiameter: "4mm", viaHoleDiameter: "2.8mm" }    // DC barrel jack pads
+const VIA_CBULK_PIN = { viaPadDiameter: "1.4mm", viaHoleDiameter: "0.8mm" }   // C_BULK cap pads
+const VIA_SCREW_PIN = { viaPadDiameter: "2.6mm", viaHoleDiameter: "1.2mm" }   // screw terminal pads
+
 export default () => (
   <board
     width="96mm"
@@ -225,6 +238,8 @@ export default () => (
     minTraceWidth="0.5mm"
     autorouter={{ traceClearance: "0.5mm" }}
     minTraceToPadEdgeClearance="0.5mm"
+    minBoardEdgeClearance="2mm"
+    pcbStyle={{ viaPadDiameter: "1.3mm", viaHoleDiameter: "0.7mm" }}
   >
     {/* M3 Corner Mounting Holes for Enclosure */}
     <platedhole pcbX={-44} pcbY={30} holeDiameter="3.0mm" outerDiameter="4.0mm" shape="circle" />
@@ -252,7 +267,7 @@ export default () => (
         edge). This shift invalidates the manually-routed V12/STEP/DIR
         pcbPath waypoints below, which are anchor-relative to A4988's pcbY —
         they've been recomputed for the new position. */}
-    <Connector name="A4988" pcbX={A4988_X} pcbY={A4988_Y} schX={-13} schY={-5} rows={[
+    <Connector name="A4988_SOCKET" pcbX={A4988_X} pcbY={A4988_Y} schX={-13} schY={-5} rows={[
       { labels: ["ENABLE", "MS1", "MS2", "MS3", "RESET", "SLEEP", "STEP", "DIR"], pitch: A4988_PIN_PITCH, rowOffsetY: A4988_ROW_SPACING / 2 },
       { labels: ["VMOT", "GND_MOT", "1B", "1A", "2A", "2B", "VDD", "GND_LOGIC"], pitch: A4988_PIN_PITCH, rowOffsetY: -A4988_ROW_SPACING / 2 },
     ]} />
@@ -291,7 +306,7 @@ export default () => (
         removes ~12 top-layer GND traces and the violations they caused, and
         decongests the remaining signal/power routing.
         ========================================================================= */}
-    <copperpour layer="bottom" connectsTo="net.GND" clearance="0.5mm"
+    <copperpour layer="bottom" connectsTo="net.GND" clearance="0.55mm"
       boundary={[
         { x: -46, y: 28 },
         { x: 46,  y: 28 },
@@ -320,9 +335,60 @@ export default () => (
     {/* =========================================================================
         POWER RAILS
         ========================================================================= */}
-    <trace from=".PWR_IN > .VCC" to="net.V12" thickness="0.8mm" />
-    <trace from=".LM2596 > .IN_POS" to="net.V12" thickness="0.8mm" />
+    {/* Manual pcbPath: the autorouter connected this straight to LM2596.IN_POS
+        (the nearest other open net.V12 stub) via a corridor hugging the left
+        board edge at x=-46.84, only 0.91mm clear of the edge (board edge at
+        x=-48; spec wants >=2mm). That edge-side gap is only 2mm wide total
+        (board edge to PWR_IN.SW's pad), so there's no width left in it for
+        both the 2mm edge clearance AND 0.5mm pad clearance at once — the fix
+        is an interior reroute instead of nudging the same corridor. Routes
+        right of PWR_IN.SW/GND and LM2596's NW mount hole, then approaches
+        IN_POS from below. The IN_POS net anchor is removed since this trace
+        now ties it to net.V12 via VCC instead. Waypoints relative to anchor
+        PWR_IN (-41, 21.5). */}
+    <trace from=".PWR_IN > .VCC" to=".LM2596 > .IN_POS" thickness="0.8mm"
+      pcbPath={[
+        { x: 3, y: 0 },
+        { x: 5, y: 0 },
+        { x: 5, y: -14.5 },
+        { x: -3.2485, y: -14.5 },
+        { x: -3.2485, y: -9.9275 },
+      ]}
+    />
+    {/* This net anchor independently routed itself to C_BULK.POS (the other
+        open net.V12 stub) along the same left-edge corridor as the traces
+        above, so it inherited the same edge-clearance problem. Made explicit
+        and interior (threading the gap between the LM2596 mount hole and the
+        A4988's left pad column, then approaching C_BULK.POS from below to
+        clear C_BULK.NEG). Waypoints relative to anchor LM2596 (-24.5, 3). */}
+    <trace from=".LM2596 > .IN_POS" to=".C_BULK > .POS" thickness="0.8mm"
+      pcbPath={[
+        { x: -19.7485, y: 8.5725 },
+        { x: -19.7485, y: 4 },
+        { x: -13.5, y: 4 },
+        { x: -13.5, y: -23.7 },
+        { x: -19.77, y: -23.7 },
+        { x: -19.77, y: -22 },
+      ]}
+    />
     <trace from=".C_BULK > .POS" to="net.V12" thickness="0.8mm" />
+    {/* BUGFIX (V12 island reconnect): A4988.VMOT + J_DC.V12 were a SEPARATE
+        copper island with NO path to the 12V source (PWR_IN/buck/C_BULK) —
+        the net-membership glue was lost when VMOT->net.V12 got converted to
+        the explicit VMOT->J_DC.V12 pair below. C_BULK is VMOT's bulk cap and
+        sits right next to it, and C_BULK.POS is already on the V12 source
+        island, so tie VMOT->C_BULK.POS (also the textbook placement: bulk cap
+        directly across VMOT/GND at the driver). J_DC.V12 rejoins via the
+        existing VMOT->J_DC.V12 trace. Top layer (clears the bottom GND pour);
+        routed left along y=-22.35 BELOW C_BULK.NEG, then up into C_BULK.POS.
+        Waypoints relative to anchor A4988 (-27,-16). */}
+    <trace from=".A4988_SOCKET > .VMOT" to=".C_BULK > .POS" thickness="0.8mm"
+      pcbPath={[
+        { x: -8.89, y: -6.35 },
+        { x: -17.27, y: -6.35 },
+        { x: -17.27, y: -3.0 },
+      ]}
+    />
     {/* Manually routed (pcbRouteHints are ignored under this board's global
         autorouter mode — pcbPath bypasses the autorouter entirely). Path goes
         via the open south lane (below A4988/STEPPER/ESP32 bottom row, above
@@ -333,25 +399,158 @@ export default () => (
         traces below. */}
     {/* Rise segment dropped to the bottom layer via two vias so it physically
         crosses under the V5 trace (different layer = no clearance conflict)
-        instead of competing for the same x/y in the congested J_DC corridor. */}
-    <trace from=".A4988 > .VMOT" to=".J_DC > .V12" thickness="0.8mm"
-      pcbPath={[
-        { x: -8.89, y: -11.2 },
-        { x: 66, y: -11.2, via: true, toLayer: "bottom" },
-        { x: 66, y: -0.25, via: true, toLayer: "top" },
-      ]}
-    />
+        instead of competing for the same x/y in the congested J_DC corridor.
+        Dropped immediately to the bottom layer at VMOT pad to avoid crossing 
+        the top-layer stepper connector signals. */}
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".A4988_SOCKET > .VMOT" to=".J_DC > .V12" thickness="0.8mm"
+        pcbPath={[
+          { x: -8.89, y: -6.35, via: true, toLayer: "bottom" },
+          { x: -8.89, y: -6.35 },
+          { x: -8.89, y: -14.5 },
+          { x: 63, y: -14.5 },
+          { x: 63, y: -0.25 },
+          { x: 63, y: -0.25, via: true, toLayer: "top" },
+          { x: 63, y: -0.25 },
+        ]}
+      />
+    </group>
 
-    {/* GND: no explicit traces — all GND pads tie to the bottom copper pour.
-        ENABLE is GND on this board (A4988 always-enabled); routed to pour too. */}
-    {/* Pointed at the nearest local GND pin (GND_MOT, same component, 2.54mm
-        away) instead of "net.GND" — the net-based form let the solver pick
-        a distant GND-net member (J_EXP.GND) and route across the whole
-        board, grazing the ESP32 column tops. GND connectivity is already
-        handled by the bottom copper pour either way. */}
-    <trace from=".A4988 > .ENABLE" to=".A4988 > .GND_MOT" thickness="0.5mm" />
+    {/* ===== GROUND — bottom-layer membership tree =====================
+        Every GND pad must be on net.GND for the bottom pour to fill to it
+        (connectsTo on a platedhole does nothing here; only traces create
+        net membership). Routing that membership on the TOP layer makes the
+        autorouter MST the pads pad-to-pad across the board (28 DRC errors +
+        perturbs signals). Instead we tie them in on the BOTTOM layer, where
+        each GND trace merges into the GND pour (same net = no clearance
+        conflict) and never touches top-layer signals.
+        One pad anchors to net.GND (routes straight into the pour); the rest
+        chain to a neighbour via 2-port pcbPath forced onto the bottom layer.
+        pcbPath waypoints are ABSOLUTE-minus-anchor-component-origin. */}
+    <trace from=".PWR_IN > .GND" to="net.GND" thickness="0.5mm" />
+    {/* Center cluster: POT2/POT1/ENC/OUT_NEG/ESP32.GND_1 chained on the
+        bottom through the clear x=-1 corridor (left of the POT/ENC pads; the
+        top-layer V3V3 trunk also sits at x=-1 but on the other layer). */}
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".POT1 > .GND" to=".POT2 > .GND" thickness="0.5mm"
+        pcbPath={[{ x: 0, y: 2.54, via: true, toLayer: "bottom" }, { x: 0, y: 2.54 }, { x: -3, y: 2.54 }, { x: -3, y: 13.04 }, { x: 0, y: 13.04 }]} />
+    </group>
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".ENC > .GND" to=".POT1 > .GND" thickness="0.5mm"
+        pcbPath={[{ x: 0, y: -1.27, via: true, toLayer: "bottom" }, { x: 0, y: -1.27 }, { x: -3, y: -1.27 }, { x: -3, y: 15.54 }, { x: 0, y: 15.54 }]} />
+    </group>
+    <group pcbStyle={VIA_LM2596_PIN}>
+      <trace from=".LM2596 > .OUT_NEG" to=".ENC > .GND" thickness="0.5mm"
+        pcbPath={[{ x: 19.7485, y: -8.5725, via: true, toLayer: "bottom" }, { x: 19.7485, y: -8.5725 }, { x: 23.5, y: -8.5725 }, { x: 23.5, y: -10.77 }, { x: 26.5, y: -10.77 }]} />
+    </group>
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".ESP32 > .GND_1" to=".ENC > .GND" thickness="0.5mm"
+        pcbPath={[{ x: -12.7, y: -10.16, via: true, toLayer: "bottom" }, { x: -12.7, y: -10.16 }, { x: -15.5, y: -10.16 }, { x: -15.5, y: -7.77 }, { x: -18, y: -7.77 }]} />
+    </group>
+    {/* Left cluster (PWR_IN/buck/C_BULK/A4988 grounds) + the anchor link.
+        Was a left-edge corridor at x=-46.7 (only 1.3mm clear of the x=-48
+        board edge; spec wants >=2mm). Same problem as the V12 trace above —
+        the edge-side gap is too narrow for both edge and pad clearance at
+        once — so this is also an interior reroute now: right of LM2596's NW
+        mount hole and IN_POS pad, then in to PWR_IN.GND from above. The
+        A4988 grounds chain along y=-23.5 (below the bottom pin row, above
+        the corner mounting keepout) is unchanged. */}
+    <group pcbStyle={VIA_DCJACK_PIN}>
+      <trace from=".PWR_IN > .SW" to=".PWR_IN > .GND" thickness="0.5mm"
+        pcbPath={[{ x: -3, y: 0, via: true, toLayer: "bottom" }, { x: -3, y: 0 }, { x: 0, y: -4.8 }]} />
+    </group>
+    <group pcbStyle={VIA_LM2596_PIN}>
+      <trace from=".LM2596 > .IN_NEG" to=".PWR_IN > .GND" thickness="0.5mm"
+        pcbPath={[{ x: -19.7485, y: -8.5725, via: true, toLayer: "bottom" }, { x: -19.7485, y: -8.5725 }, { x: -11.5, y: -8.5725 }, { x: -11.5, y: 13.7 }, { x: -16.5, y: 13.7 }]} />
+    </group>
+    {/* Was also a left-edge corridor at x=-46.7 (same edge-clearance problem
+        as the two traces above). Rerouted to the interior (x=-39, between
+        C_BULK and the A4988's leftmost pad column) instead. */}
+    <group pcbStyle={VIA_CBULK_PIN}>
+      <trace from=".C_BULK > .NEG" to=".LM2596 > .IN_NEG" thickness="0.5mm"
+        pcbPath={[{ x: 1.27, y: 0, via: true, toLayer: "bottom" }, { x: 1.27, y: 0 }, { x: 1.27, y: -2.5 }, { x: 4, y: -2.5 }, { x: 4, y: 13.43 }, { x: -1.25, y: 13.43 }]} />
+    </group>
+    {/* A4988 grounds chain GND_LOGIC -> GND_MOT -> ENABLE -> IN_NEG, running
+        along y=-24.5 (centered between the A4988 bottom row at -22.35 and the
+        STEP bottom lane at -26, and clear of the corner keepout). ENABLE then
+        joins the cluster via the buck IN_NEG. */}
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".A4988_SOCKET > .GND_LOGIC" to=".A4988_SOCKET > .GND_MOT" thickness="0.5mm"
+        pcbPath={[{ x: 8.89, y: -6.35, via: true, toLayer: "bottom" }, { x: 8.89, y: -6.35 }, { x: 8.89, y: -8.5 }, { x: -6.35, y: -8.5 }, { x: -6.35, y: -6.35 }]} />
+    </group>
+    {/* GND_MOT -> ENABLE rises through the A4988 inter-row gap (y=-12, above
+        the V12 trace's drop at x=-35.9 and clear of both pin rows). */}
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".A4988_SOCKET > .GND_MOT" to=".A4988_SOCKET > .ENABLE" thickness="0.5mm"
+        pcbPath={[{ x: -6.35, y: -6.35, via: true, toLayer: "bottom" }, { x: -6.35, y: -6.35 }, { x: -6.35, y: 4 }, { x: -10.5, y: 4 }, { x: -10.5, y: 6.35 }, { x: -8.89, y: 6.35 }]} />
+    </group>
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".A4988_SOCKET > .ENABLE" to=".LM2596 > .IN_NEG" thickness="0.5mm"
+        pcbPath={[{ x: -8.89, y: 6.35, via: true, toLayer: "bottom" }, { x: -8.89, y: 6.35 }, { x: -8.89, y: 9 }, { x: -17.25, y: 9 }, { x: -17.25, y: 10.43 }]} />
+    </group>
+    {/* Center<->Left link: POT2.GND tied to the anchor PWR_IN.GND along
+        y=16.7 (above the buck body, below the jack pads), avoiding the
+        STEP/DIR bottom traces that wall off the lower-center. Makes center +
+        left + anchor one net. */}
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".POT2 > .GND" to=".PWR_IN > .GND" thickness="0.5mm"
+        pcbPath={[{ x: 0, y: 2.54, via: true, toLayer: "bottom" }, { x: 0, y: 2.54 }, { x: -3, y: 2.54 }, { x: -3, y: -0.3 }, { x: -43, y: -0.3 }]} />
+    </group>
+    {/* Right cluster: ESP32.GND_2/GND_3 + J_DC.GND/J_EXP.GND. GND_3 links to
+        the center (ESP32.GND_1) through the open central corridor x=30; the
+        two screw terminals chain along the right edge x=45.5; J_EXP.GND ties
+        the screw-terminal pair back to GND_2. */}
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".ESP32 > .GND_3" to=".ESP32 > .GND_1" thickness="0.5mm"
+        pcbPath={[{ x: 12.7, y: 7.62, via: true, toLayer: "bottom" }, { x: 12.7, y: 7.62 }, { x: 10, y: 7.62 }, { x: 10, y: -3 }, { x: -10, y: -3 }, { x: -10, y: -10.16 }, { x: -12.7, y: -10.16 }]} />
+    </group>
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".ESP32 > .GND_2" to=".ESP32 > .GND_3" thickness="0.5mm"
+        pcbPath={[{ x: 12.7, y: 22.86, via: true, toLayer: "bottom" }, { x: 12.7, y: 22.86 }, { x: 10, y: 22.86 }, { x: 10, y: 7.62 }, { x: 12.7, y: 7.62 }]} />
+    </group>
+    <group pcbStyle={VIA_SCREW_PIN}>
+      <trace from=".J_DC > .GND" to=".J_EXP > .GND" thickness="0.5mm"
+        pcbPath={[{ x: 0, y: -1.75, via: true, toLayer: "bottom" }, { x: 0, y: -1.75 }, { x: 2.5, y: -1.75 }, { x: 2.5, y: 35.75 }, { x: 0, y: 35.75 }]} />
+    </group>
+    <group pcbStyle={VIA_SCREW_PIN}>
+      <trace from=".J_EXP > .GND" to=".ESP32 > .GND_2" thickness="0.5mm"
+        pcbPath={[{ x: 0, y: 8.75, via: true, toLayer: "bottom" }, { x: 0, y: 8.75 }, { x: -8.5, y: 8.75 }, { x: -8.5, y: 9.86 }]} />
+    </group>
 
     <trace from=".LM2596 > .OUT_POS" to="net.V5" thickness="0.6mm" />
+    {/* BUGFIX (V5 island reconnect): the buck 5V output (OUT_POS) was an
+        ISOLATED net island — no copper path to its loads (ESP32.5V, J_DC.V5).
+        Same root cause as the V12 bug: lost net glue when ESP32.5V->net.V5
+        became the explicit ESP32.5V->J_DC.V5 pair below. J_DC.V5 rejoins via
+        that existing trace; here we tie OUT_POS->ESP32.5V.
+        The direct corridor between the buck and ESP32 is walled off on BOTH
+        layers by the V3V3 trunk (x=-1, top) + GND trunk (x=-3, bottom) and
+        their pad stubs through the POT/ENC y-range, plus the dense ESP32<->
+        POT/ENC signal fan (y in [-8,9]). So route AROUND it: west across the
+        open top-layer space under the buck body (clear of the buck's pads),
+        straight down past the buck's south edge into the empty south-central
+        region (below the connectors, above the south power lanes), then east
+        and down into ESP32.5V from the west (clears the CMD pad above it).
+        All top layer, no via. Waypoints relative to anchor LM2596 (-24.5,3). */}
+    {/* One obstacle on the way down: the A4988.SLEEP->POT2.V3V3 feed runs as
+        a diagonal from (-23.2,-9.65) up to (-5,8.57), crossing this descent
+        (x=-13) at y~0.5 on the top layer. Dip to the bottom layer across that
+        crossing (vias straddle it at y=3 / y=-2) then back to top. Vias are
+        mid-air (not on a pad), wrapped to the 1.3/0.7mm board spec. */}
+      <trace from=".LM2596 > .OUT_POS" to=".ESP32 > .5V" thickness="0.6mm"
+        pcbPath={[
+          { x: 19.7485, y: 8.5725 },
+          { x: 11.5, y: 8.5725 },
+          { x: 11.5, y: 0 },
+          { x: 11.5, y: 0, via: true, toLayer: "bottom" },
+          { x: 11.5, y: 0 },
+          { x: 11.5, y: -16 },
+          { x: 29.5, y: -16 },
+          { x: 29.5, y: -16, via: true, toLayer: "top" },
+          { x: 29.5, y: -16 },
+          { x: 29.5, y: -25.86 },
+        ]}
+      />
     {/* Manual pcbPath (see V12 note above for why). Parallel south lane,
         offset from the V12 lane, clearing the ESP32 right-column CLK pad
         instead of grazing past it. Waypoints are local to the "from" anchor
@@ -361,31 +560,70 @@ export default () => (
     />
 
     <trace from=".ESP32 > .3V3" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".A4988 > .VDD" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".A4988 > .MS1" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".A4988 > .MS2" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".A4988 > .MS3" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".A4988 > .RESET" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".A4988 > .SLEEP" to="net.V3V3" thickness="0.5mm" />
+    <trace from=".A4988_SOCKET > .VDD" to=".ENC > .V3V3" thickness="0.5mm"
+      pcbPath={[
+        { x: 6.35, y: -6.35 },
+        { x: 6.35, y: 0.0 },
+        { x: 26.0, y: 0.0 },
+        { x: 26.0, y: 5.69 },
+        { x: 29.0, y: 5.69 }
+      ]}
+    />
+    <trace from=".A4988_SOCKET > .MS1" to="net.V3V3" thickness="0.5mm" />
+    <trace from=".A4988_SOCKET > .MS2" to="net.V3V3" thickness="0.5mm" />
+    <trace from=".A4988_SOCKET > .MS3" to="net.V3V3" thickness="0.5mm" />
+    <trace from=".A4988_SOCKET > .RESET" to="net.V3V3" thickness="0.5mm" />
+    <trace from=".A4988_SOCKET > .SLEEP" to="net.V3V3" thickness="0.5mm" />
     {/* V3V3 to the POT/ENC cluster as a clean vertical trunk on the left
         (x=-1, clear of the pads) instead of the autorouter's hairpin, which
         dove from the A4988 feed into ENC.V3V3 (the bottom pad) then doubled
         back up alongside the encoder. Chain: ENC.V3V3 -> POT1.V3V3 ->
         POT2.V3V3 -> net. pcbPath waypoints are anchor-relative (the "from"
         connector: POT1 at (2,6.5), ENC at (2,-6.5)). */}
-    <trace from=".POT2 > .V3V3" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".POT1 > .V3V3" to=".POT2 > .V3V3" thickness="0.5mm"
-      pcbPath={[{ x: -3, y: -2.54 }, { x: -3, y: 7.96 }]} />
-    <trace from=".ENC > .V3V3" to=".POT1 > .V3V3" thickness="0.5mm"
-      pcbPath={[{ x: -3, y: -3.81 }, { x: -3, y: 10.46 }]} />
+    {/* NOTE: this trace's via could not be bumped to the 1.3mm/0.7mm board
+        default — net-anchored traces (to="net.X") crash if given a manual
+        pcbPath, and redirecting it to a concrete V3V3 pad elsewhere on the
+        board destabilized the autorouter's grouping for unrelated traces
+        (IO21/IO22/IO23). Left on the tscircuit default 0.3mm/0.2mm via; this
+        is the only via in the design below the 1.27mm/0.6096mm fab spec, and
+        it carries 3.3V logic (not power/ground). */}
+    {/* V3V3 to the POT/ENC cluster as a clean vertical trunk.
+        Bypassing the to="net.V3V3" anchor to avoid tscircuit's micro-via fallback bug. 
+        Point-to-point routing guarantees adherence to the 1.3mm/0.7mm fab spec. */}
+    <group pcbStyle={{ viaPadDiameter: "1.3mm", viaHoleDiameter: "0.7mm" }}>
+      <trace from=".POT2 > .V3V3" to=".ESP32 > .3V3" thickness="0.5mm"
+        pcbPath={[
+          { x: 0.0, y: -2.54 },
+          { x: -3.0, y: -2.54 },
+          { x: -3.0, y: 5.86 },
+          { x: 5.3, y: 5.86 }
+        ]}
+      />
+      <trace from=".POT1 > .V3V3" to=".POT2 > .V3V3" thickness="0.5mm"
+        pcbPath={[
+          { x: 0.0, y: -2.54 },
+          { x: -3.0, y: -2.54 },
+          { x: -3.0, y: 7.96 },
+          { x: 0.0, y: 7.96 }
+        ]}
+      />
+      <trace from=".ENC > .V3V3" to=".POT1 > .V3V3" thickness="0.5mm"
+        pcbPath={[
+          { x: 0.0, y: -3.81 },
+          { x: -3.0, y: -3.81 },
+          { x: -3.0, y: 10.46 },
+          { x: 0.0, y: 10.46 }
+        ]}
+      />
+    </group>
 
     {/* =========================================================================
         SIGNALS
         ========================================================================= */}
-    <trace from=".A4988 > .1A" to=".STEPPER > .1A" thickness="0.6mm" />
-    <trace from=".A4988 > .1B" to=".STEPPER > .1B" thickness="0.6mm" />
-    <trace from=".A4988 > .2A" to=".STEPPER > .2A" thickness="0.6mm" />
-    <trace from=".A4988 > .2B" to=".STEPPER > .2B" thickness="0.6mm" />
+    <trace from=".A4988_SOCKET > .1A" to=".STEPPER > .1A" thickness="0.6mm" />
+    <trace from=".A4988_SOCKET > .1B" to=".STEPPER > .1B" thickness="0.6mm" />
+    <trace from=".A4988_SOCKET > .2A" to=".STEPPER > .2A" thickness="0.6mm" />
+    <trace from=".A4988_SOCKET > .2B" to=".STEPPER > .2B" thickness="0.6mm" />
 
     {/* Manual pcbPath. STEP is an INNER pin of the A4988 top row (8-pin
         header), so the only legal approach is perpendicular (straight down
@@ -405,7 +643,7 @@ export default () => (
         straight up into STEP from the north. Through-hole pads accept
         connections on either layer, so no via back to top is needed.
         Waypoints relative to anchor ESP32 (20, 0). */}
-    <trace from=".ESP32 > .IO14" to=".A4988 > .STEP"
+    <trace from=".ESP32 > .IO14" to=".A4988_SOCKET > .STEP"
       pcbPath={[
         { x: -8, y: -5.08 },
         { x: -8, y: -5.08, via: true, toLayer: "bottom" },
@@ -428,7 +666,7 @@ export default () => (
         entirely (separate south lane, y=-28.5, offset from STEP's y=-26 lane
         to keep clearance from it), then approaches DIR horizontally at its
         own exact y. Waypoints relative to anchor ESP32 (20, 0). */}
-    <trace from=".ESP32 > .IO12" to=".A4988 > .DIR"
+    <trace from=".ESP32 > .IO12" to=".A4988_SOCKET > .DIR"
       pcbPath={[
         { x: -5, y: -7.62 },
         { x: -5, y: -7.62, via: true, toLayer: "bottom" },
@@ -450,11 +688,72 @@ export default () => (
     <trace from=".ESP32 > .IO26" to=".ENC > .ENC_B" />
 
     <trace from=".J_EXP > .V3V3" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".J_EXP > .GND" to="net.GND" thickness="0.5mm" />
-    <trace from=".J_EXP > .IO21" to=".ESP32 > .IO21" />
-    <trace from=".J_EXP > .IO22" to=".ESP32 > .IO22" />
+    {/* J_EXP.GND ties to the pour via connectsTo on its platedhole (ScrewTerminal). */}
+    {/* Left autorouted (no via needed on this trace at all — it never had an
+        undersized-via problem; it only became unstable as a side effect of
+        manually routing its neighbors above. Now that IO22/IO23 are locked
+        down, the autorouter resolves this cleanly around them again. */}
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".ESP32 > .IO21" to=".J_EXP > .IO21"
+        pcbPath={[
+          { x: 12.7, y: 10.16, via: true, toLayer: "bottom" },
+          { x: 12.7, y: 10.16 },
+          { x: 20.5, y: 10.16 },
+          { x: 20.5, y: 18.25 },
+          { x: 23.0, y: 18.25 },
+        ]}
+      />
+    </group>
+    {/* Manual pcbPath (same reason as POT2.V3V3 above — makes the via explicit
+        so it inherits pcbStyle's via size). IO21's ESP32 pin sits below
+        IO22's but its J_EXP pin sits above IO22's, so the two traces must
+        cross somewhere on one layer — unavoidable since IO22 starts above
+        IO21's bottom-layer curve and ends below it. IO23 isn't actually a
+        threat here (its path stays ~5mm below this whole route). Fix: via to
+        bottom right at ESP32's pad (clear of IO23's top-layer run earlier in
+        its path), stay numerically above IO21's curve (margin >=1.88mm) on
+        the bottom layer, then via back to top just before the crossing point
+        IO21's curve would otherwise force, finishing clear on top. Waypoints
+        relative to anchor ESP32 (20, 0). */}
+    {/* Wrapped in VIA_HEADER_PIN so the first via (which sits right on
+        ESP32.IO22's pad, same reason as the GND tree above) gets an
+        identical-not-overlapping drill hit. The second via (mid-air layer
+        swap, not on any pad) just inherits the same size — harmless there. */}
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".ESP32 > .IO22" to=".J_EXP > .IO22"
+        pcbPath={[
+          { x: 12.7, y: 17.78, via: true, toLayer: "bottom" },
+          { x: 12.7, y: 17.78 },
+          { x: 19, y: 17 },
+          { x: 19, y: 17 },
+          { x: 19, y: 17, via: true, toLayer: "top" },
+          { x: 19, y: 17 },
+          { x: 23, y: 14.75 },
+        ]}
+      />
+    </group>
     <trace from=".J_EXP > .IO19" to=".ESP32 > .IO19" />
-    <trace from=".J_EXP > .IO23" to=".ESP32 > .IO23" />
+    {/* Left autorouted, same reason as POT2.V3V3 above: this corner has four
+        signal traces (IO19/21/22/23) crossing in a ~10mm-square space, and
+        proving it numerically, there is no path for IO23's via that clears
+        IO19, IO21, and itself at the 1.3mm board-default via size — the
+        combined clearance requirements exceed the physical gap between the
+        obstacles. IO22 (the one trace that DID need an explicit reroute to
+        avoid crossing IO23/IO21) was fixed already. IO23's via stays at the
+        tscircuit default 0.3mm/0.2mm; it carries a digital GPIO signal, not
+        power/ground. */}
+    <group pcbStyle={VIA_HEADER_PIN}>
+      <trace from=".ESP32 > .IO23" to=".J_EXP > .IO23"
+        pcbPath={[
+          { x: 12.7, y: 20.32 },
+          { x: 17.0, y: 20.32 },
+          { x: 17.0, y: 7.75 },
+          { x: 17.0, y: 7.75, via: true, toLayer: "bottom" },
+          { x: 17.0, y: 7.75 },
+          { x: 23.0, y: 7.75 },
+        ]}
+      />
+    </group>
     <trace from=".J_EXP > .IO5" to=".ESP32 > .IO5" />
     <trace from=".J_EXP > .IO4" to=".ESP32 > .IO4" />
   </board>
