@@ -8,10 +8,10 @@
 #include <Arduino.h>
 
 // Telemetry tag 'D': DSample
-#define TELEMETRY_D_FORMAT "D,%lu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.4f,%.4f,%.4f,%.4f,%.4f\n"
+#define TELEMETRY_D_FORMAT "D,%lu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%d\n"
 
-inline int formatDSamplePacket(char* buf, size_t size, uint32_t t, float th1, float th2, float th1d, float th2d, float v1, float v2, float v1d, float v2d, int pwm1, float vff1, float th1_raw, float th2_raw, float u1_total, float p1_out, float i1_out, float d1_out, float ff1_contrib) {
-  return snprintf(buf, size, TELEMETRY_D_FORMAT, t, th1, th2, th1d, th2d, v1, v2, v1d, v2d, pwm1, vff1, th1_raw, th2_raw, u1_total, p1_out, i1_out, d1_out, ff1_contrib);
+inline int formatDSamplePacket(char* buf, size_t size, uint32_t t, float th1, float th2, float th1d, float th2d, float v1, float v2, float v1d, float v2d, int pwm1, float vff1, float th1_raw, float th2_raw, float u1_total, float p1_out, float i1_out, float d1_out, float ff1_contrib, float v1_enc, int enc_count) {
+  return snprintf(buf, size, TELEMETRY_D_FORMAT, t, th1, th2, th1d, th2d, v1, v2, v1d, v2d, pwm1, vff1, th1_raw, th2_raw, u1_total, p1_out, i1_out, d1_out, ff1_contrib, v1_enc, enc_count);
 }
 
 // Telemetry tag 'G': Gains

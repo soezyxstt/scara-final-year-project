@@ -28,10 +28,30 @@ using namespace Params;
 //  setup
 // ============================================================
 
+void IRAM_ATTR J1_encoder_isr() {
+  int a = digitalRead(22);
+  int b = digitalRead(23);
+  if (a == b) {
+    J1_enc_count++;
+  } else {
+    J1_enc_count--;
+  }
+}
+
 void setup() {
   Serial.begin(921600);
   delay(100);
   while (Serial.available()) Serial.read();   // flush boot noise
+
+  // --- Encoder pins setup ---
+  pinMode(22, INPUT_PULLUP);
+  pinMode(23, INPUT_PULLUP);
+  // DIAGNOSTIC: ISR temporarily disabled to confirm it is the source of the
+  // J2 command spikes. Spurious CHANGE interrupts on these pull-up inputs
+  // preempt the fixed-DT control loop and corrupt the per-tick theta2 read.
+  // If spikes disappear with this commented out, convert to the PCNT
+  // hardware counter (glitch-filtered, zero CPU) instead of a GPIO ISR.
+  // attachInterrupt(digitalPinToInterrupt(22), J1_encoder_isr, CHANGE);
 
   // --- GPIO direction ---
   pinMode(DC_IN3,   OUTPUT);

@@ -50,6 +50,8 @@ export function ComparisonTable() {
         pwm1: s.pwm1,
         th1_raw: (s.th1raw * r2d).toFixed(3),
         th2_raw: (s.th2raw * r2d).toFixed(3),
+        v1_enc: ((s.v1Enc ?? 0) * r2d).toFixed(3),
+        enc_count: s.encCount ?? 0,
         eef: eef.toFixed(3),
         cte: cte.toFixed(3),
       }
@@ -60,9 +62,9 @@ export function ComparisonTable() {
   const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   function downloadCSV() {
-    const header = 'Sample,t(s),θ1_d(°),θ1(°),e1(°),θ2_d(°),θ2(°),e2(°),v1(°/s),v2(°/s),v1d(°/s),v2d(°/s),pwm1,θ1_raw(°),θ2_raw(°),EEF_err(mm),CTE(mm)\n'
+    const header = 'Sample,t(s),θ1_d(°),θ1(°),e1(°),θ2_d(°),θ2(°),e2(°),v1(°/s),v2(°/s),v1d(°/s),v2d(°/s),pwm1,θ1_raw(°),θ2_raw(°),v1_enc(°/s),enc_count,EEF_err(mm),CTE(mm)\n'
     const body = rows.map(r =>
-      `${r.idx},${r.t},${r.th1d},${r.th1},${r.e1},${r.th2d},${r.th2},${r.e2},${r.v1},${r.v2},${r.v1d},${r.v2d},${r.pwm1},${r.th1_raw},${r.th2_raw},${r.eef},${r.cte}`
+      `${r.idx},${r.t},${r.th1d},${r.th1},${r.e1},${r.th2d},${r.th2},${r.e2},${r.v1},${r.v2},${r.v1d},${r.v2d},${r.pwm1},${r.th1_raw},${r.th2_raw},${r.v1_enc},${r.enc_count},${r.eef},${r.cte}`
     ).join('\n')
     const blob = new Blob([header + body], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -98,6 +100,8 @@ export function ComparisonTable() {
               <TableHead>pwm1</TableHead>
               <TableHead>θ1_raw (°)</TableHead>
               <TableHead>θ2_raw (°)</TableHead>
+              <TableHead>v1_enc (°/s)</TableHead>
+              <TableHead>enc_count</TableHead>
               <TableHead>EEF err (mm)</TableHead>
               <TableHead>CTE (mm)</TableHead>
             </TableRow>
@@ -120,6 +124,8 @@ export function ComparisonTable() {
                 <TableCell>{r.pwm1}</TableCell>
                 <TableCell>{r.th1_raw}</TableCell>
                 <TableCell>{r.th2_raw}</TableCell>
+                <TableCell>{r.v1_enc}</TableCell>
+                <TableCell>{r.enc_count}</TableCell>
                 <TableCell>{r.eef}</TableCell>
                 <TableCell>{r.cte}</TableCell>
               </TableRow>

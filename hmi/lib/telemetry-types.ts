@@ -43,6 +43,10 @@ export interface DSample {
   d1_out: number
   /** J1 CTC feedforward contribution (effort units, same scale as u1_total) */
   ff1_contrib: number
+  /** Joint 1 velocity estimated from encoder (rad/s) */
+  v1_enc: number
+  /** Joint 1 raw encoder counts */
+  enc_count: number
 }
 
 export function parseDSample(parts: (string | number)[]): DSample {
@@ -65,6 +69,8 @@ export function parseDSample(parts: (string | number)[]): DSample {
     i1_out: Number(parts[16] ?? 0) as number,
     d1_out: Number(parts[17] ?? 0) as number,
     ff1_contrib: Number(parts[18] ?? 0) as number,
+    v1_enc: Number(parts[19] ?? 0) as number,
+    enc_count: Number(parts[20] ?? 0) as number,
   }
 }
 

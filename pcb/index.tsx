@@ -150,7 +150,7 @@ function RadialCapacitor(props: { name: string; pcbX: number; pcbY: number; diam
         </footprint>
       } />
       <silkscreencircle pcbX={props.pcbX} pcbY={props.pcbY} radius={props.diameter / 2} strokeWidth={0.3} />
-      {props.isPolarized && <silkscreentext text="+" pcbX={props.pcbX - 2.5} pcbY={props.pcbY + 2.0} fontSize={1.5} anchorAlignment="center" />}
+      {props.isPolarized && <silkscreentext text="+" pcbX={props.pcbX - 2.5} pcbY={props.pcbY + 2.0} fontSize={1.65} anchorAlignment="center" />}
     </>
   )
 }
@@ -181,9 +181,9 @@ function ScrewTerminal(props: { name: string; pcbX: number; pcbY: number; schX?:
         <silkscreentext
           key={`t_${l}`}
           text={l}
-          pcbX={axis === "x" ? props.pcbX - span / 2 + i * pitch : props.pcbX - 4.6}
+          pcbX={axis === "x" ? props.pcbX - span / 2 + i * pitch : props.pcbX - 6.0}
           pcbY={axis === "x" ? props.pcbY + 4.7 : props.pcbY + span / 2 - i * pitch}
-          fontSize={0.9}
+          fontSize={1.65}
           anchorAlignment="center"
         />
       ))}
@@ -321,16 +321,22 @@ export default () => (
 
     {/* Silkscreen Labels */}
     <silkscreentext text="ESP32 BRAIN" pcbX={20} pcbY={28} fontSize={1.8} anchorAlignment="center" />
-    <silkscreentext text="5V BUCK" pcbX={-24.5} pcbY={3} fontSize={1.6} anchorAlignment="center" />
-    <silkscreentext text="12V IN" pcbX={-41} pcbY={28} fontSize={1.3} anchorAlignment="center" />
-    <silkscreentext text="A4988 J2" pcbX={-27} pcbY={-12.5} fontSize={1.6} anchorAlignment="center" />
-    <silkscreentext text="MS=3V3 EN=GND" pcbX={-27} pcbY={-24.5} fontSize={1.1} anchorAlignment="center" />
-    <silkscreentext text="STEPPER" pcbX={-27} pcbY={-31} fontSize={1.3} anchorAlignment="center" />
-    <silkscreentext text="STEP POT" pcbX={2} pcbY={21.2} fontSize={1.1} anchorAlignment="center" />
-    <silkscreentext text="DC POT" pcbX={2} pcbY={10.5} fontSize={1.1} anchorAlignment="center" />
-    <silkscreentext text="ENCODER" pcbX={2} pcbY={-13.5} fontSize={1.1} anchorAlignment="center" />
-    <silkscreentext text="L298N J1" pcbX={43} pcbY={-25.5} fontSize={1.2} anchorAlignment="center" />
-    <silkscreentext text="Adi Haditya Nursyam, M22" pcbX={3} pcbY={-31} fontSize={1.4} anchorAlignment="center" />
+    <silkscreentext text="5V BUCK" pcbX={-24.5} pcbY={3} fontSize={1.65} anchorAlignment="center" />
+    <silkscreentext text="12V IN" pcbX={-41} pcbY={28} fontSize={1.65} anchorAlignment="center" />
+    <silkscreentext text="A4988 J2" pcbX={-27} pcbY={-12.5} fontSize={1.65} anchorAlignment="center" />
+    {/* Strap note moved inside the A4988 box (inter-row gap, clear of both pad
+        rows): at 1.65mm it no longer fits the 0.88mm gap between the A4988 and
+        STEPPER bodies, and the strip north of the box is under the buck. */}
+    <silkscreentext text="MS=3V3 EN=GND" pcbX={-27} pcbY={-19.5} fontSize={1.65} anchorAlignment="center" />
+    <silkscreentext text="STEPPER" pcbX={-27} pcbY={-31} fontSize={1.65} anchorAlignment="center" />
+    {/* POT/ENC labels use their refdes (POT2=stepper joint, POT1=DC joint) —
+        the descriptive forms are too wide at 1.65mm and collide with the ESP32
+        left-column pads (and the buck OUT pad) in the narrow x=2 channel. */}
+    <silkscreentext text="POT2" pcbX={2} pcbY={21.2} fontSize={1.65} anchorAlignment="center" />
+    <silkscreentext text="POT1" pcbX={2} pcbY={10.5} fontSize={1.65} anchorAlignment="center" />
+    <silkscreentext text="ENC" pcbX={2} pcbY={-13.5} fontSize={1.65} anchorAlignment="center" />
+    <silkscreentext text="L298N J1" pcbX={43} pcbY={-25.5} fontSize={1.65} anchorAlignment="center" />
+    <silkscreentext text="Adi Haditya Nursyam, M22" pcbX={3} pcbY={-31} fontSize={1.65} anchorAlignment="center" />
 
     {/* =========================================================================
         POWER RAILS
@@ -532,11 +538,11 @@ export default () => (
         region (below the connectors, above the south power lanes), then east
         and down into ESP32.5V from the west (clears the CMD pad above it).
         All top layer, no via. Waypoints relative to anchor LM2596 (-24.5,3). */}
-    {/* One obstacle on the way down: the A4988.SLEEP->POT2.V3V3 feed runs as
-        a diagonal from (-23.2,-9.65) up to (-5,8.57), crossing this descent
-        (x=-13) at y~0.5 on the top layer. Dip to the bottom layer across that
-        crossing (vias straddle it at y=3 / y=-2) then back to top. Vias are
-        mid-air (not on a pad), wrapped to the 1.3/0.7mm board spec. */}
+    {/* One obstacle on the way down: the A4988 V3V3 bus feed (ENC.V3V3 ->
+        SLEEP) runs along y=-12 on the top layer and crosses this descent at
+        (x=-13). Dip to the bottom layer across that crossing (vias straddle it
+        at y=3 / y=-13) then back to top. Vias are mid-air (not on a pad),
+        wrapped to the 1.3/0.7mm board spec. */}
       <trace from=".LM2596 > .OUT_POS" to=".ESP32 > .5V" thickness="0.6mm"
         pcbPath={[
           { x: 19.7485, y: 8.5725 },
@@ -569,11 +575,39 @@ export default () => (
         { x: 29.0, y: 5.69 }
       ]}
     />
-    <trace from=".A4988_SOCKET > .MS1" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".A4988_SOCKET > .MS2" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".A4988_SOCKET > .MS3" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".A4988_SOCKET > .RESET" to="net.V3V3" thickness="0.5mm" />
-    <trace from=".A4988_SOCKET > .SLEEP" to="net.V3V3" thickness="0.5mm" />
+    {/* A4988 microstep/enable bus: MS1/MS2/MS3/RESET/SLEEP all tie to 3.3V
+        (fixed 1/16 microstep, driver held awake). Previously these were
+        five `net.V3V3` autorouted stubs — the autorouter chained them pad-to-
+        pad along the top row (legal: same net) but then escaped SLEEP on a
+        long DIAGONAL up to the V3V3 trunk near POT2/ESP32, which looked
+        terrible and cut diagonally across the open region below the buck.
+        Replaced with an explicit orthogonal V3V3 bus: the feed comes in from
+        the east off the nearest trunk pad (ENC.V3V3), drops into the A4988
+        inter-row gap and runs straight LEFT at y=-12 (open copper under the
+        socketed module body, same lane the VDD->ENC trace already uses — the
+        north strip above the row is blocked by the LM2596's OUT_NEG pad, its
+        GND via and the buck's SE mount hole, all of which hang down to ~y=-7).
+        SLEEP is the first (easternmost) pin reached; the bus continues left
+        and each pin taps straight UP into it (perpendicular escape — the only
+        legal approach for these inner header pins). All top layer (clears the
+        bottom GND pour). Anchors: feed is ENC-relative (2,-6.5); the four taps
+        are A4988-relative (-27,-16); bus sits at A4988-rel y=4.0 (abs -12). */}
+    <trace from=".ENC > .V3V3" to=".A4988_SOCKET > .SLEEP" thickness="0.5mm"
+      pcbPath={[
+        { x: 0, y: -3.81 },
+        { x: 0, y: -5.5 },
+        { x: -25.19, y: -5.5 },
+        { x: -25.19, y: -3.15 },
+      ]}
+    />
+    <trace from=".A4988_SOCKET > .SLEEP" to=".A4988_SOCKET > .RESET" thickness="0.5mm"
+      pcbPath={[{ x: 3.81, y: 6.35 }, { x: 3.81, y: 4.0 }, { x: 1.27, y: 4.0 }, { x: 1.27, y: 6.35 }]} />
+    <trace from=".A4988_SOCKET > .RESET" to=".A4988_SOCKET > .MS3" thickness="0.5mm"
+      pcbPath={[{ x: 1.27, y: 6.35 }, { x: 1.27, y: 4.0 }, { x: -1.27, y: 4.0 }, { x: -1.27, y: 6.35 }]} />
+    <trace from=".A4988_SOCKET > .MS3" to=".A4988_SOCKET > .MS2" thickness="0.5mm"
+      pcbPath={[{ x: -1.27, y: 6.35 }, { x: -1.27, y: 4.0 }, { x: -3.81, y: 4.0 }, { x: -3.81, y: 6.35 }]} />
+    <trace from=".A4988_SOCKET > .MS2" to=".A4988_SOCKET > .MS1" thickness="0.5mm"
+      pcbPath={[{ x: -3.81, y: 6.35 }, { x: -3.81, y: 4.0 }, { x: -6.35, y: 4.0 }, { x: -6.35, y: 6.35 }]} />
     {/* V3V3 to the POT/ENC cluster as a clean vertical trunk on the left
         (x=-1, clear of the pads) instead of the autorouter's hairpin, which
         dove from the A4988 feed into ENC.V3V3 (the bottom pad) then doubled
@@ -633,10 +667,9 @@ export default () => (
         VDD-SLEEP jumper that occupies that exact space. Also: crossing the
         ESP32 column must happen south of ALL its pads (y < -22.86) — at any
         y inside its pin range the 2.54mm pitch leaves no legal channel.
-        On top of that, the auto-routed SLEEP->V3V3 trace escapes SLEEP
-        (STEP's other row-neighbor) on a diagonal that passes directly
-        through STEP's own column around y=-13 — topologically unavoidable
-        since both must reach/leave the same x. So: escape east of the ESP32
+        On top of that, the V3V3 bus feeding SLEEP/RESET/MS* runs the
+        inter-row gap at y=-12 on the TOP layer, crossing STEP's own column —
+        so STEP must stay clear of it there. So: escape east of the ESP32
         column, drop to the bottom layer immediately (one via) and STAY
         there for the rest of the run — south lane (avoids the V5 trace,
         which lives in this corridor on top), west under everything, then

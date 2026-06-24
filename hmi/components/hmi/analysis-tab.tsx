@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/component
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Tooltip } from '@/components/ui/tooltip'
-import { EEFErrChart, EEFVelocityChart, PWMChart } from './chart-panel'
+import { EEFErrChart, EEFVelocityChart, PWMChart, J1EncoderVelocityChart } from './chart-panel'
 import { useHMISlow } from '@/lib/hmi-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -519,6 +519,16 @@ export function AnalysisTab() {
             <ExpandableSection title="Loop Duration">
               <LoopDurationSection />
             </ExpandableSection>
+          </div>
+
+          {/* Row 5: J1 Velocity: TD vs Encoder */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <ExpandableChartCard
+              title="J1 Velocity Estimation: Pot/TD vs. Encoder (Temporary)"
+              hasData={frozenD.length > 0}
+            >
+              <J1EncoderVelocityChart dBuf={frozenD} />
+            </ExpandableChartCard>
           </div>
 
         </CollapsibleContent>

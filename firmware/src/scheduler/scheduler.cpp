@@ -236,6 +236,8 @@ void transitionToMode(OperatingMode new_mode) {
 // ============================================================
 
 void runControlLoop() {
+  updateEncoder();
+
   if (estop_active) {
     // Keep reading sensors so HMI position updates during ESTOP
     active_sensor_fn();

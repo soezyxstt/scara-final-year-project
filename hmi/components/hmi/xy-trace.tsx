@@ -726,6 +726,11 @@ export function XYTrace() {
   const errMm = last ? Math.sqrt((last.xi - last.xa) ** 2 + (last.yi - last.ya) ** 2) : null
   const currentPos = getCurrentPosition(state)
 
+  // Guard against malformed telemetry: never let an undefined/NaN coord
+  // crash the render via .toFixed().
+  const fmt = (v: number | undefined | null, digits = 1) =>
+    Number.isFinite(v as number) ? (v as number).toFixed(digits) : '--'
+
   const recColor = 
     state.recordingState === 'REC'
       ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.2)]'
@@ -972,18 +977,18 @@ export function XYTrace() {
           {last ? (
             <div className="grid grid-cols-2 gap-x-2 gap-y-1 font-mono text-[11px]">
               <span className="text-hmi-muted font-sans text-left">Ideal X/Y:</span>
-              <span className="text-hmi-ideal text-right font-medium">{last.xi.toFixed(1)}, {last.yi.toFixed(1)}</span>
+              <span className="text-hmi-ideal text-right font-medium">{fmt(last.xi)}, {fmt(last.yi)}</span>
               <span className="text-hmi-muted font-sans text-left">Actual X/Y:</span>
-              <span className="text-hmi-pwm-pos text-right font-medium">{last.xa.toFixed(1)}, {last.ya.toFixed(1)}</span>
+              <span className="text-hmi-pwm-pos text-right font-medium">{fmt(last.xa)}, {fmt(last.ya)}</span>
               <span className="text-hmi-muted font-sans text-left">Deviation:</span>
-              <span className="text-hmi-error font-bold text-right">{errMm ? `${errMm.toFixed(2)} mm` : '--'}</span>
+              <span className="text-hmi-error font-bold text-right">{Number.isFinite(errMm as number) ? `${(errMm as number).toFixed(2)} mm` : '--'}</span>
             </div>
           ) : state.bootPose ? (
             <div className="grid grid-cols-2 gap-x-2 gap-y-1 font-mono text-[11px]">
               <span className="text-hmi-muted font-sans text-left">Ideal X/Y:</span>
-              <span className="text-hmi-ideal text-right font-medium">{state.bootPose.x.toFixed(1)}, {state.bootPose.y.toFixed(1)}</span>
+              <span className="text-hmi-ideal text-right font-medium">{fmt(state.bootPose.x)}, {fmt(state.bootPose.y)}</span>
               <span className="text-hmi-muted font-sans text-left">Actual X/Y:</span>
-              <span className="text-hmi-pwm-pos text-right font-medium">{state.bootPose.x.toFixed(1)}, {state.bootPose.y.toFixed(1)}</span>
+              <span className="text-hmi-pwm-pos text-right font-medium">{fmt(state.bootPose.x)}, {fmt(state.bootPose.y)}</span>
               <span className="text-hmi-muted font-sans text-left">Deviation:</span>
               <span className="text-hmi-error font-bold text-right">0.00 mm</span>
             </div>

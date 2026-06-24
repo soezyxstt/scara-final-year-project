@@ -78,7 +78,8 @@ constexpr float TAU_STALL_J1 = Kt * (V_nom / Ra) * N_eff1;  // ≈ 1.608 Nm (0.8
 //  STEPPER CONSTANTS
 // ------------------------------------------------------------
 
-constexpr float STEPS_PER_RAD  = (200.0f * 16.0f * N_eff2) / (2.0f * PI);
+constexpr int STEPPER_MSTEP    = 16;
+constexpr float STEPS_PER_RAD  = (200.0f * static_cast<float>(STEPPER_MSTEP) * N_eff2) / (2.0f * PI);
 constexpr float STEPPER_MAX_HZ = 500.0f;
 constexpr float STEPPER_MIN_HZ = 6.0f;
 
@@ -112,4 +113,4 @@ constexpr unsigned long SERIAL_WATCHDOG_MS  = 3000UL;
 // ------------------------------------------------------------
 
 #define DLINE_BUF_SIZE  8
-#define DLINE_STR_LEN   192
+#define DLINE_STR_LEN   256

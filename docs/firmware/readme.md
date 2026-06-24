@@ -474,7 +474,7 @@ The firmware streams CSV telemetry packets at defined rates. All angles are in r
 
 ### H. Gains Report (`G`) — on request or update
 `G,kp1,ki1,kd1,kp2,ki2,kd2,mstep,ffi,ffc,ffg`
-- `mstep`: Always reports 8 (1/16 microstep).
+- `mstep`: Always reports 16 (1/16 microstep).
 - `ffi`, `ffc`, `ffg`: Feedforward blend factors (0–1).
 
 ### I. Advanced Parameters (`K`) — 33 fields, on request

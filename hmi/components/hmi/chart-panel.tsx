@@ -835,6 +835,96 @@ export function VelocityChart({
   )
 }
 
+export function J1EncoderVelocityChart({
+  dBuf,
+  useDegrees = false,
+  width,
+  height,
+}: {
+  dBuf: DSample[]
+  useDegrees?: boolean
+  width?: number
+  height?: number
+}) {
+  const { state } = useHMISlow()
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const r2d = 180 / Math.PI
+  const scale = useDegrees ? r2d : 1
+
+  const firstT = dBuf[0]?.t ?? 0
+
+  const tf = useMemo(() => {
+    if (!state.currentMove) return null
+    const { x0, y0, xf, yf } = state.currentMove
+    const dx = (xf - x0) / 1000
+    const dy = (yf - y0) / 1000
+    const D = Math.sqrt(dx * dx + dy * dy)
+    if (D < 0.001) return 0
+
+    const V_MAX = state.params?.vmax ?? 0.1
+    const A_MAX = state.params?.amax ?? 0.5
+    const trapEnabled = state.params?.trapEnabled ?? true
+
+    if (trapEnabled) {
+      let ta = V_MAX / A_MAX
+      let da = 0.5 * A_MAX * ta * ta
+      let tc = 0
+      if (2 * da > D) {
+        ta = Math.sqrt(D / A_MAX)
+        tc = 0
+      } else {
+        tc = (D - 2 * da) / V_MAX
+      }
+      return 2 * ta + tc
+    } else {
+      return D / V_MAX
+    }
+  }, [state.currentMove, state.params])
+
+  const data = useMemo(() => {
+    let filteredBuf = dBuf
+    if (tf !== null && tf > 0) {
+      const cutoffMs = firstT + tf * 1.05 * 1000
+      filteredBuf = dBuf.filter(d => d.t <= cutoffMs)
+    }
+
+    const sampled = downsample(filteredBuf, 500)
+    return sampled.map(d => ({
+      t: (d.t - firstT) / 1000,
+      v1: d.dth1 * scale,
+      v1_enc: (d.v1Enc ?? 0) * scale,
+      enc_count: d.encCount ?? 0,
+    }))
+  }, [dBuf, firstT, scale, tf])
+
+  const series: ChartSeries[] = [
+    { key: 'v1', name: useDegrees ? 'J1 TD Velocity (°/s)' : 'J1 TD Velocity (rad/s)', stroke: 'var(--color-hmi-j1)' },
+    { key: 'v1_enc', name: useDegrees ? 'J1 Encoder Velocity (°/s)' : 'J1 Encoder Velocity (rad/s)', stroke: 'var(--color-hmi-j2)', strokeDasharray: '4 2' },
+  ]
+
+  return (
+    <UniversalTimeSeriesChart
+      data={data}
+      series={series}
+      yLabel={useDegrees ? 'Velocity (°/s)' : 'Velocity (rad/s)'}
+      isEmpty={data.length === 0}
+      msg="No velocity telemetry — run a move to capture data"
+      width={width}
+      height={height}
+      hiddenSeries={hidden}
+      onLegendClick={(key) => setHidden(prev => ({ ...prev, [key]: !prev[key] }))}
+      tooltipValueFormatter={(v, name, item) => {
+        if (typeof v !== 'number') return v;
+        if (name.includes('Encoder')) {
+          const count = item.payload.enc_count;
+          return `${v.toFixed(4)} (Count: ${count})`;
+        }
+        return v.toFixed(4);
+      }}
+    />
+  )
+}
+
 // Helper function for visible window statistics in industrial scope view
 const statsForSeries = (data: any[], key: string) => {
   if (data.length === 0) return { min: 0, max: 0, mean: 0, rms: 0, std: 0, p2p: 0 }

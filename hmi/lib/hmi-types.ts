@@ -25,6 +25,8 @@ export interface DSample {
   th2raw: number
   vff1?: number
   u1Total: number  // total J1 control effort before PWM mapping (same tick as pwm1)
+  v1Enc?: number
+  encCount?: number
   // computed by HMI (not from firmware):
   e1: number    // = th1d - th1
   e2: number    // = th2d - th2

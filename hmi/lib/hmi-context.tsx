@@ -702,7 +702,11 @@ function useSerial(
         case 'T': {
           // Use raw 10 Hz T packets directly from ESP32
           const [, xi, yi, xa, ya] = parts.map(Number)
-          tQueueRef.current.push({ xi, yi, xa, ya })
+          // Drop malformed/truncated packets so the buffer never holds
+          // undefined/NaN coordinates (which crash .toFixed in the UI).
+          if ([xi, yi, xa, ya].every(Number.isFinite)) {
+            tQueueRef.current.push({ xi, yi, xa, ya })
+          }
           break
         }
         case 'D': {
@@ -725,6 +729,8 @@ function useSerial(
           const i1Out = Number.isFinite(partsNum[16]) ? partsNum[16] : 0
           const d1Out = Number.isFinite(partsNum[17]) ? partsNum[17] : 0
           const ff1Contrib = Number.isFinite(partsNum[18]) ? partsNum[18] : 0
+          const v1Enc = Number.isFinite(partsNum[19]) ? partsNum[19] : 0
+          const encCount = Number.isFinite(partsNum[20]) ? partsNum[20] : 0
 
           const RAD2DEG = 180 / Math.PI
 
@@ -780,6 +786,8 @@ function useSerial(
               th2raw,
               vff1,
               u1Total,
+              v1Enc,
+              encCount,
               idx:      sampleIdxRef.current,
               e1,
               e2,
@@ -893,7 +901,11 @@ function useSerial(
         }
         case 'P': {
           const [, x, y, th1, th2] = parts.map(Number)
-          dispatch({ type: 'BOOT_POSE', pose: { x, y, th1, th2 } })
+          // Ignore truncated boot-pose packets — a partial line would store
+          // undefined coords and crash the XY-trace overlay's .toFixed().
+          if ([x, y, th1, th2].every(Number.isFinite)) {
+            dispatch({ type: 'BOOT_POSE', pose: { x, y, th1, th2 } })
+          }
           break
         }
         case 'ESTOP': {

@@ -28,6 +28,9 @@ namespace RobotState {
   float dTheta1_f  = 0.0f;
   float dTheta2_f  = 0.0f;
 
+  volatile long J1_enc_count = 0;
+  float J1_velocity_enc = 0.0f;
+
   float integral1  = 0.0f;
   float integral2  = 0.0f;
 

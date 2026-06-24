@@ -427,6 +427,20 @@ void processSerialCommand(const char *cmd_raw) {
   // ALL ACTIVE MODES — gain tuning
   // ----------------------------------------------------------
 
+  if (input.startsWith("mstep,")) {
+    int val = input.substring(6).toInt();
+    if (val == STEPPER_MSTEP) {
+      Serial.print("INFO: mstep="); Serial.println(STEPPER_MSTEP);
+      emitGains();
+    } else {
+      Serial.print("ERR: Microstepping is hardwired to ");
+      Serial.print(STEPPER_MSTEP);
+      Serial.println(". Cannot change.");
+      emitGains();
+    }
+    return;
+  }
+
   if (input.startsWith("kp1,")) { Kp1 = input.substring(4).toFloat(); emitGains(); return; }
   if (input.startsWith("ki1,")) { Ki1 = input.substring(4).toFloat(); integral1 = 0.0f; emitGains(); return; }
   if (input.startsWith("kd1,")) { Kd1 = input.substring(4).toFloat(); emitGains(); return; }

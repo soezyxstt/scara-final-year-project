@@ -24,7 +24,9 @@
         { "name": "p1_out", "type": "float", "tsType": "number", "precision": 4, "description": "J1 proportional term output (effort units, same scale as u1_total)" },
         { "name": "i1_out", "type": "float", "tsType": "number", "precision": 4, "description": "J1 integral term output (effort units, same scale as u1_total)" },
         { "name": "d1_out", "type": "float", "tsType": "number", "precision": 4, "description": "J1 derivative term output (effort units, same scale as u1_total)" },
-        { "name": "ff1_contrib", "type": "float", "tsType": "number", "precision": 4, "description": "J1 CTC feedforward contribution (effort units, same scale as u1_total)" }
+        { "name": "ff1_contrib", "type": "float", "tsType": "number", "precision": 4, "description": "J1 CTC feedforward contribution (effort units, same scale as u1_total)" },
+        { "name": "v1_enc", "type": "float", "tsType": "number", "precision": 4, "description": "Joint 1 velocity estimated from encoder (rad/s)" },
+        { "name": "enc_count", "type": "int", "tsType": "number", "precision": 0, "description": "Joint 1 raw encoder counts" }
       ]
     },
     "G": {

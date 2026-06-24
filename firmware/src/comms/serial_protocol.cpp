@@ -52,7 +52,8 @@ void writeDLineToBuffer() {
       vff1_out,
       theta1_raw, theta2_raw,
       u1_total_out,
-      p1_out, i1_out, d1_out, ff1_contrib_out);
+      p1_out, i1_out, d1_out, ff1_contrib_out,
+      J1_velocity_enc, J1_enc_count);
 
   dline_head = next_head;
 }
@@ -81,7 +82,7 @@ void drainDLineBuffer() {
 
 void emitGains() {
   char buf[128];
-  formatGainsPacket(buf, sizeof(buf), Kp1, Ki1, Kd1, Kp2, Ki2, Kd2, 8, FF_INERTIA, FF_CORIOLIS, FF_GRAVITY);
+  formatGainsPacket(buf, sizeof(buf), Kp1, Ki1, Kd1, Kp2, Ki2, Kd2, STEPPER_MSTEP, FF_INERTIA, FF_CORIOLIS, FF_GRAVITY);
   Serial.print(buf);
 }
 
