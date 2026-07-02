@@ -341,6 +341,51 @@ interface TrajectoryPoint3D {
   yi: number
   xa: number
   ya: number
+  t?: number
+}
+
+// Reachable workspace ends at 170 mm — coordinates far beyond that are
+// corrupt telemetry (merged/truncated serial lines that still parsed as
+// numbers). One such vertex in a fat-line geometry draws a screen-crossing
+// streak and visually breaks neighboring segments, so they are dropped at
+// render time too (persisted/ghost traces may predate the parser filter).
+const TRACE_COORD_MAX_MM = 250
+// T frames nominally arrive every 20 ms; a much larger timestamp gap means
+// frames were dropped. Split the polyline there instead of bridging the gap
+// with a fake straight segment (same rule as the old 2D canvas drawPath).
+const TRACE_GAP_MS = 250
+
+function isPlausibleCoord(x: number, y: number): boolean {
+  return (
+    Number.isFinite(x) && Number.isFinite(y) &&
+    Math.abs(x) <= TRACE_COORD_MAX_MM && Math.abs(y) <= TRACE_COORD_MAX_MM
+  )
+}
+
+function toTraceSegments(
+  points: TrajectoryPoint3D[],
+  ideal: boolean
+): [number, number, number][][] {
+  const segments: [number, number, number][][] = []
+  let current: [number, number, number][] = []
+  let prevT: number | undefined
+  for (const p of points) {
+    const x = ideal ? p.xi : p.xa
+    const y = ideal ? p.yi : p.ya
+    if (!isPlausibleCoord(x, y)) continue
+    if (
+      current.length > 0 &&
+      prevT !== undefined && p.t !== undefined &&
+      p.t - prevT > TRACE_GAP_MS
+    ) {
+      segments.push(current)
+      current = []
+    }
+    if (p.t !== undefined) prevT = p.t
+    current.push([x * MM, 0, -y * MM])
+  }
+  if (current.length > 0) segments.push(current)
+  return segments
 }
 
 /**
@@ -371,48 +416,46 @@ function Trajectory3D({
 }) {
   const pathZ = 0 // Render path lines on the floor (0mm)
 
-  const idealPoints = useMemo(
-    () => points.map((p) => [p.xi * MM, pathZ, -p.yi * MM] as [number, number, number]),
+  const idealSegments = useMemo(() => toTraceSegments(points, true), [points])
+  const actualSegments = useMemo(() => toTraceSegments(points, false), [points])
+  const ghostIdealSegments = useMemo(() => toTraceSegments(prevPoints, true), [prevPoints])
+  const ghostActualSegments = useMemo(() => toTraceSegments(prevPoints, false), [prevPoints])
+
+  const startPoint = useMemo(
+    () => points.find((p) => isPlausibleCoord(p.xi, p.yi)) ?? null,
     [points]
   )
-
-  const actualPoints = useMemo(
-    () => points.map((p) => [p.xa * MM, pathZ, -p.ya * MM] as [number, number, number]),
-    [points]
-  )
-
-  const ghostIdealPoints = useMemo(
-    () => prevPoints.map((p) => [p.xi * MM, pathZ, -p.yi * MM] as [number, number, number]),
-    [prevPoints]
-  )
-
-  const ghostActualPoints = useMemo(
-    () => prevPoints.map((p) => [p.xa * MM, pathZ, -p.ya * MM] as [number, number, number]),
-    [prevPoints]
-  )
-
-  const startPoint = points.length > 0 ? points[0] : null
-  const lastPoint = points.length > 0 ? points[points.length - 1] : null
+  const lastPoint = useMemo(() => {
+    for (let i = points.length - 1; i >= 0; i--) {
+      const p = points[i]
+      if (isPlausibleCoord(p.xi, p.yi) && isPlausibleCoord(p.xa, p.ya)) return p
+    }
+    return null
+  }, [points])
 
   return (
     <group>
       {/* Ghost paths */}
       {showGhost && prevPoints.length >= 2 && (
         <group>
-          <Line points={ghostIdealPoints} color="#3B82F6" lineWidth={1} dashed dashSize={0.004} gapSize={0.003} opacity={ghostOpacity} transparent />
-          <Line points={ghostActualPoints} color="#DC2626" lineWidth={1.2} opacity={ghostOpacity} transparent />
+          {ghostIdealSegments.map((seg, i) => seg.length >= 2 && (
+            <Line key={`gi-${i}`} points={seg} color="#3B82F6" lineWidth={1} dashed dashSize={0.004} gapSize={0.003} opacity={ghostOpacity} transparent />
+          ))}
+          {ghostActualSegments.map((seg, i) => seg.length >= 2 && (
+            <Line key={`ga-${i}`} points={seg} color="#DC2626" lineWidth={1.2} opacity={ghostOpacity} transparent />
+          ))}
         </group>
       )}
 
       {/* Ideal Path */}
-      {points.length >= 2 && (
-        <Line points={idealPoints} color={idealColor || "#2563EB"} lineWidth={1.5} dashed dashSize={0.005} gapSize={0.004} />
-      )}
+      {idealSegments.map((seg, i) => seg.length >= 2 && (
+        <Line key={`i-${i}`} points={seg} color={idealColor || "#2563EB"} lineWidth={1.5} dashed dashSize={0.005} gapSize={0.004} />
+      ))}
 
       {/* Actual Path */}
-      {points.length >= 2 && (
-        <Line points={actualPoints} color={actualColor || "#DC2626"} lineWidth={2} />
-      )}
+      {actualSegments.map((seg, i) => seg.length >= 2 && (
+        <Line key={`a-${i}`} points={seg} color={actualColor || "#DC2626"} lineWidth={2} />
+      ))}
 
       {/* Start Point Marker (Hollow Green Sphere) */}
       {startPoint && (

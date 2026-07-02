@@ -594,6 +594,8 @@ function useSerial(
   // fQueue and eQueue remain local — canvas doesn't need them for rendering
   const fQueueRef = useRef<FSample[]>([])
   const eQueueRef = useRef<ESample[]>([])
+  // Last accepted T point — anchor for the teleport/continuity filter
+  const lastTPointRef = useRef<TPoint | null>(null)
 
   const flushQueues = useCallback(() => {
     const tPoints = tQueueRef.current
@@ -697,6 +699,7 @@ function useSerial(
           // New move: the draw mirrors restart alongside the reducer's buffer reset
           tDrawRef.current = []
           dDrawRef.current = []
+          lastTPointRef.current = null
           const [, x0, y0, xf, yf] = parts.map(Number)
           const info: MoveInfo = { x0, y0, xf, yf }
           dispatch({ type: 'MOVE_START', info })
@@ -719,21 +722,59 @@ function useSerial(
           // T packets arrive at 50 Hz (TELEMETRY_MS=20 in firmware config.h).
           // New format: T,<t_ms>,xi,yi,xa,ya — t is firmware millis(), shared
           // with E/F/D so drops and delays are detectable. Legacy firmware
-          // sends 5 fields without t; both are accepted.
-          const nums = parts.slice(1).map(Number)
+          // sends 4 numeric fields without t; both are accepted.
+          //
+          // Validation is strict on FIELD COUNT, not just finiteness: a line
+          // that lost bytes on the wire can still parse as finite numbers.
+          // A truncated "T,<t>,xi,yi,xa" read through a loose >=4 path puts
+          // millis() into xi (a point millions of mm away), and two lines
+          // merged by a lost '\n' can fuse fields ("83.6"+"0.7" → 830.7).
+          // Both plotted as giant jump segments across the XY trace and left
+          // corrupt vertices that broke the fat-line rendering.
           let point: TPoint | null = null
-          if (nums.length >= 5 && nums.slice(0, 5).every(Number.isFinite)) {
-            point = { t: nums[0], xi: nums[1], yi: nums[2], xa: nums[3], ya: nums[4] }
-          } else if (nums.length === 4 && nums.every(Number.isFinite)) {
-            point = { xi: nums[0], yi: nums[1], xa: nums[2], ya: nums[3] }
+          if (parts.length === 6) {
+            const nums = parts.slice(1).map(Number)
+            if (nums.every(Number.isFinite)) {
+              point = { t: nums[0], xi: nums[1], yi: nums[2], xa: nums[3], ya: nums[4] }
+            }
+          } else if (parts.length === 5) {
+            const nums = parts.slice(1).map(Number)
+            if (nums.every(Number.isFinite)) {
+              point = { xi: nums[0], yi: nums[1], xa: nums[2], ya: nums[3] }
+            }
           }
-          // Malformed/truncated packets are dropped whole so the buffer never
-          // holds undefined/NaN coordinates (which crash .toFixed in the UI).
-          if (point) {
-            tQueueRef.current.push(point)
-            if (tDrawRef.current.length >= MAX_BUFFER) tDrawRef.current.shift()
-            tDrawRef.current.push(point)
+          if (!point) break
+
+          // Plausibility: the reachable workspace ends at 170 mm from origin.
+          // Coordinates far beyond that can only come from corrupted bytes
+          // that happened to parse as numbers.
+          const T_COORD_MAX_MM = 250
+          if (
+            Math.abs(point.xi) > T_COORD_MAX_MM || Math.abs(point.yi) > T_COORD_MAX_MM ||
+            Math.abs(point.xa) > T_COORD_MAX_MM || Math.abs(point.ya) > T_COORD_MAX_MM
+          ) break
+
+          // Continuity: the end-effector cannot teleport. Reject samples that
+          // moved implausibly far since the last accepted sample. The budget
+          // scales with the timestamp gap (1.5 mm/ms ≈ 15× V_MAX) but is
+          // CAPPED — a burst of dropped frames must not open the window wide
+          // enough to wave an in-bounds corrupt point through. A gap ≥ 1 s is
+          // treated as a fresh start (accept unconditionally), so a rejected
+          // outlier or a long outage can never lock out real data.
+          const prevT = lastTPointRef.current
+          if (prevT && point.t !== undefined && prevT.t !== undefined
+              && point.t - prevT.t < 1000) {
+            const dtMs = Math.max(point.t - prevT.t, 1)
+            const maxDistMm = Math.max(15, Math.min(1.5 * dtMs, 80))
+            const dActual = Math.hypot(point.xa - prevT.xa, point.ya - prevT.ya)
+            const dIdeal = Math.hypot(point.xi - prevT.xi, point.yi - prevT.yi)
+            if (dActual > maxDistMm || dIdeal > maxDistMm) break
           }
+          lastTPointRef.current = point
+
+          tQueueRef.current.push(point)
+          if (tDrawRef.current.length >= MAX_BUFFER) tDrawRef.current.shift()
+          tDrawRef.current.push(point)
           break
         }
         case 'D': {
@@ -984,7 +1025,15 @@ function useSerial(
 
   const openPort = useCallback(
     async (port: SerialPort) => {
-      await port.open({ baudRate: 921600 })
+      // bufferSize: Web Serial defaults to a 255-byte read buffer — at the
+      // ~30 kB/s this firmware emits during a move that is ~8 ms of headroom.
+      // Any main-thread stall longer than that (React commit on move start,
+      // trace geometry rebuilds, GC) overflows the OS/UART buffers and
+      // silently drops bytes mid-stream. That is where the truncated/merged
+      // telemetry lines and multi-hundred-ms holes in the XY trace came from.
+      // A large buffer lets the browser keep draining the port while the JS
+      // thread is busy.
+      await port.open({ baudRate: 921600, bufferSize: 1024 * 1024 })
       portRef.current = port
       const writer = port.writable!.getWriter() as WritableStreamDefaultWriter<Uint8Array>
       writerRef.current = writer
@@ -1068,6 +1117,7 @@ function useSerial(
     dDrawRef.current = []
     fQueueRef.current = []
     eQueueRef.current = []
+    lastTPointRef.current = null
     if (reconnTimerRef.current) {
       clearInterval(reconnTimerRef.current)
       reconnTimerRef.current = null
