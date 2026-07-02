@@ -56,6 +56,3 @@ void sensorWithTD();
 
 // 4-sample ADC, theta = raw, dTheta = finite-difference with clamp.
 void sensorRawOnly();
-
-// Compute J1 velocity from encoder
-void updateEncoder();

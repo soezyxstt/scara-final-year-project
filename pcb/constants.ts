@@ -27,15 +27,12 @@ export const A4988_BOARD_HEIGHT = 15.24
 // ---- LM2596 buck converter module (no-LED variant) ------------------------
 // Vendor dimension drawing: 43.18mm x 21.082mm board. IN/OUT pin pairs are
 // 39.497mm apart horizontally, 17.145mm apart vertically (IN+/IN- span).
-// The two large unplated mounting/jumper holes sit 6.604mm in from each
-// edge horizontally (holeX = BOARD_WIDTH/2 - 6.604) and one pitch (2.54mm)
-// in from the pin span vertically (holeY = BOARD_HEIGHT/2 - 2.54).
+// (The module's own two large mounting/jumper holes are NOT replicated on this
+// carrier — it's held by its soldered pins, so those holes had no function.)
 export const LM2596_BOARD_WIDTH = 43.18
 export const LM2596_BOARD_HEIGHT = 21.082
 export const LM2596_PIN_SPAN_X = 39.497
 export const LM2596_PIN_SPAN_Y = 17.145
-export const LM2596_MOUNT_HOLE_X = LM2596_BOARD_WIDTH / 2 - 6.604   // = 14.986
-export const LM2596_MOUNT_HOLE_Y = LM2596_BOARD_HEIGHT / 2 - 2.54   // = 8.001
 
 // ---- DC barrel power jack (5.5x2.1mm, THT, switched) ----------------------
 // PCB hole pattern: SW and VCC pins on one row, GND (sleeve) tab offset

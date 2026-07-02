@@ -18,11 +18,12 @@
 11. [First Boot Checklist](#11-first-boot-checklist)
 12. [Operating State Machine & Transition Rules](#12-operating-state-machine--transition-rules)
 13. [Cartesian & Joint Movement Logic](#13-cartesian--joint-movement-logic)
-14. [Ziegler-Nichols & Deadband Tuning Workflow](#14-ziegler-nichols--deadband-tuning-workflow)
-15. [All Serial Commands Reference](#15-all-serial-commands-reference)
-16. [Upstream Telemetry Packet Formats](#16-upstream-telemetry-packet-formats)
-17. [Default Parameter Values](#17-default-parameter-values)
+14. [Control Loop Architecture](#14-control-loop-architecture)
+15. [Ziegler-Nichols & Deadband Tuning Workflow](#14-ziegler-nichols--deadband-tuning-workflow)
+16. [All Serial Commands Reference](#16-all-serial-commands-reference)
+17. [Upstream Telemetry Packet Formats](#17-upstream-telemetry-packet-formats)
 18. [Troubleshooting & Diagnostics](#18-troubleshooting--diagnostics)
+19. [Default Parameter Values (Quick Reference)](#19-default-parameter-values-quick-reference)
 
 ---
 
@@ -178,11 +179,10 @@ The TD can be toggled on/off at runtime via the `tden,0/1` command (TEST mode). 
 | **GPIO 16** | L298N IN3 | Digital Output | DC motor direction polarity A |
 | **GPIO 17** | L298N IN4 | Digital Output | DC motor direction polarity B |
 | **GPIO 18** | L298N EN | PWM Output (LEDC) | DC motor speed control (duty 0-255) |
-| **GPIO 33** | A4988 MS1 | Digital Output | Microstepping state bit 1 |
-| **GPIO 32** | A4988 MS2 | Digital Output | Microstepping state bit 2 |
-| **GPIO 35** | A4988 MS3 | Digital Output (⚠️ Input Only) | Microstepping state bit 3 |
+| **GPIO 25** | Encoder channel A (ENC_A) | Digital Input | Quadrature encoder input A |
+| **GPIO 26** | Encoder channel B (ENC_B) | Digital Input | Quadrature encoder input B |
 
-> ⚠️ **IMPORTANT WARNING:** GPIO 35 is input-only on the ESP32 DevKit V1. If MS3 must be driven actively during execution to dynamically adjust step configurations, rewire MS3 to a general-purpose IO such as GPIO 25, 26, or 27.
+> **Microstepping Pins (MS1/MS2/MS3):** On the custom PCB (`/pcb`), MS1, MS2, and MS3 are hardwired to 3.3V, fixing the A4988 at 1/16 microstep. This frees GPIO 33, 32, and 35 for other uses and avoids the GPIO 35 input-only limitation on the ESP32 DevKit V1. The firmware `config.h` still defines `MS1=33`, `MS2=32`, `MS3=35` for compatibility with breadboard builds.
 
 ### Potentiometer Filtering Circuit (Joint 1)
 DC motor brush sparks introduce high electromagnetic interference (EMI). A hardware RC low-pass filter must be installed on the J1 analog line:
@@ -331,15 +331,77 @@ The trajectory generator supports both trapezoidal and triangle profiles:
 
 ---
 
-## 13. Ziegler-Nichols & Deadband Tuning Workflow
+## 13. Control Loop Architecture
 
-1. **Find DC Motor Deadband**: In `MODE_ZN`, type `dbtest`. Increment `db,N` (default: 70) until the motor moves smoothly without buzzing at rest.
-2. **Establish Joint 1 Feedback**: Set proportional gain `kp1,0.2`. Execute steps using `t1,45`. Gradually raise `kp1` until constant oscillations appear. This defines Ultimate Gain ($K_u$).
-3. **Analyze Period ($T_u$)**: Extract the oscillation period from HMI charts to calculate derivative (`kd1`) and integral (`ki1`) coefficients using Ziegler-Nichols tuning rules.
+The firmware top-level `loop()` orchestrates all subsystems at 500 Hz:
+
+```
+loop():
+  1. serviceSerial()               — non-blocking RX, fills serial_buf[64]
+  2. serviceStepperPulse()         — free-running A4988 step generation (micros()-based)
+  3. if (micros() - last_tick >= DT):
+       runControlLoop()            — 500 Hz tick
+  4. drainDLineBuffer()            — flush D-line ring buffer (max 2/loop)
+  5. handle dbtest_active timer    — 400 ms DC pulse test
+  6. emit E/F/T at 50 Hz          — every 20 ms (2 × TELEMETRY_MS)
+  7. check serial watchdog         — 3 s → force MODE_IDLE
+```
+
+### runControlLoop() — 500 Hz Dispatch
+
+Uses function-pointer dispatch for zero-overhead mode selection:
+
+```
+1. active_sensor_fn()        — sensorWithTD (default) or sensorRawOnly
+2. if is_moving:
+     getTrajPoint(t_traj)    → IK(x_cmd, y_cmd) → theta1_d, theta2_d
+     t_traj += DT
+   else:
+     FK(theta_d)             — keep traj_x/y_cmd tracking desired
+3. active_desired_fn(t)      — desiredSCARA (Jacobian) or desiredZN (zero)
+4. computeCTC()              — M·ddθ + C + G at desired state
+5. active_output_fn()        — controlJoint1() + controlJoint2()
+6. checkTrajectoryDone()     — settle detect (20 ticks @ 0.01 rad) or timeout
+7. writeDLineToBuffer()      — push to 8-entry ring buffer
+```
+
+### Function-Pointer Architecture
+
+Transitioning between operating modes is atomic and avoids switch/case overhead inside the control loop. `transitionToMode()` swaps three function pointers:
+
+| Pointer | MODE_IDLE | MODE_SCARA | MODE_ZN | MODE_TEST |
+|---------|-----------|------------|---------|-----------|
+| `active_sensor_fn` | sensorWithTD | sensorWithTD | sensorWithTD | configurable |
+| `active_desired_fn` | desiredSCARA | desiredSCARA | desiredZN | desiredSCARA |
+| `active_output_fn` | outputIdle | outputFull | outputZN | outputFull |
+
+### Dual-Mode Joint Control
+
+The two joints use fundamentally different control strategies:
+
+| Aspect | Joint 1 (DC Motor) | Joint 2 (Stepper) |
+|--------|-------------------|-------------------|
+| Type | Torque-controlled | Velocity-controlled |
+| Feedback | PID + deadband hold | PD + gated integral |
+| Feedforward | CTC torque (normalised via TAU_NOM_J1) | CTC → velocity increment (via M22_REF / DT) |
+| Velocity FF | KV_VEL × dTheta1_d (rate-limited) | N/A |
+| Output | PWM duty (-255..255) | Step frequency (Hz) |
+
+### D-Line Ring Buffer
+
+D-packets are produced inside `runControlLoop()` at 500 Hz but buffered in an 8-entry ring buffer:
+- **Producer**: `writeDLineToBuffer()` in the control tick — non-blocking, drops if full.
+- **Consumer**: `drainDLineBuffer()` in `loop()` — drains up to 2 entries per iteration.
+- **Effective rate**: ~100 Hz (at 500 Hz tick, 1 entry per 5 ticks, drained 2 at a time).
+- Each entry: 256-byte C string buffer. Total buffer: 8 × 256 = 2048 bytes.
+
+This throttling prevents the D-line from consuming 79% of the 921600 baud link (which would starve other packet types).
+
+## 14. Ziegler-Nichols & Deadband Tuning Workflow
 
 ---
 
-## 14. All Serial Commands Reference
+## 16. All Serial Commands Reference
 
 All commands are plain-text ASCII strings terminated with `\n`.
 
@@ -423,23 +485,26 @@ The TEST mode exposes all machine parameters for live tuning. Most parameters ar
 
 ---
 
-## 15. Upstream Telemetry Packet Formats
+## 17. Upstream Telemetry Packet Formats
 
 The firmware streams CSV telemetry packets at defined rates. All angles are in radians unless noted.
 
 ### A. Real-time Dynamics (`D`) — 500 Hz ring buffer
-`D,t,th1,th2,th1d,th2d,dth1,dth2,dth1d,dth2d,pwm1,vff1,th1raw,th2raw,u1_total`
+`D,t,th1,th2,th1d,th2d,v1,v2,v1d,v2d,pwm1,vff1,th1_raw,th2_raw,u1_total,p1_out,i1_out,d1_out,ff1_contrib[,v1_enc,enc_count]`
 - `t`: Timestamp (ms).
 - `th1` / `th2`: Measured joint angles (rad).
 - `th1d` / `th2d`: Desired target angles (rad).
-- `dth1` / `dth2`: Measured joint velocities (rad/s).
-- `dth1d` / `dth2d`: Desired velocities (rad/s).
+- `v1` / `v2`: Measured joint velocities (rad/s, from TD or finite-difference).
+- `v1d` / `v2d`: Desired velocities (rad/s, from Jacobian-resolved rate control).
 - `pwm1`: J1 PWM output (-255 to 255).
 - `vff1`: J1 velocity feedforward contribution.
-- `th1raw` / `th2raw`: Unfiltered ADC angles (rad).
+- `th1_raw` / `th2_raw`: Unfiltered ADC angles (rad).
 - `u1_total`: Total J1 control effort (sum of PID + FF).
+- `p1_out` / `i1_out` / `d1_out`: PID term contributions split (effort units).
+- `ff1_contrib`: J1 CTC feedforward contribution (effort units).
+- `v1_enc` / `enc_count`: Reserved for encoder-based velocity (currently always 0).
 
-> Note: The `D` packet has **14 data fields** (15 columns including the `D` tag). The HMI downsamples this 500 Hz stream to ~50 Hz for chart rendering.
+> Note: The `D` packet has **18 data fields** (19 columns including the `D` tag), plus 2 reserved fields (always 0). The firmware writes D-lines into an 8-entry ring buffer inside `runControlLoop()` and drains up to 2 per `loop()` iteration (effective rate ~100 Hz to avoid saturating the 921600 baud link). The HMI downsamples to ~50 Hz for chart rendering.
 
 ### B. Feedforward Components (`F`) — 50 Hz
 `F,t,inertia1,coriolis1,gravity1,inertia2,coriolis2,gravity2,ff1_contrib,u1_total,integral1,delta_omega_ff,omega2_raw,integral2`
@@ -507,7 +572,7 @@ Lines prefixed with `INFO:`, `WARN:`, `ERR:`, or `SUCCESS:` are status/debug mes
 
 ---
 
-## 16. Troubleshooting & Diagnostics
+## 18. Troubleshooting & Diagnostics
 
 - **Watcher Auto-Returns to IDLE**: The 8-second watchdog timer fired. Ensure the HMI is sending periodic `ping` commands (usually handled by the active serial tab heartbeat).
 - **ADC Readings fluctuate wildly**: Potentiometer EMI noise. Confirm that the RC low-pass filter (20 kΩ + 1 µF) is wired close to the ESP32 input pin.
@@ -516,7 +581,7 @@ Lines prefixed with `INFO:`, `WARN:`, `ERR:`, or `SUCCESS:` are status/debug mes
 
 ---
 
-## 17. Default Parameter Values (Quick Reference)
+## 19. Default Parameter Values (Quick Reference)
 
 Values below reflect the runtime defaults loaded in `robot_state.cpp`. These differ from earlier firmware versions.
 
@@ -528,20 +593,39 @@ Values below reflect the runtime defaults loaded in `robot_state.cpp`. These dif
 | V_MAX | 0.04 | m/s |
 | A_MAX | 0.08 | m/s² |
 | Control frequency | 500 | Hz |
-| PWM deadband | 68 | counts (0–255) |
-| TD1_R, TD2_R | 25.0, 25.0 | — |
-| KV_VEL | 0.015 | fraction per rad/s |
-| VFF_MAX_FRAC | 0.3 | fraction of U1_MAX |
-| VFF_DV_MAX | 0.1 | fraction of U1_MAX |
-| Settle threshold | 0.01 | rad (~0.6°) |
-| Settle ticks required | 20 | ticks @ 500 Hz = 40 ms |
-| Serial watchdog | 8000 | ms |
 | U1_MAX | 1.0 | fraction of max |
+| FRAC_ZERO_THRESH (fzt) | 0.01 | — |
+| FRAC_ZERO_KICK_PCT (fztk) | 0.30 | fraction of fzt |
+| KICKSTART_ENABLED (kspen) | 1 | 0/1 |
+| PWM_DEADBAND (pwm_db) | 68 | counts (0–255) |
+| DB_MOVING_ENABLED (dbmen) | 0 | 0/1 |
+| DB_ENGAGE_MOVING_SCALE (dbens) | 0.9 | 0.1–1.0 |
+| TD1_R, TD2_R | 25.0, 25.0 | — |
+| TD_ENABLED | 1 | 0/1 |
+| DDTH_MAX | 2.0 | rad/s |
+| DB_ENGAGE (dben) | 0.01 | rad |
+| DB_RELEASE (dbrel) | 0.005 | rad |
+| DB_VEL (dbvel) | 0.15 | rad/s |
+| DB2_ENGAGE (db2en) | 0.008 | rad |
+| DB2_RELEASE (db2rel) | 0.005 | rad |
 | ERR_DZ | 0.005 | rad |
 | INTEGRAL_FREEZE_THRESH | 0.01 | rad |
 | INTEGRAL_DECAY | 0.004 | — |
 | KP_HOLD_SCALE | 0.60 | — |
 | KD_HOLD_SCALE | 2.00 | — |
+| KI2_GATE_RAD | 0.05 | rad |
+| TAU_NOM_J1 | 0.32 | N·m |
+| M22_REF | computed | kg·m² |
+| KV_VEL | 0.015 | fraction per rad/s |
+| VFF_MAX_FRAC | 0.3 | fraction of U1_MAX |
+| VFF_DV_MAX | 0.1 | fraction of U1_MAX |
+| OMEGA2_RATE_LIMIT | 4.0 | rad/s² |
+| DTHETA_RAW_CLAMP | 5.0 | rad/s |
+| alpha_tilt | 0.0 | degrees |
+| TRAP_ENABLED | 1 | 0/1 |
+| Settle threshold | 0.01 | rad (~0.6°) |
+| Settle ticks required | 20 | ticks @ 500 Hz = 40 ms |
+| Serial watchdog | 3000 | ms (3 s) |
 
 ---
 

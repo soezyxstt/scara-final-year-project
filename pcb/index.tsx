@@ -2,10 +2,56 @@ import React from "react"
 import {
   HEADER_PIN_PITCH, JST_BODY_OVERHANG, JST_BODY_DEPTH,
   A4988_PIN_PITCH, A4988_ROW_SPACING, A4988_BOARD_WIDTH, A4988_BOARD_HEIGHT,
-  LM2596_BOARD_WIDTH, LM2596_BOARD_HEIGHT, LM2596_PIN_SPAN_X, LM2596_PIN_SPAN_Y, LM2596_MOUNT_HOLE_X, LM2596_MOUNT_HOLE_Y,
+  LM2596_BOARD_WIDTH, LM2596_BOARD_HEIGHT, LM2596_PIN_SPAN_X, LM2596_PIN_SPAN_Y,
   DC_JACK_SW_VCC_HALF_SPACING, DC_JACK_GND_Y_OFFSET, DC_JACK_BODY_WIDTH, DC_JACK_BODY_HEIGHT,
   ESP32_DEVKIT_PIN_PITCH, ESP32_DEVKIT_ROW_SPACING, ESP32_DEVKIT_BOARD_WIDTH, ESP32_DEVKIT_BOARD_HEIGHT,
 } from "./constants.js"
+
+// ---------------------------------------------------------------------------
+// chamfer() — convert the orthogonal (Manhattan) pcbPath waypoint lists below
+// into 45°-beveled paths at render time, so we keep the hand-verified routing
+// geometry but replace every interior right-angle with a 45° corner (cleaner
+// look + the conventional fab style). It is purely cosmetic for THIS board —
+// all signals here are low-speed (STEP/PWM ≤ tens of kHz), so 90° corners carry
+// no signal-integrity penalty; this just satisfies the 45°-routing convention.
+//
+// Safety rules baked in so the bevel never breaks DRC:
+//   - endpoints (the pad connections) are never moved;
+//   - the FIRST and LAST corner (adjacent to a pad) are left square, preserving
+//     the perpendicular escape that inner header pins require;
+//   - via waypoints — and any waypoint touching a via — are left exactly in
+//     place (a via must stay at its drilled XY);
+//   - each bevel leg is capped at 0.49× the shorter neighbouring segment so two
+//     adjacent bevels can meet but never overlap or cross.
+type PathPt = { x: number; y: number; via?: boolean; toLayer?: string }
+function chamfer(pts: PathPt[], d = 10): PathPt[] {
+  // drop consecutive duplicate coordinates (but keep any point carrying a via)
+  const clean: PathPt[] = []
+  for (const p of pts) {
+    const last = clean[clean.length - 1]
+    if (last && last.x === p.x && last.y === p.y && !p.via && !last.via) continue
+    clean.push(p)
+  }
+  const out: PathPt[] = []
+  for (let i = 0; i < clean.length; i++) {
+    const p = clean[i], prev = clean[i - 1], next = clean[i + 1]
+    const padAdjacent = i === 1 || i === clean.length - 2
+    if (i === 0 || i === clean.length - 1 || p.via || next?.via || prev?.via || padAdjacent) {
+      out.push(p); continue
+    }
+    const inDx = p.x - prev!.x, inDy = p.y - prev!.y
+    const outDx = next!.x - p.x, outDy = next!.y - p.y
+    const inLen = Math.hypot(inDx, inDy), outLen = Math.hypot(outDx, outDy)
+    // only bevel a genuine right-angle (perpendicular, both segments non-zero)
+    if (inLen === 0 || outLen === 0 || Math.abs(inDx * outDx + inDy * outDy) > 1e-9) {
+      out.push(p); continue
+    }
+    const dd = Math.min(d, inLen * 0.49, outLen * 0.49)
+    out.push({ x: p.x - (inDx / inLen) * dd, y: p.y - (inDy / inLen) * dd })
+    out.push({ x: p.x + (outDx / outLen) * dd, y: p.y + (outDy / outLen) * dd })
+  }
+  return out
+}
 
 // ---------------------------------------------------------------------------
 // SCARA Controller Board — Manufacturing Revision (firmware-matched)
@@ -104,9 +150,12 @@ function DevKitCSocket(props: { name: string; pcbX: number; pcbY: number; schX?:
 
 function Lm2596Module(props: { name: string; pcbX: number; pcbY: number; schX?: number; schY?: number }) {
   const pinInsetX = LM2596_PIN_SPAN_X / 2; const pinOffsetY = LM2596_PIN_SPAN_Y / 2
-  const holeX = LM2596_MOUNT_HOLE_X
-  const holeY = LM2596_MOUNT_HOLE_Y
 
+  // The module plugs in via its 4 IN/OUT pins only — the two large 3mm holes
+  // that used to mirror the LM2596's own mounting/jumper holes were dropped:
+  // they carried no net and served no mechanical purpose on this carrier (the
+  // module is held by its soldered pins), they only ate board area and forced
+  // routing detours around them.
   return (
     <>
       <connector name={props.name} pcbX={props.pcbX} pcbY={props.pcbY} schX={props.schX} schY={props.schY} footprint={
@@ -115,9 +164,6 @@ function Lm2596Module(props: { name: string; pcbX: number; pcbY: number; schX?: 
           <platedhole portHints={["IN_NEG"]} pcbX={-pinInsetX} pcbY={-pinOffsetY} holeDiameter="1.5mm" outerDiameter="2.8mm" shape="circle" />
           <platedhole portHints={["OUT_POS"]} pcbX={pinInsetX} pcbY={pinOffsetY} holeDiameter="1.5mm" outerDiameter="2.8mm" shape="circle" />
           <platedhole portHints={["OUT_NEG"]} pcbX={pinInsetX} pcbY={-pinOffsetY} holeDiameter="1.5mm" outerDiameter="2.8mm" shape="circle" />
-
-          <platedhole pcbX={-holeX} pcbY={holeY} holeDiameter="3mm" outerDiameter="4mm" shape="circle" />
-          <platedhole pcbX={holeX} pcbY={-holeY} holeDiameter="3mm" outerDiameter="4mm" shape="circle" />
         </footprint>
       } />
       <silkscreenrect pcbX={props.pcbX} pcbY={props.pcbY} width={LM2596_BOARD_WIDTH} height={LM2596_BOARD_HEIGHT} strokeWidth={0.3} />
@@ -298,7 +344,12 @@ export default () => (
         expansion nets no longer cross the DIP. IO4 is fully free (ADC2-capable);
         IO5 is a boot-strapping pin (idles HIGH) — fine for a spare, just don't
         hold it LOW at power-on. Both are firmware-untouched. */}
-    <ScrewTerminal name="J_EXP" pcbX={43} pcbY={13} axis="y" schX={4} schY={-12} labels={["V3V3", "GND", "IO21", "IO22", "IO19", "IO23", "IO5", "IO4"]} />
+    {/* J_EXP screw positions reordered (IO23,IO22,IO21,IO19 top->bottom) to
+        match the ESP32 right-column pin order — lets the six breakout signals
+        fan out without crossing. These are spare-GPIO breakouts, so the screw
+        POSITION is free to choose; only the silkscreen label moves, firmware is
+        untouched. */}
+    <ScrewTerminal name="J_EXP" pcbX={43} pcbY={13} axis="y" schX={4} schY={-12} labels={["V3V3", "GND", "IO23", "IO22", "IO21", "IO19", "IO5", "IO4"]} />
 
     {/* =========================================================================
         GROUND PLANE — Full bottom pour (replaces all explicit GND traces)
@@ -306,18 +357,19 @@ export default () => (
         removes ~12 top-layer GND traces and the violations they caused, and
         decongests the remaining signal/power routing.
         ========================================================================= */}
-    <copperpour layer="bottom" connectsTo="net.GND" clearance="0.55mm"
-      boundary={[
-        { x: -46, y: 28 },
-        { x: 46,  y: 28 },
-        { x: 46,  y: -28 },
-        { x: -46, y: -28 },
-      ]}
-    />
     <keepout pcbX={-44} pcbY={30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
     <keepout pcbX={44}  pcbY={30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
     <keepout pcbX={-44} pcbY={-30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
     <keepout pcbX={44}  pcbY={-30} shape="circle" radius="6mm" layer="bottom" features={{ copper: true }} />
+
+    {/* Top keepouts are 4mm (vs the bottom plane's 6mm): still clears an M3
+        screw head + washer, but small enough not to clip the top traces that
+        legitimately pass near the corners (V5, and J_EXP.V3V3 whose pad sits
+        ~4.85mm from the top-right hole). */}
+    <keepout pcbX={-44} pcbY={30} shape="circle" radius="4mm" layer="top" features={{ copper: true }} />
+    <keepout pcbX={44}  pcbY={30} shape="circle" radius="4mm" layer="top" features={{ copper: true }} />
+    <keepout pcbX={-44} pcbY={-30} shape="circle" radius="4mm" layer="top" features={{ copper: true }} />
+    <keepout pcbX={44}  pcbY={-30} shape="circle" radius="4mm" layer="top" features={{ copper: true }} />
 
     {/* Silkscreen Labels */}
     <silkscreentext text="ESP32 BRAIN" pcbX={20} pcbY={28} fontSize={1.8} anchorAlignment="center" />
@@ -341,25 +393,20 @@ export default () => (
     {/* =========================================================================
         POWER RAILS
         ========================================================================= */}
-    {/* Manual pcbPath: the autorouter connected this straight to LM2596.IN_POS
-        (the nearest other open net.V12 stub) via a corridor hugging the left
-        board edge at x=-46.84, only 0.91mm clear of the edge (board edge at
-        x=-48; spec wants >=2mm). That edge-side gap is only 2mm wide total
-        (board edge to PWR_IN.SW's pad), so there's no width left in it for
-        both the 2mm edge clearance AND 0.5mm pad clearance at once — the fix
-        is an interior reroute instead of nudging the same corridor. Routes
-        right of PWR_IN.SW/GND and LM2596's NW mount hole, then approaches
-        IN_POS from below. The IN_POS net anchor is removed since this trace
-        now ties it to net.V12 via VCC instead. Waypoints relative to anchor
-        PWR_IN (-41, 21.5). */}
+    {/* Manual pcbPath (the autorouter wanted a left-edge corridor only 0.91mm
+        off the board edge — illegal vs the 2mm edge clearance). With the buck's
+        NW mount hole removed, IN_POS now sits in open copper directly below-left
+        of VCC, so this is a simple L: drop straight down from VCC, then west
+        along the buck's top edge into IN_POS (the earlier loop-around-from-below
+        only existed to dodge that hole). The IN_POS net anchor is removed since
+        this trace ties it to net.V12 via VCC instead. Waypoints relative to
+        anchor PWR_IN (-41, 21.5). */}
     <trace from=".PWR_IN > .VCC" to=".LM2596 > .IN_POS" thickness="0.8mm"
-      pcbPath={[
+      pcbPath={chamfer([
         { x: 3, y: 0 },
-        { x: 5, y: 0 },
-        { x: 5, y: -14.5 },
-        { x: -3.2485, y: -14.5 },
+        { x: 3, y: -9.9275 },
         { x: -3.2485, y: -9.9275 },
-      ]}
+      ])}
     />
     {/* This net anchor independently routed itself to C_BULK.POS (the other
         open net.V12 stub) along the same left-edge corridor as the traces
@@ -368,14 +415,14 @@ export default () => (
         A4988's left pad column, then approaching C_BULK.POS from below to
         clear C_BULK.NEG). Waypoints relative to anchor LM2596 (-24.5, 3). */}
     <trace from=".LM2596 > .IN_POS" to=".C_BULK > .POS" thickness="0.8mm"
-      pcbPath={[
+      pcbPath={chamfer([
         { x: -19.7485, y: 8.5725 },
         { x: -19.7485, y: 4 },
         { x: -13.5, y: 4 },
         { x: -13.5, y: -23.7 },
         { x: -19.77, y: -23.7 },
         { x: -19.77, y: -22 },
-      ]}
+      ])}
     />
     <trace from=".C_BULK > .POS" to="net.V12" thickness="0.8mm" />
     {/* BUGFIX (V12 island reconnect): A4988.VMOT + J_DC.V12 were a SEPARATE
@@ -389,11 +436,11 @@ export default () => (
         routed left along y=-22.35 BELOW C_BULK.NEG, then up into C_BULK.POS.
         Waypoints relative to anchor A4988 (-27,-16). */}
     <trace from=".A4988_SOCKET > .VMOT" to=".C_BULK > .POS" thickness="0.8mm"
-      pcbPath={[
+      pcbPath={chamfer([
         { x: -8.89, y: -6.35 },
         { x: -17.27, y: -6.35 },
         { x: -17.27, y: -3.0 },
-      ]}
+      ])}
     />
     {/* Manually routed (pcbRouteHints are ignored under this board's global
         autorouter mode — pcbPath bypasses the autorouter entirely). Path goes
@@ -406,19 +453,24 @@ export default () => (
     {/* Rise segment dropped to the bottom layer via two vias so it physically
         crosses under the V5 trace (different layer = no clearance conflict)
         instead of competing for the same x/y in the congested J_DC corridor.
-        Dropped immediately to the bottom layer at VMOT pad to avoid crossing 
-        the top-layer stepper connector signals. */}
+        Dropped immediately to the bottom layer at VMOT pad to avoid crossing
+        the top-layer stepper connector signals. The bottom rise climbs to V12's
+        OWN row level (abs y=-19.25, rel -3.25) before the via-to-top, so the
+        final hop into V12 is a straight horizontal — previously it overshot to
+        y=-16.25 and doubled back down into the pad, making an acute hairpin at
+        the via. V12 is an inner screw-terminal pin, so a perpendicular (here:
+        horizontal) final approach is the correct escape anyway. */}
     <group pcbStyle={VIA_HEADER_PIN}>
       <trace from=".A4988_SOCKET > .VMOT" to=".J_DC > .V12" thickness="0.8mm"
-        pcbPath={[
+        pcbPath={chamfer([
           { x: -8.89, y: -6.35, via: true, toLayer: "bottom" },
           { x: -8.89, y: -6.35 },
           { x: -8.89, y: -14.5 },
           { x: 63, y: -14.5 },
-          { x: 63, y: -0.25 },
-          { x: 63, y: -0.25, via: true, toLayer: "top" },
-          { x: 63, y: -0.25 },
-        ]}
+          { x: 63, y: -3.25 },
+          { x: 63, y: -3.25, via: true, toLayer: "top" },
+          { x: 63, y: -3.25 },
+        ])}
       />
     </group>
 
@@ -439,19 +491,19 @@ export default () => (
         top-layer V3V3 trunk also sits at x=-1 but on the other layer). */}
     <group pcbStyle={VIA_HEADER_PIN}>
       <trace from=".POT1 > .GND" to=".POT2 > .GND" thickness="0.5mm"
-        pcbPath={[{ x: 0, y: 2.54, via: true, toLayer: "bottom" }, { x: 0, y: 2.54 }, { x: -3, y: 2.54 }, { x: -3, y: 13.04 }, { x: 0, y: 13.04 }]} />
+        pcbPath={chamfer([{ x: 0, y: 2.54, via: true, toLayer: "bottom" }, { x: 0, y: 2.54 }, { x: -3, y: 2.54 }, { x: -3, y: 13.04 }, { x: 0, y: 13.04 }])} />
     </group>
     <group pcbStyle={VIA_HEADER_PIN}>
       <trace from=".ENC > .GND" to=".POT1 > .GND" thickness="0.5mm"
-        pcbPath={[{ x: 0, y: -1.27, via: true, toLayer: "bottom" }, { x: 0, y: -1.27 }, { x: -3, y: -1.27 }, { x: -3, y: 15.54 }, { x: 0, y: 15.54 }]} />
+        pcbPath={chamfer([{ x: 0, y: -1.27, via: true, toLayer: "bottom" }, { x: 0, y: -1.27 }, { x: -3, y: -1.27 }, { x: -3, y: 15.54 }, { x: 0, y: 15.54 }])} />
     </group>
     <group pcbStyle={VIA_LM2596_PIN}>
       <trace from=".LM2596 > .OUT_NEG" to=".ENC > .GND" thickness="0.5mm"
-        pcbPath={[{ x: 19.7485, y: -8.5725, via: true, toLayer: "bottom" }, { x: 19.7485, y: -8.5725 }, { x: 23.5, y: -8.5725 }, { x: 23.5, y: -10.77 }, { x: 26.5, y: -10.77 }]} />
+        pcbPath={chamfer([{ x: 19.7485, y: -8.5725, via: true, toLayer: "bottom" }, { x: 19.7485, y: -8.5725 }, { x: 23.5, y: -8.5725 }, { x: 23.5, y: -10.77 }, { x: 26.5, y: -10.77 }])} />
     </group>
     <group pcbStyle={VIA_HEADER_PIN}>
       <trace from=".ESP32 > .GND_1" to=".ENC > .GND" thickness="0.5mm"
-        pcbPath={[{ x: -12.7, y: -10.16, via: true, toLayer: "bottom" }, { x: -12.7, y: -10.16 }, { x: -15.5, y: -10.16 }, { x: -15.5, y: -7.77 }, { x: -18, y: -7.77 }]} />
+        pcbPath={chamfer([{ x: -12.7, y: -10.16, via: true, toLayer: "bottom" }, { x: -12.7, y: -10.16 }, { x: -15.5, y: -10.16 }, { x: -15.5, y: -7.77 }, { x: -18, y: -7.77 }])} />
     </group>
     {/* Left cluster (PWR_IN/buck/C_BULK/A4988 grounds) + the anchor link.
         Was a left-edge corridor at x=-46.7 (only 1.3mm clear of the x=-48
@@ -463,18 +515,18 @@ export default () => (
         the corner mounting keepout) is unchanged. */}
     <group pcbStyle={VIA_DCJACK_PIN}>
       <trace from=".PWR_IN > .SW" to=".PWR_IN > .GND" thickness="0.5mm"
-        pcbPath={[{ x: -3, y: 0, via: true, toLayer: "bottom" }, { x: -3, y: 0 }, { x: 0, y: -4.8 }]} />
+        pcbPath={chamfer([{ x: -3, y: 0, via: true, toLayer: "bottom" }, { x: -3, y: 0 }, { x: 0, y: -4.8 }])} />
     </group>
     <group pcbStyle={VIA_LM2596_PIN}>
       <trace from=".LM2596 > .IN_NEG" to=".PWR_IN > .GND" thickness="0.5mm"
-        pcbPath={[{ x: -19.7485, y: -8.5725, via: true, toLayer: "bottom" }, { x: -19.7485, y: -8.5725 }, { x: -11.5, y: -8.5725 }, { x: -11.5, y: 13.7 }, { x: -16.5, y: 13.7 }]} />
+        pcbPath={chamfer([{ x: -19.7485, y: -8.5725, via: true, toLayer: "bottom" }, { x: -19.7485, y: -8.5725 }, { x: -11.5, y: -8.5725 }, { x: -11.5, y: 13.7 }, { x: -16.5, y: 13.7 }])} />
     </group>
     {/* Was also a left-edge corridor at x=-46.7 (same edge-clearance problem
         as the two traces above). Rerouted to the interior (x=-39, between
         C_BULK and the A4988's leftmost pad column) instead. */}
     <group pcbStyle={VIA_CBULK_PIN}>
       <trace from=".C_BULK > .NEG" to=".LM2596 > .IN_NEG" thickness="0.5mm"
-        pcbPath={[{ x: 1.27, y: 0, via: true, toLayer: "bottom" }, { x: 1.27, y: 0 }, { x: 1.27, y: -2.5 }, { x: 4, y: -2.5 }, { x: 4, y: 13.43 }, { x: -1.25, y: 13.43 }]} />
+        pcbPath={chamfer([{ x: 1.27, y: 0, via: true, toLayer: "bottom" }, { x: 1.27, y: 0 }, { x: 1.27, y: -2.5 }, { x: 4, y: -2.5 }, { x: 4, y: 13.43 }, { x: -1.25, y: 13.43 }])} />
     </group>
     {/* A4988 grounds chain GND_LOGIC -> GND_MOT -> ENABLE -> IN_NEG, running
         along y=-24.5 (centered between the A4988 bottom row at -22.35 and the
@@ -482,17 +534,17 @@ export default () => (
         joins the cluster via the buck IN_NEG. */}
     <group pcbStyle={VIA_HEADER_PIN}>
       <trace from=".A4988_SOCKET > .GND_LOGIC" to=".A4988_SOCKET > .GND_MOT" thickness="0.5mm"
-        pcbPath={[{ x: 8.89, y: -6.35, via: true, toLayer: "bottom" }, { x: 8.89, y: -6.35 }, { x: 8.89, y: -8.5 }, { x: -6.35, y: -8.5 }, { x: -6.35, y: -6.35 }]} />
+        pcbPath={chamfer([{ x: 8.89, y: -6.35, via: true, toLayer: "bottom" }, { x: 8.89, y: -6.35 }, { x: 8.89, y: -8.5 }, { x: -6.35, y: -8.5 }, { x: -6.35, y: -6.35 }])} />
     </group>
     {/* GND_MOT -> ENABLE rises through the A4988 inter-row gap (y=-12, above
         the V12 trace's drop at x=-35.9 and clear of both pin rows). */}
     <group pcbStyle={VIA_HEADER_PIN}>
       <trace from=".A4988_SOCKET > .GND_MOT" to=".A4988_SOCKET > .ENABLE" thickness="0.5mm"
-        pcbPath={[{ x: -6.35, y: -6.35, via: true, toLayer: "bottom" }, { x: -6.35, y: -6.35 }, { x: -6.35, y: 4 }, { x: -10.5, y: 4 }, { x: -10.5, y: 6.35 }, { x: -8.89, y: 6.35 }]} />
+        pcbPath={chamfer([{ x: -6.35, y: -6.35, via: true, toLayer: "bottom" }, { x: -6.35, y: -6.35 }, { x: -6.35, y: 4 }, { x: -10.5, y: 4 }, { x: -10.5, y: 6.35 }, { x: -8.89, y: 6.35 }])} />
     </group>
     <group pcbStyle={VIA_HEADER_PIN}>
       <trace from=".A4988_SOCKET > .ENABLE" to=".LM2596 > .IN_NEG" thickness="0.5mm"
-        pcbPath={[{ x: -8.89, y: 6.35, via: true, toLayer: "bottom" }, { x: -8.89, y: 6.35 }, { x: -8.89, y: 9 }, { x: -17.25, y: 9 }, { x: -17.25, y: 10.43 }]} />
+        pcbPath={chamfer([{ x: -8.89, y: 6.35, via: true, toLayer: "bottom" }, { x: -8.89, y: 6.35 }, { x: -8.89, y: 9 }, { x: -17.25, y: 9 }, { x: -17.25, y: 10.43 }])} />
     </group>
     {/* Center<->Left link: POT2.GND tied to the anchor PWR_IN.GND along
         y=16.7 (above the buck body, below the jack pads), avoiding the
@@ -500,7 +552,7 @@ export default () => (
         left + anchor one net. */}
     <group pcbStyle={VIA_HEADER_PIN}>
       <trace from=".POT2 > .GND" to=".PWR_IN > .GND" thickness="0.5mm"
-        pcbPath={[{ x: 0, y: 2.54, via: true, toLayer: "bottom" }, { x: 0, y: 2.54 }, { x: -3, y: 2.54 }, { x: -3, y: -0.3 }, { x: -43, y: -0.3 }]} />
+        pcbPath={chamfer([{ x: 0, y: 2.54, via: true, toLayer: "bottom" }, { x: 0, y: 2.54 }, { x: -3, y: 2.54 }, { x: -3, y: -0.3 }, { x: -43, y: -0.3 }])} />
     </group>
     {/* Right cluster: ESP32.GND_2/GND_3 + J_DC.GND/J_EXP.GND. GND_3 links to
         the center (ESP32.GND_1) through the open central corridor x=30; the
@@ -508,19 +560,19 @@ export default () => (
         the screw-terminal pair back to GND_2. */}
     <group pcbStyle={VIA_HEADER_PIN}>
       <trace from=".ESP32 > .GND_3" to=".ESP32 > .GND_1" thickness="0.5mm"
-        pcbPath={[{ x: 12.7, y: 7.62, via: true, toLayer: "bottom" }, { x: 12.7, y: 7.62 }, { x: 10, y: 7.62 }, { x: 10, y: -3 }, { x: -10, y: -3 }, { x: -10, y: -10.16 }, { x: -12.7, y: -10.16 }]} />
+        pcbPath={chamfer([{ x: 12.7, y: 7.62, via: true, toLayer: "bottom" }, { x: 12.7, y: 7.62 }, { x: 10, y: 7.62 }, { x: 10, y: -3 }, { x: -10, y: -3 }, { x: -10, y: -10.16 }, { x: -12.7, y: -10.16 }], 2)} />
     </group>
     <group pcbStyle={VIA_HEADER_PIN}>
       <trace from=".ESP32 > .GND_2" to=".ESP32 > .GND_3" thickness="0.5mm"
-        pcbPath={[{ x: 12.7, y: 22.86, via: true, toLayer: "bottom" }, { x: 12.7, y: 22.86 }, { x: 10, y: 22.86 }, { x: 10, y: 7.62 }, { x: 12.7, y: 7.62 }]} />
+        pcbPath={chamfer([{ x: 12.7, y: 22.86, via: true, toLayer: "bottom" }, { x: 12.7, y: 22.86 }, { x: 10, y: 22.86 }, { x: 10, y: 7.62 }, { x: 12.7, y: 7.62 }])} />
     </group>
     <group pcbStyle={VIA_SCREW_PIN}>
       <trace from=".J_DC > .GND" to=".J_EXP > .GND" thickness="0.5mm"
-        pcbPath={[{ x: 0, y: -1.75, via: true, toLayer: "bottom" }, { x: 0, y: -1.75 }, { x: 2.5, y: -1.75 }, { x: 2.5, y: 35.75 }, { x: 0, y: 35.75 }]} />
+        pcbPath={chamfer([{ x: 0, y: -1.75, via: true, toLayer: "bottom" }, { x: 0, y: -1.75 }, { x: 2.5, y: -1.75 }, { x: 2.5, y: 35.75 }, { x: 0, y: 35.75 }])} />
     </group>
     <group pcbStyle={VIA_SCREW_PIN}>
       <trace from=".J_EXP > .GND" to=".ESP32 > .GND_2" thickness="0.5mm"
-        pcbPath={[{ x: 0, y: 8.75, via: true, toLayer: "bottom" }, { x: 0, y: 8.75 }, { x: -8.5, y: 8.75 }, { x: -8.5, y: 9.86 }]} />
+        pcbPath={chamfer([{ x: 0, y: 8.75, via: true, toLayer: "bottom" }, { x: 0, y: 8.75 }, { x: -8.5, y: 8.75 }, { x: -8.5, y: 9.86 }])} />
     </group>
 
     <trace from=".LM2596 > .OUT_POS" to="net.V5" thickness="0.6mm" />
@@ -544,7 +596,7 @@ export default () => (
         at y=3 / y=-13) then back to top. Vias are mid-air (not on a pad),
         wrapped to the 1.3/0.7mm board spec. */}
       <trace from=".LM2596 > .OUT_POS" to=".ESP32 > .5V" thickness="0.6mm"
-        pcbPath={[
+        pcbPath={chamfer([
           { x: 19.7485, y: 8.5725 },
           { x: 11.5, y: 8.5725 },
           { x: 11.5, y: 0 },
@@ -555,25 +607,25 @@ export default () => (
           { x: 29.5, y: -16, via: true, toLayer: "top" },
           { x: 29.5, y: -16 },
           { x: 29.5, y: -25.86 },
-        ]}
+        ])}
       />
     {/* Manual pcbPath (see V12 note above for why). Parallel south lane,
         offset from the V12 lane, clearing the ESP32 right-column CLK pad
         instead of grazing past it. Waypoints are local to the "from" anchor
         (ESP32, pcbX=20 pcbY=0) — i.e. desiredAbsolute - (20, 0). */}
     <trace from=".ESP32 > .5V" to=".J_DC > .V5" thickness="0.6mm"
-      pcbPath={[{ x: -10, y: -24.5 }, { x: 15, y: -24.5 }]}
+      pcbPath={chamfer([{ x: -10, y: -24.5 }, { x: 15, y: -24.5 }])}
     />
 
     <trace from=".ESP32 > .3V3" to="net.V3V3" thickness="0.5mm" />
     <trace from=".A4988_SOCKET > .VDD" to=".ENC > .V3V3" thickness="0.5mm"
-      pcbPath={[
+      pcbPath={chamfer([
         { x: 6.35, y: -6.35 },
         { x: 6.35, y: 0.0 },
         { x: 26.0, y: 0.0 },
         { x: 26.0, y: 5.69 },
         { x: 29.0, y: 5.69 }
-      ]}
+      ])}
     />
     {/* A4988 microstep/enable bus: MS1/MS2/MS3/RESET/SLEEP all tie to 3.3V
         (fixed 1/16 microstep, driver held awake). Previously these were
@@ -593,21 +645,21 @@ export default () => (
         bottom GND pour). Anchors: feed is ENC-relative (2,-6.5); the four taps
         are A4988-relative (-27,-16); bus sits at A4988-rel y=4.0 (abs -12). */}
     <trace from=".ENC > .V3V3" to=".A4988_SOCKET > .SLEEP" thickness="0.5mm"
-      pcbPath={[
+      pcbPath={chamfer([
         { x: 0, y: -3.81 },
         { x: 0, y: -5.5 },
         { x: -25.19, y: -5.5 },
         { x: -25.19, y: -3.15 },
-      ]}
+      ])}
     />
     <trace from=".A4988_SOCKET > .SLEEP" to=".A4988_SOCKET > .RESET" thickness="0.5mm"
-      pcbPath={[{ x: 3.81, y: 6.35 }, { x: 3.81, y: 4.0 }, { x: 1.27, y: 4.0 }, { x: 1.27, y: 6.35 }]} />
+      pcbPath={chamfer([{ x: 3.81, y: 6.35 }, { x: 3.81, y: 4.0 }, { x: 1.27, y: 4.0 }, { x: 1.27, y: 6.35 }])} />
     <trace from=".A4988_SOCKET > .RESET" to=".A4988_SOCKET > .MS3" thickness="0.5mm"
-      pcbPath={[{ x: 1.27, y: 6.35 }, { x: 1.27, y: 4.0 }, { x: -1.27, y: 4.0 }, { x: -1.27, y: 6.35 }]} />
+      pcbPath={chamfer([{ x: 1.27, y: 6.35 }, { x: 1.27, y: 4.0 }, { x: -1.27, y: 4.0 }, { x: -1.27, y: 6.35 }])} />
     <trace from=".A4988_SOCKET > .MS3" to=".A4988_SOCKET > .MS2" thickness="0.5mm"
-      pcbPath={[{ x: -1.27, y: 6.35 }, { x: -1.27, y: 4.0 }, { x: -3.81, y: 4.0 }, { x: -3.81, y: 6.35 }]} />
+      pcbPath={chamfer([{ x: -1.27, y: 6.35 }, { x: -1.27, y: 4.0 }, { x: -3.81, y: 4.0 }, { x: -3.81, y: 6.35 }])} />
     <trace from=".A4988_SOCKET > .MS2" to=".A4988_SOCKET > .MS1" thickness="0.5mm"
-      pcbPath={[{ x: -3.81, y: 6.35 }, { x: -3.81, y: 4.0 }, { x: -6.35, y: 4.0 }, { x: -6.35, y: 6.35 }]} />
+      pcbPath={chamfer([{ x: -3.81, y: 6.35 }, { x: -3.81, y: 4.0 }, { x: -6.35, y: 4.0 }, { x: -6.35, y: 6.35 }])} />
     {/* V3V3 to the POT/ENC cluster as a clean vertical trunk on the left
         (x=-1, clear of the pads) instead of the autorouter's hairpin, which
         dove from the A4988 feed into ENC.V3V3 (the bottom pad) then doubled
@@ -626,38 +678,42 @@ export default () => (
         Point-to-point routing guarantees adherence to the 1.3mm/0.7mm fab spec. */}
     <group pcbStyle={{ viaPadDiameter: "1.3mm", viaHoleDiameter: "0.7mm" }}>
       <trace from=".POT2 > .V3V3" to=".ESP32 > .3V3" thickness="0.5mm"
-        pcbPath={[
+        pcbPath={chamfer([
           { x: 0.0, y: -2.54 },
           { x: -3.0, y: -2.54 },
           { x: -3.0, y: 5.86 },
           { x: 5.3, y: 5.86 }
-        ]}
+        ])}
       />
       <trace from=".POT1 > .V3V3" to=".POT2 > .V3V3" thickness="0.5mm"
-        pcbPath={[
+        pcbPath={chamfer([
           { x: 0.0, y: -2.54 },
           { x: -3.0, y: -2.54 },
           { x: -3.0, y: 7.96 },
           { x: 0.0, y: 7.96 }
-        ]}
+        ])}
       />
       <trace from=".ENC > .V3V3" to=".POT1 > .V3V3" thickness="0.5mm"
-        pcbPath={[
+        pcbPath={chamfer([
           { x: 0.0, y: -3.81 },
           { x: -3.0, y: -3.81 },
           { x: -3.0, y: 10.46 },
           { x: 0.0, y: 10.46 }
-        ]}
+        ])}
       />
     </group>
 
     {/* =========================================================================
         SIGNALS
         ========================================================================= */}
-    <trace from=".A4988_SOCKET > .1A" to=".STEPPER > .1A" thickness="0.6mm" />
-    <trace from=".A4988_SOCKET > .1B" to=".STEPPER > .1B" thickness="0.6mm" />
-    <trace from=".A4988_SOCKET > .2A" to=".STEPPER > .2A" thickness="0.6mm" />
-    <trace from=".A4988_SOCKET > .2B" to=".STEPPER > .2B" thickness="0.6mm" />
+    {/* Stepper coil outputs widened 0.6->0.8mm for thermal margin: 0.8mm @ 1oz
+        carries ~2.1A at 10°C rise (IPC-2221), covering NEMA17-class coils up to
+        ~1.5-2A/phase. Straight vertical drops A4988 bottom row -> STEPPER, 2.54mm
+        apart, so 0.8mm still leaves 1.74mm trace-trace clearance. */}
+    <trace from=".A4988_SOCKET > .1A" to=".STEPPER > .1A" thickness="0.8mm" />
+    <trace from=".A4988_SOCKET > .1B" to=".STEPPER > .1B" thickness="0.8mm" />
+    <trace from=".A4988_SOCKET > .2A" to=".STEPPER > .2A" thickness="0.8mm" />
+    <trace from=".A4988_SOCKET > .2B" to=".STEPPER > .2B" thickness="0.8mm" />
 
     {/* Manual pcbPath. STEP is an INNER pin of the A4988 top row (8-pin
         header), so the only legal approach is perpendicular (straight down
@@ -677,7 +733,7 @@ export default () => (
         connections on either layer, so no via back to top is needed.
         Waypoints relative to anchor ESP32 (20, 0). */}
     <trace from=".ESP32 > .IO14" to=".A4988_SOCKET > .STEP"
-      pcbPath={[
+      pcbPath={chamfer([
         { x: -8, y: -5.08 },
         { x: -8, y: -5.08, via: true, toLayer: "bottom" },
         { x: -8, y: -5.08 },
@@ -685,7 +741,7 @@ export default () => (
         { x: -35, y: -26 },
         { x: -35, y: -8 },
         { x: -40.65, y: -8 },
-      ]}
+      ], 2)}
     />
     {/* Manual pcbPath (same technique as STEP above). After the A4988 row-
         spacing fix, this trace's autorouted path grazed the POT/ENC column
@@ -700,14 +756,14 @@ export default () => (
         to keep clearance from it), then approaches DIR horizontally at its
         own exact y. Waypoints relative to anchor ESP32 (20, 0). */}
     <trace from=".ESP32 > .IO12" to=".A4988_SOCKET > .DIR"
-      pcbPath={[
+      pcbPath={chamfer([
         { x: -5, y: -7.62 },
         { x: -5, y: -7.62, via: true, toLayer: "bottom" },
         { x: -5, y: -7.62 },
         { x: -5, y: -28.5 },
         { x: -36, y: -28.5 },
         { x: -36, y: -10.15 },
-      ]}
+      ], 2)}
     />
 
     <trace from=".ESP32 > .IO16" to=".J_DC > .IN3" />
@@ -722,71 +778,23 @@ export default () => (
 
     <trace from=".J_EXP > .V3V3" to="net.V3V3" thickness="0.5mm" />
     {/* J_EXP.GND ties to the pour via connectsTo on its platedhole (ScrewTerminal). */}
-    {/* Left autorouted (no via needed on this trace at all — it never had an
-        undersized-via problem; it only became unstable as a side effect of
-        manually routing its neighbors above. Now that IO22/IO23 are locked
-        down, the autorouter resolves this cleanly around them again. */}
-    <group pcbStyle={VIA_HEADER_PIN}>
-      <trace from=".ESP32 > .IO21" to=".J_EXP > .IO21"
-        pcbPath={[
-          { x: 12.7, y: 10.16, via: true, toLayer: "bottom" },
-          { x: 12.7, y: 10.16 },
-          { x: 20.5, y: 10.16 },
-          { x: 20.5, y: 18.25 },
-          { x: 23.0, y: 18.25 },
-        ]}
-      />
-    </group>
-    {/* Manual pcbPath (same reason as POT2.V3V3 above — makes the via explicit
-        so it inherits pcbStyle's via size). IO21's ESP32 pin sits below
-        IO22's but its J_EXP pin sits above IO22's, so the two traces must
-        cross somewhere on one layer — unavoidable since IO22 starts above
-        IO21's bottom-layer curve and ends below it. IO23 isn't actually a
-        threat here (its path stays ~5mm below this whole route). Fix: via to
-        bottom right at ESP32's pad (clear of IO23's top-layer run earlier in
-        its path), stay numerically above IO21's curve (margin >=1.88mm) on
-        the bottom layer, then via back to top just before the crossing point
-        IO21's curve would otherwise force, finishing clear on top. Waypoints
-        relative to anchor ESP32 (20, 0). */}
-    {/* Wrapped in VIA_HEADER_PIN so the first via (which sits right on
-        ESP32.IO22's pad, same reason as the GND tree above) gets an
-        identical-not-overlapping drill hit. The second via (mid-air layer
-        swap, not on any pad) just inherits the same size — harmless there. */}
-    <group pcbStyle={VIA_HEADER_PIN}>
-      <trace from=".ESP32 > .IO22" to=".J_EXP > .IO22"
-        pcbPath={[
-          { x: 12.7, y: 17.78, via: true, toLayer: "bottom" },
-          { x: 12.7, y: 17.78 },
-          { x: 19, y: 17 },
-          { x: 19, y: 17 },
-          { x: 19, y: 17, via: true, toLayer: "top" },
-          { x: 19, y: 17 },
-          { x: 23, y: 14.75 },
-        ]}
-      />
-    </group>
-    <trace from=".J_EXP > .IO19" to=".ESP32 > .IO19" />
-    {/* Left autorouted, same reason as POT2.V3V3 above: this corner has four
-        signal traces (IO19/21/22/23) crossing in a ~10mm-square space, and
-        proving it numerically, there is no path for IO23's via that clears
-        IO19, IO21, and itself at the 1.3mm board-default via size — the
-        combined clearance requirements exceed the physical gap between the
-        obstacles. IO22 (the one trace that DID need an explicit reroute to
-        avoid crossing IO23/IO21) was fixed already. IO23's via stays at the
-        tscircuit default 0.3mm/0.2mm; it carries a digital GPIO signal, not
-        power/ground. */}
-    <group pcbStyle={VIA_HEADER_PIN}>
-      <trace from=".ESP32 > .IO23" to=".J_EXP > .IO23"
-        pcbPath={[
-          { x: 12.7, y: 20.32 },
-          { x: 17.0, y: 20.32 },
-          { x: 17.0, y: 7.75 },
-          { x: 17.0, y: 7.75, via: true, toLayer: "bottom" },
-          { x: 17.0, y: 7.75 },
-          { x: 23.0, y: 7.75 },
-        ]}
-      />
-    </group>
+    {/* J_EXP signal fan — clean, non-crossing 45° escapes (enabled by the screw
+        reorder above). With J_EXP now in ESP32 pin order, IO19/21/22/23 fan out
+        monotonically and never cross, so they're plain top-layer escapes with
+        NO vias (the old via/crossing gymnastics are gone). Each is: short
+        horizontal escape, one 45° diagonal, perpendicular entry into the screw
+        pin. They all sit above the J_DC signals (y>=5), so no cross there
+        either. Waypoints relative to anchor ESP32 (20, 0). */}
+    <trace from=".ESP32 > .IO23" to=".J_EXP > .IO23"
+      pcbPath={[{ x: 12.7, y: 20.32 }, { x: 14.2, y: 20.32 }, { x: 16.27, y: 18.25 }, { x: 23, y: 18.25 }]} />
+    <trace from=".ESP32 > .IO22" to=".J_EXP > .IO22"
+      pcbPath={[{ x: 12.7, y: 17.78 }, { x: 14.2, y: 17.78 }, { x: 17.23, y: 14.75 }, { x: 23, y: 14.75 }]} />
+    <trace from=".ESP32 > .IO21" to=".J_EXP > .IO21"
+      pcbPath={[{ x: 12.7, y: 10.16 }, { x: 14.2, y: 10.16 }, { x: 15.29, y: 11.25 }, { x: 23, y: 11.25 }]} />
+    <trace from=".ESP32 > .IO19" to=".J_EXP > .IO19"
+      pcbPath={[{ x: 12.7, y: 5.08 }, { x: 14.2, y: 5.08 }, { x: 16.87, y: 7.75 }, { x: 23, y: 7.75 }]} />
+    {/* IO5/IO4 stay on the bottom layer: their ESP32 pins sit down in the J_DC
+        zone, so on top they'd cross the L298N signals. Autorouted on bottom. */}
     <trace from=".J_EXP > .IO5" to=".ESP32 > .IO5" />
     <trace from=".J_EXP > .IO4" to=".ESP32 > .IO4" />
   </board>

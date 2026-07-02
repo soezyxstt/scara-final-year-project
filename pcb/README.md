@@ -20,6 +20,17 @@ feedback.
 ground plane; every GND pad ties to it. Rails are named nets (`V12`, `V5`,
 `V3V3`, `GND`) so the schematic renders clean power/ground flags.
 
+> **On bottom-layer "slots":** the bottom layer looks busy, but most of those
+> traces are the **GND membership tree** — they carry `net.GND` and merge into
+> the pour (same net), so they do **not** cut the plane. The only true plane
+> slots are a handful of non-GND escapes routed on the bottom to clear the dense
+> through-hole pad fields (notably `STEP` and the `5V` dip). They are deliberate
+> and load-bearing (moving them to the top layer would re-introduce pad-field
+> DRC violations), and at this board's signal speeds (`STEP`/PWM ≤ tens of kHz)
+> the return-path impact of these short slots is negligible. `DIR` and `V12`
+> were routed along the board margin **outside** the pour boundary, so they
+> don't slot it at all.
+
 ## What's been verified
 
 This design has been built and checked with tscircuit's own DRC/connectivity
@@ -62,8 +73,8 @@ npx tscircuit dev
 | PWR_IN | 3-pin terminal (stand-in for a 5.5×2.1mm female DC barrel jack) | 12V supply in. VCC (center pin), GND (sleeve), and the normally-closed switch/detect leg (tied to GND). |
 | STEPPER | 4-pin terminal | Joint 2 stepper motor coils (1A/1B/2A/2B). |
 | J_DC | 6-pin header | Off-board **L298N** breakout for the Joint 1 DC motor: V12, GND, IN3=IO16, IN4=IO17, ENA=IO18, V5. |
-| POT1 | 3-pin header + bypass | Joint 1 (DC) position pot → IO39. Brush-EMI filtering is done off-board (external LPF); C_POT1 (1µF) is just a local bypass at the ADC pin. |
-| POT2 | 3-pin header + bypass | Joint 2 (stepper) position pot → IO36, with C_POT2 (1µF) bypass. |
+| POT1 | 3-pin header | Joint 1 (DC) position pot → IO39. Brush-EMI filtering is done off-board (external LPF); no on-board bypass cap on this revision. |
+| POT2 | 3-pin header | Joint 2 (stepper) position pot → IO36. No on-board bypass cap on this revision. |
 | ENC | 4-pin header | Joint 1 quadrature encoder: 3V3, GND, ENC_A=IO25, ENC_B=IO26. |
 | J_EXP | 8-pos 3.5mm screw terminal | Spare-GPIO expansion for future sensors: 3V3, GND, IO21 (I2C SDA), IO22 (I2C SCL), IO19, IO23, IO5, IO4 (ADC2). All firmware-untouched. IO5 is boot-strapping (idles HIGH) — don't pull LOW at power-on. (IO27/IO34 were remapped here onto the ESP32 right column so expansion nets don't cross the DIP.) |
 
@@ -111,10 +122,11 @@ pins and the DC-motor handling wrong.
 - **Ground plane**: added a solid bottom-layer `copperpour` on `net.GND` and
   replaced the fragile hand-routed star-ground chain with per-pad ties to the
   net. Rails are named nets so the schematic gets proper power/ground flags.
-- **J1 analog bypass**: `C_POT1` (1µF) is a local bypass at IO39 for ADC
-  settling. The main brush-EMI low-pass is handled by an off-board LPF, so the
-  on-board series resistor was dropped to avoid double-filtering and excess
-  ADC source impedance.
+- **J1 analog filtering is off-board**: the main brush-EMI low-pass is handled
+  by an off-board LPF, so neither an on-board series resistor nor a local bypass
+  cap is fitted at IO39 — this avoids double-filtering and excess ADC source
+  impedance. (Earlier drafts listed `C_POT1`/`C_POT2` bypass caps; they were
+  never placed in the layout and have been dropped from the docs to match.)
 - **Spacing & size**: the `PWR_IN` silkscreen no longer overhangs the board
   edge, and the LM2596↔ESP32 gap was opened up. The board is tightly packed
   at **96×66mm** — width is set by the 43mm LM2596 + ESP32 + right-edge
@@ -136,14 +148,20 @@ pins and the DC-motor handling wrong.
      3-pin terminal placeholder
 2. **Trace widths.** Per-trace width is set with the **`thickness`** prop on
    `<trace>` (the `pcbRouteWidth` prop is silently ignored by this autorouter —
-   don't use it). Signals fall back to the board `minTraceWidth` floor of
-   **0.25mm**; power/coil nets are explicitly fatter: `V12` 0.8mm, stepper
-   coils 0.6mm, motor-side `GND` ties 0.8mm, `5V`/`3V3` 0.3–0.6mm. `GND`'s real
-   return current rides the bottom pour. Power traces can still pinch to the
-   0.25mm floor where they squeeze through tight pad gaps — widen by hand in
-   `tsci dev` if a specific run needs guaranteed copper end-to-end.
+   don't use it). The board `minTraceWidth` floor is **0.5mm**; power/coil nets
+   are explicitly fatter: `V12` 0.8mm, stepper coils 0.8mm, `5V` 0.6mm, `V3V3`
+   0.5mm. `GND`'s real return current rides the bottom pour.
 3. **Pour review.** Review the GND pour stitching (the vias tying top traces to
    the bottom plane — the small dots you see in the layout view) before fab.
-4. **Firmware cleanup (optional).** Since MS1/2/3 are hardwired, you can drop
+4. **Thermal reliefs (hand-soldering DFM).** tscircuit's `<copperpour>` ties
+   through-hole GND pads to the bottom plane with a **solid** connection — it
+   does **not** emit thermal-relief spokes (the prop set is `connectsTo` only;
+   no thermal option exists). Almost every part here is a hand-soldered THT
+   module, so a solid plane connection makes GND pins act as a heatsink and
+   risks cold joints. Before fab, either (a) enable thermal reliefs on the GND
+   plane in your CAM/Gerber tool (target: 0.254mm spoke width, 0.254mm air gap,
+   0.508mm expansion), or (b) use a temperature-controlled iron with extra dwell
+   on GND pins. This is a known tscircuit limitation, not a layout error.
+5. **Firmware cleanup (optional).** Since MS1/2/3 are hardwired, you can drop
    the `MS1/MS2/MS3` defines and their `pinMode`/`digitalWrite` calls from the
    firmware — they now drive nothing. Harmless to leave, but tidier to remove.

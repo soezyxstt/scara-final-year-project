@@ -53,7 +53,8 @@ void writeDLineToBuffer() {
       theta1_raw, theta2_raw,
       u1_total_out,
       p1_out, i1_out, d1_out, ff1_contrib_out,
-      J1_velocity_enc, J1_enc_count);
+      0.0f,   // v1_enc — unused; reserved for encoder-based velocity
+      0);     // enc_count — unused; reserved for raw encoder counts
 
   dline_head = next_head;
 }
@@ -66,10 +67,6 @@ void drainDLineBuffer() {
   uint8_t drained = 0;
   while (dline_tail != dline_head && drained < 2) {
     DLineEntry &e = dline_buf[dline_tail];
-    // Only write if the whole entry fits the TX buffer; otherwise leave it
-    // queued and try next loop. Keeps this non-blocking so the control tick
-    // is never stalled waiting on UART.
-    if ((size_t)Serial.availableForWrite() < e.len) break;
     Serial.write((const uint8_t *)e.str, e.len);
     dline_tail = (dline_tail + 1) % DLINE_BUF_SIZE;
     drained++;

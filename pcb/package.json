@@ -6,7 +6,7 @@
     "dev": "tscircuit dev"
   },
   "dependencies": {
-    "tscircuit": "^0.0.1900"
+    "tscircuit": "^0.0.1953"
   },
   "devDependencies": {
     "react": "^19.2.7",

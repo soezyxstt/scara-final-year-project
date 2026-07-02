@@ -62,15 +62,3 @@ void sensorRawOnly() {
   theta1_raw_prev = theta1_raw;
   theta2_raw_prev = theta2_raw;
 }
-
-static long last_J1_enc_count = 0;
-
-void updateEncoder() {
-  long current_count = J1_enc_count;
-  long diff = current_count - last_J1_enc_count;
-  last_J1_enc_count = current_count;
-
-  float cpr = 2.0f * 11.0f * 103.0f;
-  float counts_per_rad = (cpr * N1_gear) / (2.0f * PI);
-  J1_velocity_enc = (float)diff / (DT * counts_per_rad);
-}

@@ -96,6 +96,12 @@ void processSerialCommand(const char *cmd_raw) {
       pwmWrite(200);
       return;
     }
+    if (input.startsWith("db,")) {
+      PWM_DEADBAND = input.substring(3).toInt();
+      Serial.print("INFO: PWM_DEADBAND="); Serial.println(PWM_DEADBAND);
+      emitParams();
+      return;
+    }
     if (input.startsWith("move,")) {
       Serial.println("ERR: 'move' tidak valid di MODE_ZN. Gunakan t1,/t2,.");
       return;

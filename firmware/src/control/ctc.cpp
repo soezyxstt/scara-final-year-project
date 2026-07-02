@@ -16,15 +16,14 @@ using namespace Params;
 // ============================================================
 //  computeCTC
 //
-//  Gravity formula (alpha_tilt = tilt of the X axis about the Y axis;
-//  the Y axis is the pivot/center of rotation).
-//  Sign convention: positive alpha_tilt raises the +X edge of the
-//  plane, so height of an in-plane point is h = +sin(alpha)*x_plane. Enter a
+//  Gravity formula (alpha_tilt = tilt of the Y axis about the X axis).
+//  Sign convention: positive alpha_tilt raises the +Y (front) edge of the
+//  plane, so height of an in-plane point is h = +sin(alpha)*y_plane. Enter a
 //  NEGATIVE alpha_tilt if the rig tilts the other way — no code change needed,
 //  sinf(alpha_tilt) carries the sign through. Verify direction on the bench.
 //
-//    G1 = -(m1*d1 + m2*L1)*g*sin(alpha)*sin(θ1d) - m2*d2*g*sin(alpha)*sin(θ1d+θ2d)
-//    G2 = -m2*d2*g*sin(alpha)*sin(θ1d+θ2d)
+//    G1 = (m1*d1 + m2*L1)*g*sin(alpha)*cos(θ1d) + m2*d2*g*sin(alpha)*cos(θ1d+θ2d)
+//    G2 = m2*d2*g*sin(alpha)*cos(θ1d+θ2d)
 //    G1=G2=0 when alpha=0 (horizontal SCARA)
 // ============================================================
 
@@ -43,13 +42,13 @@ void computeCTC() {
   float C2_raw  =  h_coeff * dTheta1_d * dTheta1_d;
 
   // Gravity — only non-zero when base is tilted from horizontal (alpha_tilt != 0)
-  // PE = m*g*r*sin(alpha)*cos(θ)  (height = sin(alpha)*x_plane, x_plane = r*cos θ).
-  // Gravity vector G(q) = +∂PE/∂θ = -m*g*r*sin(alpha)*sin(θ); the static holding
+  // PE = m*g*r*sin(alpha)*sin(θ)  (height = sin(alpha)*y_plane, y_plane = r*sin θ).
+  // Gravity vector G(q) = +∂PE/∂θ = m*g*r*sin(alpha)*cos(θ); the static holding
   // feedforward is τ_ff = +G(q), which is exactly what is added downstream.
   float sa     = sinf(alpha_tilt);
-  float G1_raw = -(m1*d1 + m2*L1) * g_accel * sa * sinf(theta1_d)
-               -   m2*d2           * g_accel * sa * sinf(theta1_d + theta2_d);
-  float G2_raw =  -m2*d2           * g_accel * sa * sinf(theta1_d + theta2_d);
+  float G1_raw = (m1*d1 + m2*L1) * g_accel * sa * cosf(theta1_d)
+               +  m2*d2           * g_accel * sa * cosf(theta1_d + theta2_d);
+  float G2_raw =  m2*d2           * g_accel * sa * cosf(theta1_d + theta2_d);
 
   // Inertia term: M·ddθ
   ctc_inertia1  = M11 * ddTheta1_d + M12 * ddTheta2_d;

@@ -36,11 +36,11 @@ const REF_METADATA: Record<string, { label: string; desc: string }> = {
   },
   POT1: {
     label: "Joint 1 (DC) Potentiometer",
-    desc: "3-pin feedback connection (3.3V, WIPER, GND) for the Joint 1 position pot. Wiper routes to ESP32 ADC1 IO39. Main brush-EMI filtering is done by an off-board LPF; C_POT1 is just a small local bypass at the pin."
+    desc: "3-pin feedback connection (3.3V, WIPER, GND) for the Joint 1 position pot. Wiper routes to ESP32 ADC1 IO39. Brush-EMI filtering is handled entirely by an off-board LPF (no on-board bypass cap on this revision)."
   },
   POT2: {
     label: "Joint 2 (Stepper) Potentiometer",
-    desc: "3-pin feedback connection (3.3V, WIPER, GND) for the Joint 2 position pot. Wiper routes to ESP32 ADC1 IO36 with a 1µF bypass (C_POT2)."
+    desc: "3-pin feedback connection (3.3V, WIPER, GND) for the Joint 2 position pot. Wiper routes to ESP32 ADC1 IO36 (no on-board bypass cap on this revision)."
   },
   ENC: {
     label: "Quadrature Encoder Header",
@@ -48,19 +48,11 @@ const REF_METADATA: Record<string, { label: string; desc: string }> = {
   },
   J_EXP: {
     label: "Expansion Screw Terminal",
-    desc: "8-position 3.5mm screw terminal breaking out spare ESP32 pins for future sensors: 3V3, GND, IO21 (I2C SDA), IO22 (I2C SCL), IO19, IO23, IO5, and IO4 (ADC2). All firmware-untouched. NOTE: IO5 is a boot-strapping pin (idles HIGH) — don't hold it LOW at power-on. IO27/IO34 were moved here to keep expansion nets on the ESP32 right column (no DIP crossing)."
+    desc: "8-position 3.5mm screw terminal breaking out spare ESP32 pins for future sensors. Pin order (top→bottom): 3V3, GND, IO23, IO22 (I2C SCL), IO21 (I2C SDA), IO19, IO5, IO4 (ADC2) — positions are ordered to match the ESP32 right-column pin sequence so the breakout traces fan out without crossing. All firmware-untouched. NOTE: IO5 is a boot-strapping pin (idles HIGH) — don't hold it LOW at power-on."
   },
   C_BULK: {
     label: "100µF VMOT Bulk Cap",
     desc: "Radial electrolytic bulk capacitor placed directly next to the A4988 power pins to filter high di/dt voltage spikes from the 12V motor supply."
-  },
-  C_POT1: {
-    label: "1µF J1 Bypass Cap",
-    desc: "Shunt capacitor (0805) to GND at IO39 — a small local bypass for ADC sample-and-hold settling. Main J1 filtering is an off-board LPF."
-  },
-  C_POT2: {
-    label: "1µF J2 Bypass Cap",
-    desc: "Shunt capacitor (0805) to GND at IO36 to bypass high-frequency noise on the Joint 2 potentiometer feedback line."
   }
 }
 

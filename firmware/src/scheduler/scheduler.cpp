@@ -236,8 +236,6 @@ void transitionToMode(OperatingMode new_mode) {
 // ============================================================
 
 void runControlLoop() {
-  updateEncoder();
-
   if (estop_active) {
     // Keep reading sensors so HMI position updates during ESTOP
     active_sensor_fn();
@@ -291,5 +289,17 @@ void runControlLoop() {
   loop_duration_us = micros() - t_start;
 
   // 7. D-line to ring buffer (TX is handled by drainDLineBuffer in loop())
-  if (op_mode != MODE_IDLE && (plot_enabled || is_moving || is_resting)) writeDLineToBuffer();
+  // Throttled to ~100 Hz (1-in-5 ticks at CONTROL_FREQ=500): the D-line
+  // payload grew enough (PID/FF breakdown fields) that emitting it every
+  // tick uses ~79% of the 921600-baud link's capacity, leaving too little
+  // headroom for E/F/T/G/K/P/Q packets — Serial.print() calls for those
+  // then block elsewhere in loop(), corrupting the fixed-DT control timing
+  // and stepper pulse timing.
+  static uint8_t dline_tick_div = 0;
+  if (op_mode != MODE_IDLE && (plot_enabled || is_moving || is_resting)) {
+    if (++dline_tick_div >= 5) {
+      dline_tick_div = 0;
+      writeDLineToBuffer();
+    }
+  }
 }

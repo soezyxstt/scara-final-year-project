@@ -158,7 +158,7 @@ Packets are sent as CSV lines. See the [Firmware Manual](../firmware/readme.md) 
 - **Move Continuation (`MC`)**: `MC,x0,y0,xf,yf` (Emitted for L-shape second leg — does not reset HMI buffers).
 - **Move Done (`S`)**: `S,xf,yf` (Emitted once when motion settles).
 - **Cartesian Path (`T`)**: `T,xi,yi,xa,ya` (Desired vs actual, 50 Hz).
-- **Joint Dynamics (`D`)**: `D,t,th1,th2,th1d,th2d,dth1,dth2,dth1d,dth2d,pwm1,vff1,th1raw,th2raw,u1_total` (14 fields, 500 Hz ring buffer).
+- **Joint Dynamics (`D`)**: `D,t,th1,th2,th1d,th2d,v1,v2,v1d,v2d,pwm1,vff1,th1_raw,th2_raw,u1_total,p1_out,i1_out,d1_out,ff1_contrib` (18 data fields + D tag, 500 Hz ring buffer drained at ~100 Hz).
 - **Feedforward breakdown (`F`)**: `F,t,inertia1,coriolis1,gravity1,inertia2,coriolis2,gravity2,ff1_contrib,u1_total,integral1,delta_omega_ff,omega2_raw,integral2` (50 Hz).
 - **PID Effort (`E`)**: `E,t,p1_out,i1_out,d1_out,loop_duration_us` (PWM-scaled values, 50 Hz).
 - **Gains Report (`G`)**: `G,kp1,ki1,kd1,kp2,ki2,kd2,mstep,ffi,ffc,ffg` (On request/update).
