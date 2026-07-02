@@ -116,8 +116,9 @@
     },
     "T": {
       "name": "TPoint",
-      "description": "Cartesian path tracking sample (50 Hz, desired vs actual position in mm)",
+      "description": "Cartesian path tracking sample (50 Hz, desired vs actual position in mm). Carries the same millis() timebase as D/E/F so the HMI can detect dropped/delayed frames and time-align streams.",
       "fields": [
+        { "name": "t", "type": "uint32_t", "tsType": "number", "precision": 0, "description": "Timestamp in milliseconds" },
         { "name": "xi", "type": "float", "tsType": "number", "precision": 3, "description": "Desired/ideal X coordinate (mm)" },
         { "name": "yi", "type": "float", "tsType": "number", "precision": 3, "description": "Desired/ideal Y coordinate (mm)" },
         { "name": "xa", "type": "float", "tsType": "number", "precision": 3, "description": "Actual measured X coordinate (mm)" },

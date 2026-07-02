@@ -18,6 +18,7 @@
 #include "trajectory/trajectory.h"
 #include "scheduler/scheduler.h"
 #include "comms/serial_protocol.h"
+#include "comms/telemetry_autogen.h"
 
 using namespace RobotState;
 using namespace TrajState;
@@ -206,13 +207,14 @@ void loop() {
     Serial.print(omega2_raw_out,  4);              Serial.print(",");
     Serial.println(integral2,     4);
 
-    // [T] Cartesian tracking — carries the same now_ms timebase as E/F so the
-    // HMI can detect dropped/delayed frames and time-align against D samples.
-    Serial.print("T,");
-    Serial.print(now_ms);                  Serial.print(",");
-    Serial.print(traj_x_cmd * 1000.0f, 3); Serial.print(",");
-    Serial.print(traj_y_cmd * 1000.0f, 3); Serial.print(",");
-    Serial.print(x_act * 1000.0f,      3); Serial.print(",");
-    Serial.println(y_act * 1000.0f,    3);
+    // [T] Cartesian tracking — schema-generated format (shared/telemetry).
+    // Carries the same now_ms timebase as E/F so the HMI can detect
+    // dropped/delayed frames and time-align against D samples.
+    char tline[80];
+    int tlen = formatTPointPacket(tline, sizeof(tline),
+                                  now_ms,
+                                  traj_x_cmd * 1000.0f, traj_y_cmd * 1000.0f,
+                                  x_act * 1000.0f,      y_act * 1000.0f);
+    if (tlen > 0) Serial.write((const uint8_t *)tline, tlen);
   }
 }

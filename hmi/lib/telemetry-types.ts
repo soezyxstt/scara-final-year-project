@@ -302,9 +302,11 @@ export function parseESample(parts: (string | number)[]): ESample {
 }
 
 /**
- * Cartesian path tracking sample (50 Hz, desired vs actual position in mm)
+ * Cartesian path tracking sample (50 Hz, desired vs actual position in mm). Carries the same millis() timebase as D/E/F so the HMI can detect dropped/delayed frames and time-align streams.
  */
 export interface TPoint {
+  /** Timestamp in milliseconds */
+  t: number
   /** Desired/ideal X coordinate (mm) */
   xi: number
   /** Desired/ideal Y coordinate (mm) */
@@ -317,10 +319,11 @@ export interface TPoint {
 
 export function parseTPoint(parts: (string | number)[]): TPoint {
   return {
-    xi: Number(parts[1] ?? 0) as number,
-    yi: Number(parts[2] ?? 0) as number,
-    xa: Number(parts[3] ?? 0) as number,
-    ya: Number(parts[4] ?? 0) as number,
+    t: Number(parts[1] ?? 0) as number,
+    xi: Number(parts[2] ?? 0) as number,
+    yi: Number(parts[3] ?? 0) as number,
+    xa: Number(parts[4] ?? 0) as number,
+    ya: Number(parts[5] ?? 0) as number,
   }
 }
 

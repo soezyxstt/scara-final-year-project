@@ -43,10 +43,10 @@ inline int formatESamplePacket(char* buf, size_t size, uint32_t t, float p1_out,
 }
 
 // Telemetry tag 'T': TPoint
-#define TELEMETRY_T_FORMAT "T,%.3f,%.3f,%.3f,%.3f\n"
+#define TELEMETRY_T_FORMAT "T,%lu,%.3f,%.3f,%.3f,%.3f\n"
 
-inline int formatTPointPacket(char* buf, size_t size, float xi, float yi, float xa, float ya) {
-  return snprintf(buf, size, TELEMETRY_T_FORMAT, xi, yi, xa, ya);
+inline int formatTPointPacket(char* buf, size_t size, uint32_t t, float xi, float yi, float xa, float ya) {
+  return snprintf(buf, size, TELEMETRY_T_FORMAT, t, xi, yi, xa, ya);
 }
 
 // Telemetry tag 'M': MoveStart
