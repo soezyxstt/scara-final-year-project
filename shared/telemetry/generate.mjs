@@ -50,6 +50,7 @@ function run() {
     tsContent += `}\n\n`;
 
     // Parser function
+    const hasStringField = packet.fields.some(f => f.tsType === 'string');
     tsContent += `export function parse${packet.name}(parts: (string | number)[]): ${packet.name} {\n`;
     tsContent += `  return {\n`;
     packet.fields.forEach((field, index) => {
@@ -57,6 +58,8 @@ function run() {
       const partAccess = `parts[${index + 1}]`;
       if (field.tsType === 'boolean') {
         tsContent += `    ${field.name}: Boolean(Number(${partAccess})),\n`;
+      } else if (field.tsType === 'string') {
+        tsContent += `    ${field.name}: String(${partAccess} ?? '') as ${field.tsType},\n`;
       } else {
         tsContent += `    ${field.name}: Number(${partAccess} ?? 0) as ${field.tsType},\n`;
       }

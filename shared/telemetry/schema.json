@@ -5,7 +5,7 @@
   "packets": {
     "D": {
       "name": "DSample",
-      "description": "Real-time dynamic telemetry loop packet (500 Hz inside firmware, downsampled to 50 Hz on HMI)",
+      "description": "Real-time dynamic telemetry loop packet (500 Hz ring buffer inside firmware, drained at ~100 Hz, downsampled to 50 Hz on HMI)",
       "fields": [
         { "name": "t", "type": "uint32_t", "tsType": "number", "precision": 0, "description": "Timestamp in milliseconds" },
         { "name": "th1", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 1 actual position (rad)" },
@@ -25,8 +25,8 @@
         { "name": "i1_out", "type": "float", "tsType": "number", "precision": 4, "description": "J1 integral term output (effort units, same scale as u1_total)" },
         { "name": "d1_out", "type": "float", "tsType": "number", "precision": 4, "description": "J1 derivative term output (effort units, same scale as u1_total)" },
         { "name": "ff1_contrib", "type": "float", "tsType": "number", "precision": 4, "description": "J1 CTC feedforward contribution (effort units, same scale as u1_total)" },
-        { "name": "v1_enc", "type": "float", "tsType": "number", "precision": 4, "description": "Joint 1 velocity estimated from encoder (rad/s)" },
-        { "name": "enc_count", "type": "int", "tsType": "number", "precision": 0, "description": "Joint 1 raw encoder counts" }
+        { "name": "v1_enc", "type": "float", "tsType": "number", "precision": 3, "description": "Joint 1 velocity estimated from encoder (rad/s) — currently unused in firmware" },
+        { "name": "enc_count", "type": "int", "tsType": "number", "precision": 0, "description": "Joint 1 raw encoder counts — currently unused in firmware" }
       ]
     },
     "G": {
@@ -49,8 +49,8 @@
       "name": "AdvParams",
       "description": "Advanced physical limits, filter settings, and deadband thresholds",
       "fields": [
-        { "name": "vmax", "type": "float", "tsType": "number", "precision": 3, "description": "Maximum velocity (rad/s)" },
-        { "name": "amax", "type": "float", "tsType": "number", "precision": 3, "description": "Maximum acceleration (rad/s^2)" },
+        { "name": "vmax", "type": "float", "tsType": "number", "precision": 3, "description": "Maximum Cartesian velocity (m/s)" },
+        { "name": "amax", "type": "float", "tsType": "number", "precision": 3, "description": "Maximum Cartesian acceleration (m/s^2)" },
         { "name": "cfreq", "type": "int", "tsType": "number", "precision": 0, "description": "Control loop run frequency (Hz)" },
         { "name": "u1max", "type": "float", "tsType": "number", "precision": 2, "description": "Maximum torque limit" },
         { "name": "fzt", "type": "float", "tsType": "number", "precision": 4, "description": "Fractional zero threshold" },
@@ -82,6 +82,107 @@
         { "name": "kv_vel", "type": "float", "tsType": "number", "precision": 6, "description": "Velocity feedforward gain (fraction of U1_MAX per rad/s)" },
         { "name": "vff_max_frac", "type": "float", "tsType": "number", "precision": 4, "description": "Velocity feedforward max clamp (fraction of U1_MAX)" },
         { "name": "vff_dv_max", "type": "float", "tsType": "number", "precision": 4, "description": "Velocity feedforward rate limit per tick (fraction of U1_MAX)" }
+      ]
+    },
+    "F": {
+      "name": "FSample",
+      "description": "CTC feedforward decomposition packet (50 Hz, emitted by firmware during moves)",
+      "fields": [
+        { "name": "t", "type": "uint32_t", "tsType": "number", "precision": 0, "description": "Timestamp in milliseconds" },
+        { "name": "inertia1", "type": "float", "tsType": "number", "precision": 4, "description": "J1 inertia feedforward torque (N·m)" },
+        { "name": "coriolis1", "type": "float", "tsType": "number", "precision": 4, "description": "J1 Coriolis/centrifugal feedforward torque (N·m)" },
+        { "name": "gravity1", "type": "float", "tsType": "number", "precision": 4, "description": "J1 gravity compensation torque (N·m)" },
+        { "name": "inertia2", "type": "float", "tsType": "number", "precision": 4, "description": "J2 inertia feedforward torque (N·m)" },
+        { "name": "coriolis2", "type": "float", "tsType": "number", "precision": 4, "description": "J2 Coriolis/centrifugal feedforward torque (N·m)" },
+        { "name": "gravity2", "type": "float", "tsType": "number", "precision": 4, "description": "J2 gravity compensation torque (N·m)" },
+        { "name": "ff1_contrib", "type": "float", "tsType": "number", "precision": 4, "description": "Total J1 feedforward contribution after blending (effort units)" },
+        { "name": "u1_total", "type": "float", "tsType": "number", "precision": 4, "description": "Total J1 control effort (PID + FF combined)" },
+        { "name": "integral1", "type": "float", "tsType": "number", "precision": 4, "description": "J1 integrator windup buffer" },
+        { "name": "delta_omega_ff", "type": "float", "tsType": "number", "precision": 4, "description": "J2 CTC FF converted to velocity increment (rad/s)" },
+        { "name": "omega2_raw", "type": "float", "tsType": "number", "precision": 4, "description": "J2 raw velocity before rate limiting (rad/s)" },
+        { "name": "integral2", "type": "float", "tsType": "number", "precision": 4, "description": "J2 integrator windup buffer" }
+      ]
+    },
+    "E": {
+      "name": "ESample",
+      "description": "PID effort breakdown and loop timing packet (50 Hz)",
+      "fields": [
+        { "name": "t", "type": "uint32_t", "tsType": "number", "precision": 0, "description": "Timestamp in milliseconds" },
+        { "name": "p1_out", "type": "float", "tsType": "number", "precision": 4, "description": "J1 proportional term scaled to PWM units (×255/U1_MAX)" },
+        { "name": "i1_out", "type": "float", "tsType": "number", "precision": 4, "description": "J1 integral term scaled to PWM units" },
+        { "name": "d1_out", "type": "float", "tsType": "number", "precision": 4, "description": "J1 derivative term scaled to PWM units" },
+        { "name": "loop_duration_us", "type": "uint32_t", "tsType": "number", "precision": 0, "description": "Microcontroller loop execution time (microseconds)" }
+      ]
+    },
+    "T": {
+      "name": "TPoint",
+      "description": "Cartesian path tracking sample (50 Hz, desired vs actual position in mm)",
+      "fields": [
+        { "name": "xi", "type": "float", "tsType": "number", "precision": 3, "description": "Desired/ideal X coordinate (mm)" },
+        { "name": "yi", "type": "float", "tsType": "number", "precision": 3, "description": "Desired/ideal Y coordinate (mm)" },
+        { "name": "xa", "type": "float", "tsType": "number", "precision": 3, "description": "Actual measured X coordinate (mm)" },
+        { "name": "ya", "type": "float", "tsType": "number", "precision": 3, "description": "Actual measured Y coordinate (mm)" }
+      ]
+    },
+    "M": {
+      "name": "MoveStart",
+      "description": "Move start packet — emitted once per trajectory, triggers HMI buffer clear and recording state",
+      "fields": [
+        { "name": "x0", "type": "float", "tsType": "number", "precision": 3, "description": "Start X coordinate (mm)" },
+        { "name": "y0", "type": "float", "tsType": "number", "precision": 3, "description": "Start Y coordinate (mm)" },
+        { "name": "xf", "type": "float", "tsType": "number", "precision": 3, "description": "Target X coordinate (mm)" },
+        { "name": "yf", "type": "float", "tsType": "number", "precision": 3, "description": "Target Y coordinate (mm)" }
+      ]
+    },
+    "MC": {
+      "name": "MoveContinue",
+      "description": "Move continuation for L-shape second leg — same format as M but signals HMI to NOT clear buffers",
+      "fields": [
+        { "name": "x0", "type": "float", "tsType": "number", "precision": 3, "description": "Intermediate start X coordinate (mm)" },
+        { "name": "y0", "type": "float", "tsType": "number", "precision": 3, "description": "Intermediate start Y coordinate (mm)" },
+        { "name": "xf", "type": "float", "tsType": "number", "precision": 3, "description": "Target X coordinate (mm)" },
+        { "name": "yf", "type": "float", "tsType": "number", "precision": 3, "description": "Target Y coordinate (mm)" }
+      ]
+    },
+    "S": {
+      "name": "MoveDone",
+      "description": "Move done / settled packet — emitted once when trajectory completes and settle condition is met",
+      "fields": [
+        { "name": "xf", "type": "float", "tsType": "number", "precision": 3, "description": "Final settled X coordinate (mm)" },
+        { "name": "yf", "type": "float", "tsType": "number", "precision": 3, "description": "Final settled Y coordinate (mm)" }
+      ]
+    },
+    "P": {
+      "name": "Position",
+      "description": "Position heartbeat — emitted on boot and in response to getgains",
+      "fields": [
+        { "name": "x", "type": "float", "tsType": "number", "precision": 3, "description": "Current X coordinate from forward kinematics (mm)" },
+        { "name": "y", "type": "float", "tsType": "number", "precision": 3, "description": "Current Y coordinate from forward kinematics (mm)" },
+        { "name": "th1", "type": "float", "tsType": "number", "precision": 4, "description": "Joint 1 angle (rad)" },
+        { "name": "th2", "type": "float", "tsType": "number", "precision": 4, "description": "Joint 2 angle (rad)" }
+      ]
+    },
+    "Q": {
+      "name": "QueueStatus",
+      "description": "Trajectory queue status — emitted when pending move state changes",
+      "fields": [
+        { "name": "pending", "type": "int", "tsType": "number", "precision": 0, "description": "1 if a move is queued, 0 otherwise" },
+        { "name": "pending_x", "type": "float", "tsType": "number", "precision": 1, "description": "Queued trajectory destination X (mm)" },
+        { "name": "pending_y", "type": "float", "tsType": "number", "precision": 1, "description": "Queued trajectory destination Y (mm)" }
+      ]
+    },
+    "X": {
+      "name": "Mode",
+      "description": "Operating mode indicator — emitted on every mode change",
+      "fields": [
+        { "name": "mode", "type": "string", "tsType": "string", "precision": 0, "description": "Mode name: IDLE | SCARA | ZN | TEST" }
+      ]
+    },
+    "ESTOP": {
+      "name": "EStop",
+      "description": "Emergency stop status — emitted on estop/resume",
+      "fields": [
+        { "name": "active", "type": "int", "tsType": "number", "precision": 0, "description": "1 if emergency stop is active, 0 if cleared" }
       ]
     }
   }

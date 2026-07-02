@@ -490,17 +490,21 @@ T,xi,yi,xa,ya
 *   `ya`: Float. Actual measured Y coordinate (mm).
 
 #### 4. Detailed Joint Telemetry Sample (`D`)
-High-frequency payload (500 Hz from firmware, downsampled to 50 Hz for main charts). Angles in radians:
+High-frequency payload (500 Hz ring buffer in firmware, drained at ~100 Hz, downsampled to 50 Hz for main charts). Angles in radians:
 ```text
-D,t,th1,th2,th1d,th2d,dth1,dth2,dth1d,dth2d,pwm1,th1raw,th2raw
+D,t,th1,th2,th1d,th2d,v1,v2,v1d,v2d,pwm1,vff1,th1_raw,th2_raw,u1_total,p1_out,i1_out,d1_out,ff1_contrib
 ```
 *   `t`: Timestamp (ms).
 *   `th1`, `th2`: Measured joint angles (rad).
 *   `th1d`, `th2d`: Desired joint angles (rad).
-*   `dth1`, `dth2`: Actual angular velocities (rad/s).
-*   `dth1d`, `dth2d`: Desired angular velocities (rad/s).
+*   `v1`, `v2`: Actual angular velocities (rad/s) — from TD or finite-difference.
+*   `v1d`, `v2d`: Desired angular velocities (rad/s) — from Jacobian-resolved rate control.
 *   `pwm1`: J1 control output ($[-255, 255]$).
-*   `th1raw`, `th2raw`: Unfiltered ADC angles (rad).
+*   `vff1`: Velocity feedforward contribution (fraction of U1_MAX).
+*   `th1_raw`, `th2_raw`: Unfiltered ADC angles (rad).
+*   `u1_total`: Total J1 control effort before PWM mapping (U1_MAX scale).
+*   `p1_out`, `i1_out`, `d1_out`: J1 PID term splits (effort units).
+*   `ff1_contrib`: J1 CTC feedforward contribution (effort units).
 *   Joint errors `e1`, `e2` are computed by the HMI as `th1d - th1`, `th2d - th2`.
 *   On `/zn` and `/test` routes, every D sample is also dispatched as a `zn_sample` window event (converted to degrees) for Rest Analysis / ZN charts.
 

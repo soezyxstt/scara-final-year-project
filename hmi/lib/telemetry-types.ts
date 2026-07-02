@@ -4,7 +4,7 @@
 // =========================================================================
 
 /**
- * Real-time dynamic telemetry loop packet (500 Hz inside firmware, downsampled to 50 Hz on HMI)
+ * Real-time dynamic telemetry loop packet (500 Hz ring buffer inside firmware, drained at ~100 Hz, downsampled to 50 Hz on HMI)
  */
 export interface DSample {
   /** Timestamp in milliseconds */
@@ -43,9 +43,9 @@ export interface DSample {
   d1_out: number
   /** J1 CTC feedforward contribution (effort units, same scale as u1_total) */
   ff1_contrib: number
-  /** Joint 1 velocity estimated from encoder (rad/s) */
+  /** Joint 1 velocity estimated from encoder (rad/s) — currently unused in firmware */
   v1_enc: number
-  /** Joint 1 raw encoder counts */
+  /** Joint 1 raw encoder counts — currently unused in firmware */
   enc_count: number
 }
 
@@ -119,9 +119,9 @@ export function parseGains(parts: (string | number)[]): Gains {
  * Advanced physical limits, filter settings, and deadband thresholds
  */
 export interface AdvParams {
-  /** Maximum velocity (rad/s) */
+  /** Maximum Cartesian velocity (m/s) */
   vmax: number
-  /** Maximum acceleration (rad/s^2) */
+  /** Maximum Cartesian acceleration (m/s^2) */
   amax: number
   /** Control loop run frequency (Hz) */
   cfreq: number
@@ -222,6 +222,239 @@ export function parseAdvParams(parts: (string | number)[]): AdvParams {
     kv_vel: Number(parts[31] ?? 0) as number,
     vff_max_frac: Number(parts[32] ?? 0) as number,
     vff_dv_max: Number(parts[33] ?? 0) as number,
+  }
+}
+
+/**
+ * CTC feedforward decomposition packet (50 Hz, emitted by firmware during moves)
+ */
+export interface FSample {
+  /** Timestamp in milliseconds */
+  t: number
+  /** J1 inertia feedforward torque (N·m) */
+  inertia1: number
+  /** J1 Coriolis/centrifugal feedforward torque (N·m) */
+  coriolis1: number
+  /** J1 gravity compensation torque (N·m) */
+  gravity1: number
+  /** J2 inertia feedforward torque (N·m) */
+  inertia2: number
+  /** J2 Coriolis/centrifugal feedforward torque (N·m) */
+  coriolis2: number
+  /** J2 gravity compensation torque (N·m) */
+  gravity2: number
+  /** Total J1 feedforward contribution after blending (effort units) */
+  ff1_contrib: number
+  /** Total J1 control effort (PID + FF combined) */
+  u1_total: number
+  /** J1 integrator windup buffer */
+  integral1: number
+  /** J2 CTC FF converted to velocity increment (rad/s) */
+  delta_omega_ff: number
+  /** J2 raw velocity before rate limiting (rad/s) */
+  omega2_raw: number
+  /** J2 integrator windup buffer */
+  integral2: number
+}
+
+export function parseFSample(parts: (string | number)[]): FSample {
+  return {
+    t: Number(parts[1] ?? 0) as number,
+    inertia1: Number(parts[2] ?? 0) as number,
+    coriolis1: Number(parts[3] ?? 0) as number,
+    gravity1: Number(parts[4] ?? 0) as number,
+    inertia2: Number(parts[5] ?? 0) as number,
+    coriolis2: Number(parts[6] ?? 0) as number,
+    gravity2: Number(parts[7] ?? 0) as number,
+    ff1_contrib: Number(parts[8] ?? 0) as number,
+    u1_total: Number(parts[9] ?? 0) as number,
+    integral1: Number(parts[10] ?? 0) as number,
+    delta_omega_ff: Number(parts[11] ?? 0) as number,
+    omega2_raw: Number(parts[12] ?? 0) as number,
+    integral2: Number(parts[13] ?? 0) as number,
+  }
+}
+
+/**
+ * PID effort breakdown and loop timing packet (50 Hz)
+ */
+export interface ESample {
+  /** Timestamp in milliseconds */
+  t: number
+  /** J1 proportional term scaled to PWM units (×255/U1_MAX) */
+  p1_out: number
+  /** J1 integral term scaled to PWM units */
+  i1_out: number
+  /** J1 derivative term scaled to PWM units */
+  d1_out: number
+  /** Microcontroller loop execution time (microseconds) */
+  loop_duration_us: number
+}
+
+export function parseESample(parts: (string | number)[]): ESample {
+  return {
+    t: Number(parts[1] ?? 0) as number,
+    p1_out: Number(parts[2] ?? 0) as number,
+    i1_out: Number(parts[3] ?? 0) as number,
+    d1_out: Number(parts[4] ?? 0) as number,
+    loop_duration_us: Number(parts[5] ?? 0) as number,
+  }
+}
+
+/**
+ * Cartesian path tracking sample (50 Hz, desired vs actual position in mm)
+ */
+export interface TPoint {
+  /** Desired/ideal X coordinate (mm) */
+  xi: number
+  /** Desired/ideal Y coordinate (mm) */
+  yi: number
+  /** Actual measured X coordinate (mm) */
+  xa: number
+  /** Actual measured Y coordinate (mm) */
+  ya: number
+}
+
+export function parseTPoint(parts: (string | number)[]): TPoint {
+  return {
+    xi: Number(parts[1] ?? 0) as number,
+    yi: Number(parts[2] ?? 0) as number,
+    xa: Number(parts[3] ?? 0) as number,
+    ya: Number(parts[4] ?? 0) as number,
+  }
+}
+
+/**
+ * Move start packet — emitted once per trajectory, triggers HMI buffer clear and recording state
+ */
+export interface MoveStart {
+  /** Start X coordinate (mm) */
+  x0: number
+  /** Start Y coordinate (mm) */
+  y0: number
+  /** Target X coordinate (mm) */
+  xf: number
+  /** Target Y coordinate (mm) */
+  yf: number
+}
+
+export function parseMoveStart(parts: (string | number)[]): MoveStart {
+  return {
+    x0: Number(parts[1] ?? 0) as number,
+    y0: Number(parts[2] ?? 0) as number,
+    xf: Number(parts[3] ?? 0) as number,
+    yf: Number(parts[4] ?? 0) as number,
+  }
+}
+
+/**
+ * Move continuation for L-shape second leg — same format as M but signals HMI to NOT clear buffers
+ */
+export interface MoveContinue {
+  /** Intermediate start X coordinate (mm) */
+  x0: number
+  /** Intermediate start Y coordinate (mm) */
+  y0: number
+  /** Target X coordinate (mm) */
+  xf: number
+  /** Target Y coordinate (mm) */
+  yf: number
+}
+
+export function parseMoveContinue(parts: (string | number)[]): MoveContinue {
+  return {
+    x0: Number(parts[1] ?? 0) as number,
+    y0: Number(parts[2] ?? 0) as number,
+    xf: Number(parts[3] ?? 0) as number,
+    yf: Number(parts[4] ?? 0) as number,
+  }
+}
+
+/**
+ * Move done / settled packet — emitted once when trajectory completes and settle condition is met
+ */
+export interface MoveDone {
+  /** Final settled X coordinate (mm) */
+  xf: number
+  /** Final settled Y coordinate (mm) */
+  yf: number
+}
+
+export function parseMoveDone(parts: (string | number)[]): MoveDone {
+  return {
+    xf: Number(parts[1] ?? 0) as number,
+    yf: Number(parts[2] ?? 0) as number,
+  }
+}
+
+/**
+ * Position heartbeat — emitted on boot and in response to getgains
+ */
+export interface Position {
+  /** Current X coordinate from forward kinematics (mm) */
+  x: number
+  /** Current Y coordinate from forward kinematics (mm) */
+  y: number
+  /** Joint 1 angle (rad) */
+  th1: number
+  /** Joint 2 angle (rad) */
+  th2: number
+}
+
+export function parsePosition(parts: (string | number)[]): Position {
+  return {
+    x: Number(parts[1] ?? 0) as number,
+    y: Number(parts[2] ?? 0) as number,
+    th1: Number(parts[3] ?? 0) as number,
+    th2: Number(parts[4] ?? 0) as number,
+  }
+}
+
+/**
+ * Trajectory queue status — emitted when pending move state changes
+ */
+export interface QueueStatus {
+  /** 1 if a move is queued, 0 otherwise */
+  pending: number
+  /** Queued trajectory destination X (mm) */
+  pending_x: number
+  /** Queued trajectory destination Y (mm) */
+  pending_y: number
+}
+
+export function parseQueueStatus(parts: (string | number)[]): QueueStatus {
+  return {
+    pending: Number(parts[1] ?? 0) as number,
+    pending_x: Number(parts[2] ?? 0) as number,
+    pending_y: Number(parts[3] ?? 0) as number,
+  }
+}
+
+/**
+ * Operating mode indicator — emitted on every mode change
+ */
+export interface Mode {
+  /** Mode name: IDLE | SCARA | ZN | TEST */
+  mode: string
+}
+
+export function parseMode(parts: (string | number)[]): Mode {
+  return {
+    mode: String(parts[1] ?? '') as string,
+  }
+}
+
+/**
+ * Emergency stop status — emitted on estop/resume
+ */
+export interface EStop {
+  /** 1 if emergency stop is active, 0 if cleared */
+  active: number
+}
+
+export function parseEStop(parts: (string | number)[]): EStop {
+  return {
+    active: Number(parts[1] ?? 0) as number,
   }
 }
 

@@ -8,7 +8,7 @@
 #include <Arduino.h>
 
 // Telemetry tag 'D': DSample
-#define TELEMETRY_D_FORMAT "D,%lu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%d\n"
+#define TELEMETRY_D_FORMAT "D,%lu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.4f,%.4f,%.4f,%.4f,%.4f,%.3f,%d\n"
 
 inline int formatDSamplePacket(char* buf, size_t size, uint32_t t, float th1, float th2, float th1d, float th2d, float v1, float v2, float v1d, float v2d, int pwm1, float vff1, float th1_raw, float th2_raw, float u1_total, float p1_out, float i1_out, float d1_out, float ff1_contrib, float v1_enc, int enc_count) {
   return snprintf(buf, size, TELEMETRY_D_FORMAT, t, th1, th2, th1d, th2d, v1, v2, v1d, v2d, pwm1, vff1, th1_raw, th2_raw, u1_total, p1_out, i1_out, d1_out, ff1_contrib, v1_enc, enc_count);
@@ -26,5 +26,75 @@ inline int formatGainsPacket(char* buf, size_t size, float kp1, float ki1, float
 
 inline int formatAdvParamsPacket(char* buf, size_t size, float vmax, float amax, int cfreq, float u1max, float fzt, float fztk, int kspen, int pwm_db, int dbmen, float dbens, float td1r, float td2r, float td1h, float ddth, float dben, float dbrel, float dbvel, float hskp, float hskd, float idecay, float taunom, float m22ref, float alpha_tilt, int td_enabled, int trap_enabled, float ki2_gate, float db2en, float db2rel, float err_dz, float integral_freeze_thresh, float kv_vel, float vff_max_frac, float vff_dv_max) {
   return snprintf(buf, size, TELEMETRY_K_FORMAT, vmax, amax, cfreq, u1max, fzt, fztk, kspen, pwm_db, dbmen, dbens, td1r, td2r, td1h, ddth, dben, dbrel, dbvel, hskp, hskd, idecay, taunom, m22ref, alpha_tilt, td_enabled, trap_enabled, ki2_gate, db2en, db2rel, err_dz, integral_freeze_thresh, kv_vel, vff_max_frac, vff_dv_max);
+}
+
+// Telemetry tag 'F': FSample
+#define TELEMETRY_F_FORMAT "F,%lu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n"
+
+inline int formatFSamplePacket(char* buf, size_t size, uint32_t t, float inertia1, float coriolis1, float gravity1, float inertia2, float coriolis2, float gravity2, float ff1_contrib, float u1_total, float integral1, float delta_omega_ff, float omega2_raw, float integral2) {
+  return snprintf(buf, size, TELEMETRY_F_FORMAT, t, inertia1, coriolis1, gravity1, inertia2, coriolis2, gravity2, ff1_contrib, u1_total, integral1, delta_omega_ff, omega2_raw, integral2);
+}
+
+// Telemetry tag 'E': ESample
+#define TELEMETRY_E_FORMAT "E,%lu,%.4f,%.4f,%.4f,%lu\n"
+
+inline int formatESamplePacket(char* buf, size_t size, uint32_t t, float p1_out, float i1_out, float d1_out, uint32_t loop_duration_us) {
+  return snprintf(buf, size, TELEMETRY_E_FORMAT, t, p1_out, i1_out, d1_out, loop_duration_us);
+}
+
+// Telemetry tag 'T': TPoint
+#define TELEMETRY_T_FORMAT "T,%.3f,%.3f,%.3f,%.3f\n"
+
+inline int formatTPointPacket(char* buf, size_t size, float xi, float yi, float xa, float ya) {
+  return snprintf(buf, size, TELEMETRY_T_FORMAT, xi, yi, xa, ya);
+}
+
+// Telemetry tag 'M': MoveStart
+#define TELEMETRY_M_FORMAT "M,%.3f,%.3f,%.3f,%.3f\n"
+
+inline int formatMoveStartPacket(char* buf, size_t size, float x0, float y0, float xf, float yf) {
+  return snprintf(buf, size, TELEMETRY_M_FORMAT, x0, y0, xf, yf);
+}
+
+// Telemetry tag 'MC': MoveContinue
+#define TELEMETRY_MC_FORMAT "MC,%.3f,%.3f,%.3f,%.3f\n"
+
+inline int formatMoveContinuePacket(char* buf, size_t size, float x0, float y0, float xf, float yf) {
+  return snprintf(buf, size, TELEMETRY_MC_FORMAT, x0, y0, xf, yf);
+}
+
+// Telemetry tag 'S': MoveDone
+#define TELEMETRY_S_FORMAT "S,%.3f,%.3f\n"
+
+inline int formatMoveDonePacket(char* buf, size_t size, float xf, float yf) {
+  return snprintf(buf, size, TELEMETRY_S_FORMAT, xf, yf);
+}
+
+// Telemetry tag 'P': Position
+#define TELEMETRY_P_FORMAT "P,%.3f,%.3f,%.4f,%.4f\n"
+
+inline int formatPositionPacket(char* buf, size_t size, float x, float y, float th1, float th2) {
+  return snprintf(buf, size, TELEMETRY_P_FORMAT, x, y, th1, th2);
+}
+
+// Telemetry tag 'Q': QueueStatus
+#define TELEMETRY_Q_FORMAT "Q,%d,%.1f,%.1f\n"
+
+inline int formatQueueStatusPacket(char* buf, size_t size, int pending, float pending_x, float pending_y) {
+  return snprintf(buf, size, TELEMETRY_Q_FORMAT, pending, pending_x, pending_y);
+}
+
+// Telemetry tag 'X': Mode
+#define TELEMETRY_X_FORMAT "X,%s\n"
+
+inline int formatModePacket(char* buf, size_t size, const char* mode) {
+  return snprintf(buf, size, TELEMETRY_X_FORMAT, mode);
+}
+
+// Telemetry tag 'ESTOP': EStop
+#define TELEMETRY_ESTOP_FORMAT "ESTOP,%d\n"
+
+inline int formatEStopPacket(char* buf, size_t size, int active) {
+  return snprintf(buf, size, TELEMETRY_ESTOP_FORMAT, active);
 }
 

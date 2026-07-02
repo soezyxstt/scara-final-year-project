@@ -28,9 +28,6 @@ namespace RobotState {
   float dTheta1_f  = 0.0f;
   float dTheta2_f  = 0.0f;
 
-  volatile long J1_enc_count = 0;
-  float J1_velocity_enc = 0.0f;
-
   float integral1  = 0.0f;
   float integral2  = 0.0f;
 
@@ -186,16 +183,15 @@ namespace Params {
   float DTERM_MAX        = 0.4f;
 
   float KP_HOLD_SCALE = 0.60f;
-  float KD_HOLD_SCALE = 0.00f;
+  float KD_HOLD_SCALE = 2.00f;
 
   float INTEGRAL_DECAY = 0.004f;
 
   float DDTH_MAX = 2.0f;
 
   // Nominal torque used to normalise feedforward → fraction of `U1_MAX`.
-  // Use the real stall torque (datasheet-derived) so a fraction of 1.0 maps to
-  // the motor's actual max torque → physically faithful FF.
-  float TAU_NOM_J1 = TAU_STALL_J1; // ≈ 1.61 Nm
+  // Default to the computed stall torque as a safer physical reference.
+  float TAU_NOM_J1 = TAU_STALL_J1 * 2.0f; // ≈ 0.32 Nm
   // Nominal M22 reference: link mass contribution + reflected inertia
   float M22_REF = m2 * d2 * d2 + Izz2;
 

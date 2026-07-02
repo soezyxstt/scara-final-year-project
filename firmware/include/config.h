@@ -57,7 +57,7 @@ constexpr float g_accel   = 9.81f;
 //  MOTOR & TRANSMISSION CONSTANTS
 // ------------------------------------------------------------
 
-constexpr float Kt      = 6.005e-3f;   // N·m/A (JGA25-370: 8.2 kg·cm stall @ 1.3 A, 103:1)
+constexpr float Kt      = 6.005e-4f;   // N·m/A
 constexpr float Ra      = 9.23f;        // Ω
 constexpr float V_nom   = 12.0f;        // V
 constexpr float DC_gear = 103.0f;       // internal gear ratio
@@ -72,7 +72,7 @@ constexpr float Izz1 = Izz1_link + N_eff1 * N_eff1 * Jm_DC;
 constexpr float Izz2 = Izz2_link + N_eff2 * N_eff2 * Jm_step;
 
 // Stall torque at joint 1 output [N·m]
-constexpr float TAU_STALL_J1 = Kt * (V_nom / Ra) * N_eff1;  // ≈ 1.608 Nm (0.804 @ gearbox × 2:1 belt)
+constexpr float TAU_STALL_J1 = Kt * (V_nom / Ra) * N_eff1;  // ≈ 0.1607
 
 // ------------------------------------------------------------
 //  STEPPER CONSTANTS

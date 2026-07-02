@@ -46,10 +46,6 @@ namespace RobotState {
   extern float dTheta1_f;
   extern float dTheta2_f;
 
-  // J1 Encoder states
-  extern volatile long J1_enc_count;
-  extern float J1_velocity_enc;
-
   // Integrators
   extern float integral1;
   extern float integral2;
