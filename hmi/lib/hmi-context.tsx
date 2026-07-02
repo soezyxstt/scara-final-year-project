@@ -548,11 +548,22 @@ export function useHMISlow() {
 }
 
 // ── Live queue refs (for zero-lag canvas rendering) ──────────────────────────
-// Bypasses the 100ms React flush cycle: canvas merges state.tBuffer + tQueueRef
-// at draw time to always show the most current data without waiting for dispatch.
+// Bypasses the 100ms React flush cycle so the canvas always sees the freshest
+// samples without waiting for dispatch.
+//
+// tQueueRef/dQueueRef are transient: flushQueues() drains them into React state
+// every 100ms. Because the React commit is async, there is a window where the
+// queue is already empty but state.tBuffer does not yet contain the flushed
+// batch — merging buffer+queue at draw time would momentarily lose ~100ms of
+// points (visible as the trace tip jumping backward). tDrawRef/dDrawRef exist
+// to close that race: they mirror the FULL current move at live rate, are only
+// reset on move start (M) or disconnect, and are what the canvas should draw
+// from during recording.
 export interface HMILiveRefs {
   tQueueRef: { current: TPoint[] }
   dQueueRef: { current: DSample[] }
+  tDrawRef: { current: TPoint[] }
+  dDrawRef: { current: DSample[] }
 }
 
 const HMILiveRefsContext = createContext<HMILiveRefs | null>(null)
@@ -569,6 +580,8 @@ function useSerial(
   dispatch: Dispatch<HMIAction>,
   tQueueRef: { current: TPoint[] },
   dQueueRef: { current: DSample[] },
+  tDrawRef: { current: TPoint[] },
+  dDrawRef: { current: DSample[] },
 ): SerialController {
   const portRef = useRef<SerialPort | null>(null)
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
@@ -681,6 +694,9 @@ function useSerial(
         case 'M': {
           flushQueues()
           sampleIdxRef.current = 0
+          // New move: the draw mirrors restart alongside the reducer's buffer reset
+          tDrawRef.current = []
+          dDrawRef.current = []
           const [, x0, y0, xf, yf] = parts.map(Number)
           const info: MoveInfo = { x0, y0, xf, yf }
           dispatch({ type: 'MOVE_START', info })
@@ -700,37 +716,42 @@ function useSerial(
           break
         }
         case 'T': {
-          // Use raw 10 Hz T packets directly from ESP32
-          const [, xi, yi, xa, ya] = parts.map(Number)
-          // Drop malformed/truncated packets so the buffer never holds
-          // undefined/NaN coordinates (which crash .toFixed in the UI).
-          if ([xi, yi, xa, ya].every(Number.isFinite)) {
-            tQueueRef.current.push({ xi, yi, xa, ya })
+          // T packets arrive at 50 Hz (TELEMETRY_MS=20 in firmware config.h).
+          // New format: T,<t_ms>,xi,yi,xa,ya — t is firmware millis(), shared
+          // with E/F/D so drops and delays are detectable. Legacy firmware
+          // sends 5 fields without t; both are accepted.
+          const nums = parts.slice(1).map(Number)
+          let point: TPoint | null = null
+          if (nums.length >= 5 && nums.slice(0, 5).every(Number.isFinite)) {
+            point = { t: nums[0], xi: nums[1], yi: nums[2], xa: nums[3], ya: nums[4] }
+          } else if (nums.length === 4 && nums.every(Number.isFinite)) {
+            point = { xi: nums[0], yi: nums[1], xa: nums[2], ya: nums[3] }
+          }
+          // Malformed/truncated packets are dropped whole so the buffer never
+          // holds undefined/NaN coordinates (which crash .toFixed in the UI).
+          if (point) {
+            tQueueRef.current.push(point)
+            if (tDrawRef.current.length >= MAX_BUFFER) tDrawRef.current.shift()
+            tDrawRef.current.push(point)
           }
           break
         }
         case 'D': {
-          const partsNum = parts.map(Number)
-          const t = partsNum[1] || 0
-          const th1 = Number.isFinite(partsNum[2]) ? partsNum[2] : 0
-          const th2 = Number.isFinite(partsNum[3]) ? partsNum[3] : 0
-          const th1d = Number.isFinite(partsNum[4]) ? partsNum[4] : th1
-          const th2d = Number.isFinite(partsNum[5]) ? partsNum[5] : th2
-          const dth1 = Number.isFinite(partsNum[6]) ? partsNum[6] : 0
-          const dth2 = Number.isFinite(partsNum[7]) ? partsNum[7] : 0
-          const dth1d = Number.isFinite(partsNum[8]) ? partsNum[8] : 0
-          const dth2d = Number.isFinite(partsNum[9]) ? partsNum[9] : 0
-          const pwm1 = Number.isFinite(partsNum[10]) ? partsNum[10] : 0
-          const vff1 = Number.isFinite(partsNum[11]) ? partsNum[11] : 0
-          const th1raw = Number.isFinite(partsNum[12]) ? partsNum[12] : th1
-          const th2raw = Number.isFinite(partsNum[13]) ? partsNum[13] : th2
-          const u1Total = Number.isFinite(partsNum[14]) ? partsNum[14] : 0
-          const p1Out = Number.isFinite(partsNum[15]) ? partsNum[15] : 0
-          const i1Out = Number.isFinite(partsNum[16]) ? partsNum[16] : 0
-          const d1Out = Number.isFinite(partsNum[17]) ? partsNum[17] : 0
-          const ff1Contrib = Number.isFinite(partsNum[18]) ? partsNum[18] : 0
-          const v1Enc = Number.isFinite(partsNum[19]) ? partsNum[19] : 0
-          const encCount = Number.isFinite(partsNum[20]) ? partsNum[20] : 0
+          // Strict validation: D carries exactly 20 numeric fields after the
+          // tag (see shared/telemetry/schema.json). A truncated or corrupted
+          // line is dropped whole — the old per-field zero-fallback let a
+          // partial line through with fabricated values, which plotted as
+          // phantom position jumps in the XY trace and charts.
+          if (parts.length < 21) break
+          const partsNum = parts.slice(1, 21).map(Number)
+          if (!partsNum.every(Number.isFinite)) break
+          const [
+            t, th1, th2, th1d, th2d,
+            dth1, dth2, dth1d, dth2d,
+            pwm1, vff1, th1raw, th2raw,
+            u1Total, p1Out, i1Out, d1Out, ff1Contrib,
+            v1Enc, encCount,
+          ] = partsNum
 
           const RAD2DEG = 180 / Math.PI
 
@@ -767,8 +788,9 @@ function useSerial(
           }
 
           // ── SCARA HMI charts (recorded into dQueueRef for batch flush) ──
-          // Downsample 500 Hz telemetry D to 50 Hz (1 sample every 10) for main HMI charts.
-          // T/F/E are sent by ESP32 at 50 Hz natively — D is aligned to match.
+          // Downsample control-rate D (500 Hz nominal, best-effort on the wire)
+          // to 1-in-10 for main HMI charts. T/F/E are sent by ESP32 at 50 Hz
+          // natively (TELEMETRY_MS=20) — D is aligned to match.
           // The ZN tuner still gets every sample via the zn_sample window event above.
           if (sampleIdxRef.current % 10 === 0) {
             const sample: DSample = {
@@ -793,39 +815,49 @@ function useSerial(
               e2,
             }
             dQueueRef.current.push(sample)
+            if (dDrawRef.current.length >= MAX_BUFFER) dDrawRef.current.shift()
+            dDrawRef.current.push(sample)
           }
           sampleIdxRef.current++
           break
         }
 
         case 'F': {
-          const [, time_ms, inertia1, coriolis1, gravity1, inertia2, coriolis2, gravity2, ff1_contrib, u1_total, integral1, delta_omega_ff, omega2_raw, integral2] = parts.map(Number)
+          // 13 numeric fields after the tag — drop truncated/corrupt lines whole
+          if (parts.length < 14) break
+          const fNums = parts.slice(1, 14).map(Number)
+          if (!fNums.every(Number.isFinite)) break
+          const [time_ms, inertia1, coriolis1, gravity1, inertia2, coriolis2, gravity2, ff1_contrib, u1_total, integral1, delta_omega_ff, omega2_raw, integral2] = fNums
           const sample: FSample = {
             t: time_ms,
-            inertia1: inertia1 ?? 0,
-            coriolis1: coriolis1 ?? 0,
-            gravity1: gravity1 ?? 0,
-            inertia2: inertia2 ?? 0,
-            coriolis2: coriolis2 ?? 0,
-            gravity2: gravity2 ?? 0,
-            ff1Contrib: ff1_contrib ?? 0,
-            u1Total: u1_total ?? 0,
-            integral1: integral1 ?? 0,
-            deltaOmegaFf: delta_omega_ff ?? 0,
-            omega2Raw: omega2_raw ?? 0,
-            integral2: integral2 ?? 0,
+            inertia1,
+            coriolis1,
+            gravity1,
+            inertia2,
+            coriolis2,
+            gravity2,
+            ff1Contrib: ff1_contrib,
+            u1Total: u1_total,
+            integral1,
+            deltaOmegaFf: delta_omega_ff,
+            omega2Raw: omega2_raw,
+            integral2,
           }
           fQueueRef.current.push(sample)
           break
         }
         case 'E': {
-          const [, time_ms, p1_out, i1_out, d1_out, loop_duration_us] = parts.map(Number)
+          // 5 numeric fields after the tag — drop truncated/corrupt lines whole
+          if (parts.length < 6) break
+          const eNums = parts.slice(1, 6).map(Number)
+          if (!eNums.every(Number.isFinite)) break
+          const [time_ms, p1_out, i1_out, d1_out, loop_duration_us] = eNums
           const sample: ESample = {
             t: time_ms,
-            p1_out: p1_out ?? 0,
-            i1_out: i1_out ?? 0,
-            d1_out: d1_out ?? 0,
-            loop_duration_us: loop_duration_us ?? 0,
+            p1_out,
+            i1_out,
+            d1_out,
+            loop_duration_us,
           }
           eQueueRef.current.push(sample)
           break
@@ -1032,6 +1064,8 @@ function useSerial(
     activeRef.current = false
     tQueueRef.current = []
     dQueueRef.current = []
+    tDrawRef.current = []
+    dDrawRef.current = []
     fQueueRef.current = []
     eQueueRef.current = []
     if (reconnTimerRef.current) {
@@ -1120,9 +1154,11 @@ export function HMIProvider({ children }: { children: ReactNode }) {
   // bypassing the 100ms React flush cycle for real-time rendering.
   const tQueueRef = useRef<TPoint[]>([])
   const dQueueRef = useRef<DSample[]>([])
-  const liveRefs = useMemo<HMILiveRefs>(() => ({ tQueueRef, dQueueRef }), [])
+  const tDrawRef = useRef<TPoint[]>([])
+  const dDrawRef = useRef<DSample[]>([])
+  const liveRefs = useMemo<HMILiveRefs>(() => ({ tQueueRef, dQueueRef, tDrawRef, dDrawRef }), [])
 
-  const serial = useSerial(dispatch, tQueueRef, dQueueRef)
+  const serial = useSerial(dispatch, tQueueRef, dQueueRef, tDrawRef, dDrawRef)
   const pathname = usePathname()
   const [currentSearch, setCurrentSearch] = useState('')
 

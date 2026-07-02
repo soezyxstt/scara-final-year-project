@@ -4,6 +4,7 @@ export type SerialStatus = 'connected' | 'reconnecting' | 'disconnected'
 export type RecordingState = 'REC' | 'IDLE' | 'WAITING'
 
 export interface TPoint {
+  t?: number  // firmware millis() — absent on legacy 5-field T packets / old saved runs
   xi: number  // ideal X mm
   yi: number  // ideal Y mm
   xa: number  // actual X mm

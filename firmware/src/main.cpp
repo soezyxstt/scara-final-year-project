@@ -225,8 +225,10 @@ void loop() {
     Serial.print(omega2_raw_out,  4);              Serial.print(",");
     Serial.println(integral2,     4);
 
-    // [T] Cartesian tracking
+    // [T] Cartesian tracking — carries the same now_ms timebase as E/F so the
+    // HMI can detect dropped/delayed frames and time-align against D samples.
     Serial.print("T,");
+    Serial.print(now_ms);                  Serial.print(",");
     Serial.print(traj_x_cmd * 1000.0f, 3); Serial.print(",");
     Serial.print(traj_y_cmd * 1000.0f, 3); Serial.print(",");
     Serial.print(x_act * 1000.0f,      3); Serial.print(",");

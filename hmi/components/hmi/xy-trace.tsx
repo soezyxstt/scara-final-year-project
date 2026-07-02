@@ -327,12 +327,18 @@ export function drawTrace(
 
   function drawPath(buf: TPoint[], ideal: boolean, alpha = 1) {
     if (buf.length < 2) return
+    // T frames nominally arrive every 20ms; a gap much larger than that means
+    // frames were dropped/stalled. Lift the pen there instead of bridging the
+    // gap with a fake straight segment.
+    const GAP_MS = 250
     ctx!.globalAlpha = alpha
     ctx!.beginPath()
     for (let i = 0; i < buf.length; i++) {
       const p = buf[i]
       const [px, py] = toPx(ideal ? p.xi : p.xa, ideal ? p.yi : p.ya)
-      if (i === 0) {
+      const prev = i > 0 ? buf[i - 1] : null
+      const gap = prev && p.t !== undefined && prev.t !== undefined && p.t - prev.t > GAP_MS
+      if (i === 0 || gap) {
         ctx!.moveTo(px, py)
       } else {
         ctx!.lineTo(px, py)
@@ -578,18 +584,21 @@ export function XYTrace() {
     return () => window.removeEventListener('hmi_config_updated', handleConfigChange)
   }, [])
 
-  // Merges committed React state with the still-pending serial queue so the
-  // canvas always draws the freshest data without waiting for the 100ms flush.
+  // During REC the canvas draws from tDrawRef/dDrawRef — live mirrors of the
+  // whole current move, updated on every parsed line. Unlike the old
+  // state.tBuffer + tQueueRef merge, these are immune to the flush race where
+  // the queue is cleared before React commits the batch (which made the trace
+  // tip momentarily lose the last ~100ms of points and visibly jump).
   const getCanvasState = useCallback((): HMIState => {
     const s = stateRef.current
     if (s.recordingState !== 'REC') return s
-    const pendingT = liveRefs.tQueueRef.current
-    const pendingD = liveRefs.dQueueRef.current
-    if (pendingT.length === 0 && pendingD.length === 0) return s
+    const liveT = liveRefs.tDrawRef.current
+    const liveD = liveRefs.dDrawRef.current
+    if (liveT.length === 0 && liveD.length === 0) return s
     return {
       ...s,
-      tBuffer: pendingT.length > 0 ? [...s.tBuffer, ...pendingT] : s.tBuffer,
-      dBuffer: pendingD.length > 0 ? [...s.dBuffer, ...pendingD] : s.dBuffer,
+      tBuffer: liveT.length > 0 ? liveT : s.tBuffer,
+      dBuffer: liveD.length > 0 ? liveD : s.dBuffer,
     }
   }, [liveRefs])
 
