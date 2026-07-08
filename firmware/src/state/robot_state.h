@@ -83,11 +83,25 @@ namespace RobotState {
   extern bool          dbtest_active;
   extern unsigned long dbtest_start_ms;
 
+  // ZN FFT recording state
+  extern bool          fft_record_active;
+  extern uint16_t      fft_record_idx;
+
   // Stepper state
   extern unsigned long last_step_us;
   extern unsigned long step_period_us;
   extern float         omega2_prev;
   extern bool          stepper2_active;
+
+  // Open-loop stepper jog (diagnostic: bypasses the J2 controller entirely)
+  extern bool          jog2_active;
+  extern unsigned long jog2_end_ms;
+  extern float         jog2_freq_hz;   // magnitude [Hz]
+  extern int           jog2_dir;       // +1 / -1
+  extern unsigned long jog2_steps_start; // step_pulse_count at jog start
+
+  // Total STEP pulses emitted since boot (proof of pulse output for diagnostics)
+  extern unsigned long step_pulse_count;
 
   // Previous velocity feedforward (J1) — used for simple rate limiting
   extern float vff1_prev;

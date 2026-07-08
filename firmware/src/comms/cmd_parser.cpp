@@ -73,6 +73,40 @@ void processSerialCommand(const char *cmd_raw) {
   }
 
   // ----------------------------------------------------------
+  // DIAGNOSTIC: open-loop stepper jog — ZN & TEST only
+  // jog2,<hz>,<ms> — signed hz sets direction, e.g. jog2,-200,2000
+  // Steps the driver at a constant rate with the J2 controller bypassed,
+  // so sensor/driver/mechanics can be verified independent of the loop.
+  // ----------------------------------------------------------
+
+  if ((op_mode == MODE_ZN || op_mode == MODE_TEST) && input.startsWith("jog2,")) {
+    if (estop_active) { Serial.println("ERR: E-STOP aktif. Kirim 'resume'."); return; }
+    if (is_moving)    { Serial.println("ERR: jog2 tidak bisa saat bergerak."); return; }
+
+    String rest = input.substring(5);
+    int    c    = rest.indexOf(',');
+    float  hz   = (c > 0 ? rest.substring(0, c) : rest).toFloat();
+    long   ms   = (c > 0) ? rest.substring(c + 1).toInt() : 1000;
+
+    float mag = constrain(fabsf(hz), STEPPER_MIN_HZ, STEPPER_MAX_HZ);
+    ms        = constrain(ms, 50L, 5000L);
+    if (hz == 0.0f) { Serial.println("ERR: jog2 butuh frekuensi != 0."); return; }
+
+    jog2_freq_hz     = mag;
+    jog2_dir         = (hz > 0.0f) ? 1 : -1;
+    jog2_end_ms      = millis() + (unsigned long)ms;
+    jog2_steps_start = step_pulse_count;
+    jog2_active      = true;
+
+    float degps = (mag / STEPS_PER_RAD) * (180.0f / PI);
+    Serial.print("INFO: jog2 ");
+    Serial.print(hz, 0);          Serial.print(" Hz (");
+    Serial.print(degps, 2);       Serial.print(" deg/s), ");
+    Serial.print(ms);             Serial.println(" ms.");
+    return;
+  }
+
+  // ----------------------------------------------------------
   // COMMANDS EXCLUSIVE TO MODE_ZN
   // ----------------------------------------------------------
 
@@ -100,6 +134,18 @@ void processSerialCommand(const char *cmd_raw) {
       PWM_DEADBAND = input.substring(3).toInt();
       Serial.print("INFO: PWM_DEADBAND="); Serial.println(PWM_DEADBAND);
       emitParams();
+      return;
+    }
+    if (input == "record_fft") {
+      fft_record_idx = 0;
+      fft_record_active = true;
+      Serial.println("INFO: ZN FFT recording started (4096 samples @ 500 Hz)");
+      return;
+    }
+    if (input == "cancel_fft") {
+      fft_record_active = false;
+      fft_record_idx = 0;
+      Serial.println("INFO: ZN FFT recording cancelled");
       return;
     }
     if (input.startsWith("move,")) {

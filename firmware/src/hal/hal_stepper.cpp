@@ -19,6 +19,7 @@ void serviceStepperPulse() {
     digitalWrite(STEP_PIN, HIGH);
     delayMicroseconds(2);
     digitalWrite(STEP_PIN, LOW);
+    step_pulse_count++;
   }
 }
 

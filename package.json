@@ -8,6 +8,7 @@
     "firmware"
   ],
   "scripts": {
+    "start": "npm start -w hmi-ta",
     "gen": "node shared/telemetry/generate.mjs",
     "dev": "npm run dev -w hmi-ta",
     "build": "npm run build -w hmi-ta",

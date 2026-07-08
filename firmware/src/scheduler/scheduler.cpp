@@ -21,6 +21,13 @@ using namespace TrajState;
 using namespace CtcState;
 using namespace Params;
 
+// FFT recording buffers
+#define FFT_RECORD_SIZE 4096
+static float fft_t1_raw[FFT_RECORD_SIZE];
+static float fft_t1_actual[FFT_RECORD_SIZE];
+static float fft_t2_raw[FFT_RECORD_SIZE];
+static float fft_t2_actual[FFT_RECORD_SIZE];
+
 // ============================================================
 //  Function pointer instances
 // ============================================================
@@ -122,6 +129,7 @@ void outputIdle() { /* noop */ }
 
 void allOutputsOff() {
   step_period_us  = 0;
+  jog2_active     = false;
   integral1       = 0.0f;
   integral2       = 0.0f;
   motor1_active   = false;
@@ -256,6 +264,11 @@ void runControlLoop() {
     bool ok = IK(x_cmd, y_cmd, elbow_config, theta1_d, theta2_d);
     if (!ok) {
       is_moving = false;
+      // Force stop motor correction on IK failure
+      theta1_d = theta1;
+      theta2_d = theta2;
+      dTheta1_d_prev_acc = 0.0f;
+      dTheta2_d_prev_acc = 0.0f;
       Serial.println("ERR: IK failed mid-trajectory — stopped.");
       emitStopPacket();
     }
@@ -300,6 +313,32 @@ void runControlLoop() {
     if (++dline_tick_div >= 5) {
       dline_tick_div = 0;
       writeDLineToBuffer();
+    }
+  }
+
+  // 8. ZN FFT recording (500 Hz timer tick)
+  if (fft_record_active) {
+    if (fft_record_idx < FFT_RECORD_SIZE) {
+      fft_t1_raw[fft_record_idx] = theta1_raw;
+      fft_t1_actual[fft_record_idx] = theta1;
+      fft_t2_raw[fft_record_idx] = theta2_raw;
+      fft_t2_actual[fft_record_idx] = theta2;
+      fft_record_idx++;
+    } else {
+      fft_record_active = false;
+      
+      // Sequential serial dump
+      Serial.println("FFT_START");
+      for (uint16_t i = 0; i < FFT_RECORD_SIZE; i++) {
+        // Format: FFT_DATA,index,t1_raw,t1_actual,t2_raw,t2_actual
+        Serial.print("FFT_DATA,");
+        Serial.print(i); Serial.print(",");
+        Serial.print(fft_t1_raw[i] * (180.0f / PI), 4); Serial.print(",");
+        Serial.print(fft_t1_actual[i] * (180.0f / PI), 4); Serial.print(",");
+        Serial.print(fft_t2_raw[i] * (180.0f / PI), 4); Serial.print(",");
+        Serial.println(fft_t2_actual[i] * (180.0f / PI), 4);
+      }
+      Serial.println("FFT_DONE");
     }
   }
 }

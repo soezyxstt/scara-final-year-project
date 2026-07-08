@@ -67,6 +67,13 @@ void drainDLineBuffer() {
   uint8_t drained = 0;
   while (dline_tail != dline_head && drained < 2) {
     DLineEntry &e = dline_buf[dline_tail];
+    // Non-blocking: if the UART TX buffer can't take the whole line, stop and
+    // retry next loop() instead of blocking here. Blocking would stall the
+    // fixed-rate control tick (and its sensor sampling), which undersamples
+    // real motion and makes the HMI plot look time-stretched. When the link
+    // is congested the ring buffer fills and writeDLineToBuffer() drops new
+    // samples — a harmless gap, not a stretch.
+    if ((int)Serial.availableForWrite() < (int)e.len) break;
     Serial.write((const uint8_t *)e.str, e.len);
     dline_tail = (dline_tail + 1) % DLINE_BUF_SIZE;
     drained++;

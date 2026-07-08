@@ -14,7 +14,33 @@ using namespace TrajState;
 using namespace CtcState;
 using namespace Params;
 
+// Abort limit for the open-loop jog: stop before the pot/mechanics run out
+// of range regardless of what the operator asked for.
+constexpr float JOG2_ABORT_RAD = 100.0f * PI / 180.0f;
+
 void controlJoint2() {
+  // ---- Open-loop diagnostic jog (bypasses PID/FF/rate limiter) ----
+  // Constant step rate straight to the driver so sensor + driver + mechanics
+  // can be judged without the control loop in the way.
+  if (jog2_active) {
+    if (millis() >= jog2_end_ms || fabsf(theta2) > JOG2_ABORT_RAD) {
+      jog2_active    = false;
+      step_period_us = 0;
+      omega2_prev    = 0.0f;
+      theta2_d       = theta2;   // hold here — don't snap back on resume
+      unsigned long emitted = step_pulse_count - jog2_steps_start;
+      Serial.print("INFO: jog2 selesai. steps=");
+      Serial.print(emitted);
+      Serial.print(" (");
+      Serial.print((emitted / STEPS_PER_RAD) * (180.0f / PI), 2);
+      Serial.println(" deg commanded)");
+    } else {
+      setStepDir(jog2_dir > 0);
+      step_period_us = (unsigned long)(1000000.0f / jog2_freq_hz);
+    }
+    return;
+  }
+
   float e2 = theta2_d - theta2;
 
   // ---- Deadband hold logic ----

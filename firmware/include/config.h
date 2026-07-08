@@ -78,7 +78,13 @@ constexpr float TAU_STALL_J1 = Kt * (V_nom / Ra) * N_eff1;  // ≈ 0.1607
 //  STEPPER CONSTANTS
 // ------------------------------------------------------------
 
-constexpr int STEPPER_MSTEP    = 16;
+// Breadboard/DevKit reality: MS3 sits on GPIO35 (input-only) and cannot be
+// driven HIGH, so the A4988's internal pulldown leaves MS1=H MS2=H MS3=L
+// → the driver physically runs at 1/8 microstep, not the intended 1/16.
+// STEPS_PER_RAD must match the physical ratio or every commanded velocity
+// executes at 2x and the J2 loop overshoots/oscillates at any gain.
+// On the custom PCB (MS1/2/3 hardwired to 3V3 → true 1/16) set this to 16.
+constexpr int STEPPER_MSTEP    = 8;
 constexpr float STEPS_PER_RAD  = (200.0f * static_cast<float>(STEPPER_MSTEP) * N_eff2) / (2.0f * PI);
 constexpr float STEPPER_MAX_HZ = 500.0f;
 constexpr float STEPPER_MIN_HZ = 6.0f;

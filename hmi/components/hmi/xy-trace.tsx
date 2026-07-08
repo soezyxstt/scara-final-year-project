@@ -327,10 +327,10 @@ export function drawTrace(
 
   function drawPath(buf: TPoint[], ideal: boolean, alpha = 1) {
     if (buf.length < 2) return
-    // T frames nominally arrive every 20ms; a gap much larger than that means
-    // frames were dropped/stalled. Lift the pen there instead of bridging the
-    // gap with a fake straight segment.
-    const GAP_MS = 250
+    // T frames nominally arrive every 20ms. Short drop bursts are bridged so
+    // the trace stays continuous; only a gap longer than this (a real outage)
+    // lifts the pen instead of bridging it with a fake straight segment.
+    const GAP_MS = 1000
     ctx!.globalAlpha = alpha
     ctx!.beginPath()
     for (let i = 0; i < buf.length; i++) {

@@ -79,6 +79,10 @@ interface ZNMetrics {
 }
 
 const MAX_BUFFER = 10000
+// Seconds of history mirrored into React state for the live chart (the chart
+// windows to the last 10 s; margin keeps edge selection usable). Full history
+// stays in bufferRef — caliper metrics and persistence read from there.
+const LIVE_WINDOW_S = 12
 
 function downsample<T>(arr: T[], max = 500): T[] {
   if (arr.length <= max) return arr
@@ -196,6 +200,8 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
   const lastTxRef = useRef('—')
   const [rxLine, setRxLine] = useState('—')
   const [txLine, setTxLine] = useState('—')
+  // Total samples in bufferRef (chartData only mirrors the live window)
+  const [sampleCount, setSampleCount] = useState(0)
   // Tracks ESP32 millis() at first sample after buffer clear — for elapsed-time axis
   const startTsRef = useRef<number | null>(null)
 
@@ -227,7 +233,8 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
             }
           }).filter(Boolean) as ZNSample[]
           bufferRef.current = sanitized
-          setChartData(sanitized)
+          // chartData fills from the render tick with only the live window —
+          // pushing 10k restored samples through Recharts froze the page.
         }
       }
       const persistedStartTs = localStorage.getItem('hmi_zn_start_ts')
@@ -270,8 +277,18 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       const buffer = bufferRef.current
 
       // Anchor elapsed time to the first sample after each buffer clear
+      const lastT = buffer.length > 0 ? buffer[buffer.length - 1].t : null
       if (startTsRef.current === null) {
         startTsRef.current = rawSample.ts_ms
+      } else if (lastT !== null) {
+        // ts_ms is firmware millis(): after an ESP32 reboot it restarts near
+        // zero, and the anchor restored from localStorage may be from another
+        // boot — re-anchor so the time axis continues at the buffer tail
+        // instead of jumping. Long forward gaps (plot paused) compress too.
+        const expectedT = (rawSample.ts_ms - startTsRef.current) / 1000
+        if (expectedT < lastT || expectedT - lastT > 5) {
+          startTsRef.current = rawSample.ts_ms - (lastT + 0.02) * 1000
+        }
       }
 
       // Elapsed time in seconds from first sample
@@ -320,20 +337,26 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     }
   }, [])
 
-  // Throttled UI Render Loop (~16.7 Hz / 60ms)
+  // Throttled UI render loop (10 Hz). Only the live window enters React
+  // state — copying the full 10k-sample history through Recharts at 16 Hz
+  // starved the Web Serial read loop and lagged the display by seconds.
   useEffect(() => {
     const interval = setInterval(() => {
-      const buffer = bufferRef.current
+      let buffer = bufferRef.current
       if (buffer.length > MAX_BUFFER) {
-        bufferRef.current = buffer.slice(buffer.length - MAX_BUFFER)
+        buffer = bufferRef.current = buffer.slice(buffer.length - MAX_BUFFER)
       }
       if (!isFrozen) {
-        // Create new array reference to force Recharts state re-evaluation
-        setChartData([...bufferRef.current])
+        // Buffer is time-ordered: walk back from the tail, no full filter
+        const tEnd = buffer.length > 0 ? buffer[buffer.length - 1].t : 0
+        let start = buffer.length - 1
+        while (start > 0 && tEnd - buffer[start - 1].t <= LIVE_WINDOW_S) start--
+        setChartData(start <= 0 ? [...buffer] : buffer.slice(start))
       }
+      setSampleCount(buffer.length)
       setRxLine(lastRxRef.current)
       setTxLine(lastTxRef.current)
-    }, 60)
+    }, 100)
 
     return () => clearInterval(interval)
   }, [isFrozen])
@@ -489,6 +512,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     bufferRef.current = []
     startTsRef.current = null   // reset elapsed-time anchor
     setChartData([])
+    setSampleCount(0)
     setMetrics(null)
     setSelectStart(null)
     setSelectEnd(null)
@@ -1984,7 +2008,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
           </span>
           <span className="flex items-center gap-1">
             <span className="text-hmi-muted">Samples:</span>
-            <span className="text-hmi-text">{chartData.length} / {MAX_BUFFER}</span>
+            <span className="text-hmi-text">{sampleCount} / {MAX_BUFFER}</span>
           </span>
         </div>
 

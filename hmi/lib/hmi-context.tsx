@@ -32,6 +32,11 @@ import { parseDSample, parseGains, parseAdvParams } from './telemetry-types'
 import { computeCTEList, computeMCTE, computeATEList } from './cte-utils'
 
 const MAX_BUFFER = 2000
+// T points are tiny (5 numbers) and are what the XY trace draws. A queued /
+// L-shape session keeps REC alive across MC continuations, so at 50 Hz the
+// old 2000-point cap (~40 s) silently evicted the START of the trace while
+// the robot was still moving. 12000 ≈ 4 minutes of continuous recording.
+const MAX_T_BUFFER = 12000
 const MAX_LOG_LINES = 100
 
 export const defaultParams: AdvParams = {
@@ -213,15 +218,15 @@ function computeStats(tBuf: TPoint[], dBuf: DSample[]) {
   }
 }
 
-function push<T>(arr: T[], item: T): T[] {
-  const next = arr.length >= MAX_BUFFER ? arr.slice(1) : arr
+function push<T>(arr: T[], item: T, max = MAX_BUFFER): T[] {
+  const next = arr.length >= max ? arr.slice(1) : arr
   return [...next, item]
 }
 
-function pushBatch<T>(arr: T[], items: T[]): T[] {
+function pushBatch<T>(arr: T[], items: T[], max = MAX_BUFFER): T[] {
   const combined = [...arr, ...items]
-  if (combined.length >= MAX_BUFFER) {
-    return combined.slice(combined.length - MAX_BUFFER)
+  if (combined.length >= max) {
+    return combined.slice(combined.length - max)
   }
   return combined
 }
@@ -339,7 +344,7 @@ function reducer(state: HMIState, action: HMIAction): HMIState {
     }
     case 'T_SAMPLE':
       if (state.recordingState !== 'REC') return state
-      return { ...state, tBuffer: push(state.tBuffer, action.point) }
+      return { ...state, tBuffer: push(state.tBuffer, action.point, MAX_T_BUFFER) }
     case 'D_SAMPLE': {
       if (state.recordingState !== 'REC') return state
       const prevSample = state.dBuffer[state.dBuffer.length - 1]
@@ -377,7 +382,7 @@ function reducer(state: HMIState, action: HMIAction): HMIState {
       let nextE = state.eBuffer
 
       if (tPoints && tPoints.length > 0) {
-        nextT = pushBatch(nextT, tPoints)
+        nextT = pushBatch(nextT, tPoints, MAX_T_BUFFER)
       }
       if (dSamples && dSamples.length > 0) {
         const correctedDSamples = []
@@ -596,6 +601,10 @@ function useSerial(
   const eQueueRef = useRef<ESample[]>([])
   // Last accepted T point — anchor for the teleport/continuity filter
   const lastTPointRef = useRef<TPoint | null>(null)
+  // A point rejected by the continuity filter is held here instead of being
+  // discarded outright: if the NEXT sample agrees with it, the "teleport" was
+  // real motion and both points are accepted.
+  const pendingTOutlierRef = useRef<TPoint | null>(null)
 
   const flushQueues = useCallback(() => {
     const tPoints = tQueueRef.current
@@ -634,6 +643,41 @@ function useSerial(
       // Dispatch custom window event for logging raw line RX
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('hmi_rx', { detail: line }))
+      }
+
+      // FFT batch recording stream parsing
+      if (line === 'FFT_START') {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('fft_start'))
+        }
+        return
+      }
+      if (line === 'FFT_DONE') {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('fft_done'))
+        }
+        return
+      }
+      if (line.startsWith('FFT_DATA,')) {
+        if (typeof window !== 'undefined') {
+          const fftParts = line.split(',')
+          if (fftParts.length === 6) {
+            const [, idxStr, t1_raw_str, t1_actual_str, t2_raw_str, t2_actual_str] = fftParts
+            if (idxStr === '0' || idxStr === '500' || idxStr === '1023') {
+              console.log("HMI parsed FFT line:", line, { idxStr, t1_raw_str, t1_actual_str, t2_raw_str, t2_actual_str })
+            }
+            window.dispatchEvent(new CustomEvent('fft_data_sample', {
+              detail: {
+                idx: parseInt(idxStr, 10),
+                t1_raw: parseFloat(t1_raw_str),
+                t1_actual: parseFloat(t1_actual_str),
+                t2_raw: parseFloat(t2_raw_str),
+                t2_actual: parseFloat(t2_actual_str)
+              }
+            }))
+          }
+        }
+        return
       }
 
       const parts = line.split(',')
@@ -700,6 +744,7 @@ function useSerial(
           tDrawRef.current = []
           dDrawRef.current = []
           lastTPointRef.current = null
+          pendingTOutlierRef.current = null
           const [, x0, y0, xf, yf] = parts.map(Number)
           const info: MoveInfo = { x0, y0, xf, yf }
           dispatch({ type: 'MOVE_START', info })
@@ -754,27 +799,50 @@ function useSerial(
             Math.abs(point.xa) > T_COORD_MAX_MM || Math.abs(point.ya) > T_COORD_MAX_MM
           ) break
 
-          // Continuity: the end-effector cannot teleport. Reject samples that
-          // moved implausibly far since the last accepted sample. The budget
-          // scales with the timestamp gap (1.5 mm/ms ≈ 15× V_MAX) but is
-          // CAPPED — a burst of dropped frames must not open the window wide
-          // enough to wave an in-bounds corrupt point through. A gap ≥ 1 s is
-          // treated as a fresh start (accept unconditionally), so a rejected
-          // outlier or a long outage can never lock out real data.
+          // Continuity: the end-effector cannot teleport. A sample that moved
+          // implausibly far since the last accepted sample (budget scales with
+          // the timestamp gap, 1.5 mm/ms, capped at 80 mm so a burst of
+          // dropped frames can't wave a corrupt point through) is NOT dropped
+          // outright — corruption is isolated to single lines, while real
+          // motion is self-consistent. The suspect is parked as a pending
+          // outlier; if the NEXT sample lands near it, both are accepted and
+          // the anchor re-seats. This way a genuine fast jump (or a firmware
+          // millis() reset) costs at most one 20 ms sample, instead of the old
+          // behavior of rejecting everything for up to 1 s and punching a
+          // visible hole in the trace mid-move.
+          const budgetMm = (dtMs: number) => Math.max(15, Math.min(1.5 * Math.max(dtMs, 1), 80))
+          const agrees = (a: TPoint, b: TPoint) => {
+            const dt = a.t !== undefined && b.t !== undefined ? b.t - a.t : 20
+            const budget = budgetMm(dt)
+            return (
+              Math.hypot(b.xa - a.xa, b.ya - a.ya) <= budget &&
+              Math.hypot(b.xi - a.xi, b.yi - a.yi) <= budget
+            )
+          }
+          const acceptTPoint = (p: TPoint) => {
+            lastTPointRef.current = p
+            tQueueRef.current.push(p)
+            if (tDrawRef.current.length >= MAX_T_BUFFER) tDrawRef.current.shift()
+            tDrawRef.current.push(p)
+          }
+
           const prevT = lastTPointRef.current
           if (prevT && point.t !== undefined && prevT.t !== undefined
-              && point.t - prevT.t < 1000) {
-            const dtMs = Math.max(point.t - prevT.t, 1)
-            const maxDistMm = Math.max(15, Math.min(1.5 * dtMs, 80))
-            const dActual = Math.hypot(point.xa - prevT.xa, point.ya - prevT.ya)
-            const dIdeal = Math.hypot(point.xi - prevT.xi, point.yi - prevT.yi)
-            if (dActual > maxDistMm || dIdeal > maxDistMm) break
+              && !agrees(prevT, point)) {
+            const pend = pendingTOutlierRef.current
+            if (pend && agrees(pend, point)) {
+              // Two successive samples agree with each other — that was real
+              // motion, not a corrupt line. Accept both, re-anchor.
+              pendingTOutlierRef.current = null
+              acceptTPoint(pend)
+              acceptTPoint(point)
+            } else {
+              pendingTOutlierRef.current = point
+            }
+            break
           }
-          lastTPointRef.current = point
-
-          tQueueRef.current.push(point)
-          if (tDrawRef.current.length >= MAX_BUFFER) tDrawRef.current.shift()
-          tDrawRef.current.push(point)
+          pendingTOutlierRef.current = null
+          acceptTPoint(point)
           break
         }
         case 'D': {
@@ -1118,6 +1186,7 @@ function useSerial(
     fQueueRef.current = []
     eQueueRef.current = []
     lastTPointRef.current = null
+    pendingTOutlierRef.current = null
     if (reconnTimerRef.current) {
       clearInterval(reconnTimerRef.current)
       reconnTimerRef.current = null

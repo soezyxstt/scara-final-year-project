@@ -206,6 +206,13 @@ void checkTrajectoryDone() {
     traj_time_done = false;
     pending_move   = false;
     is_resting     = false;
+
+    // Force stop motor correction by setting targets to current actual positions
+    theta1_d = theta1;
+    theta2_d = theta2;
+    dTheta1_d_prev_acc = 0.0f;
+    dTheta2_d_prev_acc = 0.0f;
+
     emitStopPacket();
     return;
   }
@@ -215,6 +222,13 @@ void checkTrajectoryDone() {
   if (!IK(traj_xf, traj_yf, elbow_config, th1_f, th2_f)) {
     is_moving    = false;
     pending_move = false;
+
+    // Force stop motor correction on IK failure
+    theta1_d = theta1;
+    theta2_d = theta2;
+    dTheta1_d_prev_acc = 0.0f;
+    dTheta2_d_prev_acc = 0.0f;
+
     emitStopPacket();
     return;
   }

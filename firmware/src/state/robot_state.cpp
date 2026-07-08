@@ -57,10 +57,21 @@ namespace RobotState {
   bool          dbtest_active   = false;
   unsigned long dbtest_start_ms = 0;
 
+  bool          fft_record_active = false;
+  uint16_t      fft_record_idx    = 0;
+
   unsigned long last_step_us   = 0;
   unsigned long step_period_us = 0;
   float         omega2_prev    = 0.0f;
   bool          stepper2_active = true;
+
+  bool          jog2_active  = false;
+  unsigned long jog2_end_ms  = 0;
+  float         jog2_freq_hz = 0.0f;
+  int           jog2_dir     = 1;
+  unsigned long jog2_steps_start = 0;
+
+  unsigned long step_pulse_count = 0;
 
   float vff1_prev = 0.0f;
 
@@ -158,7 +169,7 @@ namespace Params {
 
   float U1_MAX           = 1.0f;
   float FRAC_ZERO_THRESH = 0.01f;
-  int PWM_DEADBAND = 68;
+  int PWM_DEADBAND = 70;
   // Kickstart: reduce fractional threshold during trajectory acceleration
   // Expressed as a percentage of `FRAC_ZERO_THRESH` (0.1 = 10%)
   bool KICKSTART_ENABLED = true;

@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 // Remove next/navigation imports to prevent warnings
 import UniversalTimeSeriesChart, { ChartSeries } from './universal-time-series-chart'
 import {
@@ -28,6 +29,10 @@ import {
 } from 'lucide-react'
 
 const MAX_BUFFER = 10000
+// Seconds of history mirrored into React state for the live chart. The chart
+// windows to the last 10 s; the margin keeps drag-selection at the left edge
+// usable. Full history stays in bufferRef and is what CSV export reads.
+const LIVE_WINDOW_S = 12
 
 function downsample<T>(arr: T[], max = 500): T[] {
   if (arr.length <= max) return arr
@@ -155,6 +160,15 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
   const [selectStart, setSelectStart] = useState<number | null>(null)
   const [selectEnd, setSelectEnd] = useState<number | null>(null)
 
+  // FFT Recording States & Refs
+  const [isRecordingFFT, setIsRecordingFFT] = useState(false)
+  const [fftRecordingProgress, setFftRecordingProgress] = useState(0)
+  const [recordedSamples, setRecordedSamples] = useState<ZNSample[]>([])
+
+  const fftRecordingRef = useRef(false)
+  const fftRecordBufferRef = useRef<ZNSample[]>([])
+  const recordingTimerRef = useRef<any>(null)
+
   // Local Buffers
   const bufferRef = useRef<ZNSample[]>([])
   const [chartData, setChartData] = useState<ZNSample[]>([])
@@ -162,6 +176,8 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
 
   const [rxLine, setRxLine] = useState('—')
   const [txLine, setTxLine] = useState('—')
+  // Total samples held in bufferRef (chartData only mirrors the live window)
+  const [sampleCount, setSampleCount] = useState(0)
   const lastRxRef = useRef('—')
   const lastTxRef = useRef('—')
 
@@ -193,7 +209,9 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
             }
           }).filter(Boolean) as ZNSample[]
           bufferRef.current = sanitized
-          setChartData(sanitized)
+          // chartData is populated by the render tick with only the live
+          // window — pushing all 10k restored samples through Recharts here
+          // caused a multi-second freeze on mount.
         }
       }
       const persistedStartTs = localStorage.getItem('hmi_zn_start_ts')
@@ -238,8 +256,21 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
       }
 
       const buffer = bufferRef.current
+      const lastT = buffer.length > 0 ? buffer[buffer.length - 1].t : null
       if (startTsRef.current === null) {
         startTsRef.current = rawSample.ts_ms
+      } else if (lastT !== null) {
+        // ts_ms is firmware millis(). After an ESP32 reboot it restarts near
+        // zero, and the anchor restored from localStorage can belong to a
+        // previous boot entirely — either way new samples would map far away
+        // from the buffer tail, so the scrolling window shows stale data
+        // while live samples land outside it. Re-anchor so time continues
+        // seamlessly at the tail (large forward gaps are compressed too:
+        // a plot,0/plot,1 pause otherwise leaves a long dead stretch).
+        const expectedT = (rawSample.ts_ms - startTsRef.current) / 1000
+        if (expectedT < lastT || expectedT - lastT > 5) {
+          startTsRef.current = rawSample.ts_ms - (lastT + 0.02) * 1000
+        }
       }
 
       const newT = (rawSample.ts_ms - startTsRef.current) / 1000
@@ -274,30 +305,88 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
       lastTxRef.current = (e as CustomEvent).detail
     }
 
+    const handleFftStart = () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
+      setFftRecordingProgress(100)
+      fftRecordBufferRef.current = []
+    }
+
+    const handleFftSample = (e: Event) => {
+      const sample = (e as CustomEvent).detail as {
+        idx: number
+        t1_raw: number
+        t1_actual: number
+        t2_raw: number
+        t2_actual: number
+      }
+      
+      const znSample: ZNSample = {
+        idx: sample.idx,
+        t: sample.idx * 0.002, // 500 Hz constant timestep (2ms)
+        t1_target: 0,
+        t1_actual: sample.t1_actual,
+        t2_target: 0,
+        t2_actual: sample.t2_actual,
+        pwm1: 0,
+        t1_raw: sample.t1_raw,
+        t2_raw: sample.t2_raw,
+        v1: 0,
+        v2: 0,
+        p1_out: 0,
+        i1_out: 0,
+        d1_out: 0,
+        ff_total: 0
+      }
+      fftRecordBufferRef.current.push(znSample)
+    }
+
+    const handleFftDone = () => {
+      fftRecordingRef.current = false
+      setIsRecordingFFT(false)
+      setRecordedSamples([...fftRecordBufferRef.current])
+    }
+
     window.addEventListener('zn_sample', handleSample)
     window.addEventListener('hmi_rx', handleRx)
     window.addEventListener('hmi_tx', handleTx)
+    window.addEventListener('fft_start', handleFftStart)
+    window.addEventListener('fft_data_sample', handleFftSample)
+    window.addEventListener('fft_done', handleFftDone)
 
     return () => {
       window.removeEventListener('zn_sample', handleSample)
       window.removeEventListener('hmi_rx', handleRx)
       window.removeEventListener('hmi_tx', handleTx)
+      window.removeEventListener('fft_start', handleFftStart)
+      window.removeEventListener('fft_data_sample', handleFftSample)
+      window.removeEventListener('fft_done', handleFftDone)
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
     }
   }, [])
 
-  // Throttled UI Render Loop (~16.7 Hz / 60ms)
+  // Throttled UI render loop (10 Hz). Only the live window is mirrored into
+  // React state: copying the full 10k-sample history and recomputing metrics
+  // over all of it at 16 Hz saturated the main thread, which starved the Web
+  // Serial read loop — incoming telemetry queued up and the display lagged
+  // the real motor by seconds, growing worse the longer the page ran.
   useEffect(() => {
     const interval = setInterval(() => {
-      const buffer = bufferRef.current
+      let buffer = bufferRef.current
       if (buffer.length > MAX_BUFFER) {
-        bufferRef.current = buffer.slice(buffer.length - MAX_BUFFER)
+        buffer = bufferRef.current = buffer.slice(buffer.length - MAX_BUFFER)
       }
       if (!isFrozen) {
-        setChartData([...bufferRef.current])
+        // Buffer is time-ordered: walk back from the tail instead of
+        // filtering the whole history.
+        const tEnd = buffer.length > 0 ? buffer[buffer.length - 1].t : 0
+        let start = buffer.length - 1
+        while (start > 0 && tEnd - buffer[start - 1].t <= LIVE_WINDOW_S) start--
+        setChartData(start <= 0 ? [...buffer] : buffer.slice(start))
       }
+      setSampleCount(buffer.length)
       setRxLine(lastRxRef.current)
       setTxLine(lastTxRef.current)
-    }, 60)
+    }, 100)
 
     return () => clearInterval(interval)
   }, [isFrozen])
@@ -306,6 +395,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
     bufferRef.current = []
     startTsRef.current = null
     setChartData([])
+    setSampleCount(0)
     setSelectStart(null)
     setSelectEnd(null)
     setIsFrozen(false)
@@ -369,17 +459,19 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
     }))
   }, [chartData, chartEndTime, u1max])
 
-  // Get active dataset based on selection range or fallback to whole buffer for metrics calculation
-  const getActiveSelection = (): ZNSample[] => {
+  // Active dataset for metrics: the drag selection if present, otherwise the
+  // live window (chartData). Metrics therefore describe what is on screen —
+  // previously they averaged the entire 10k-sample history, so a stale run
+  // restored from localStorage (or an earlier step test) polluted SSE / mean
+  // / peak-to-peak with data that had nothing to do with the current test.
+  const activeSelection = useMemo((): ZNSample[] => {
     if (chartData.length === 0) return []
     if (selectStart === null || selectEnd === null) return chartData
 
     const tMin = Math.min(selectStart, selectEnd)
     const tMax = Math.max(selectStart, selectEnd)
     return chartData.filter((s) => s.t >= tMin && s.t <= tMax)
-  }
-
-  const activeSelection = getActiveSelection()
+  }, [chartData, selectStart, selectEnd])
 
   // --- Calculations & Signal Quality Analysis ---
   const calculateAnalysis = () => {
@@ -497,25 +589,41 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
     ? `P: ${(latestSample.p1_out / u1max).toFixed(3)} | I: ${(latestSample.i1_out / u1max).toFixed(3)} | D: ${(latestSample.d1_out / u1max).toFixed(3)} | FF: ${(latestSample.ff_total / u1max).toFixed(3)}`
     : '--'
 
-  // --- FFT Frequency Spectrum Calculation ---
-  const calculateFFT = () => {
-    if (activeSelection.length < 8) return []
+  // --- FFT Frequency Spectrum Calculation (Reactive to on-demand recordedSamples) ---
+  const fftData = useMemo(() => {
+    const sampleSize = recordedSamples.length
+    if (sampleSize < 8) return []
 
-    const sampleSize = activeSelection.length
+    // Dynamically find largest power of 2 size N that fits in the recorded samples (up to 4096)
     let N = 2
     while (N * 2 <= sampleSize && N < 4096) {
       N *= 2
     }
 
-    const sliced = activeSelection.slice(-N)
+    const sliced = recordedSamples.slice(0, N)
     const isJ1 = activeJoint === 1
 
-    const times = sliced.map((s) => s.t)
-    const rawSignal = sliced.map((s) => isJ1 ? s.t1_raw : s.t2_raw)
-    const filtSignal = sliced.map((s) => isJ1 ? s.t1_actual : s.t2_actual)
+    console.log("FFT Calculation debug:", {
+      sampleSize,
+      N,
+      isJ1,
+      firstSample: sliced[0],
+      lastSample: sliced[sliced.length - 1],
+      totalTimes: sliced.map(s => s.t).slice(0, 5)
+    })
 
+    const times = sliced.map((s) => s.t)
     const totalTime = times[times.length - 1] - times[0]
-    const Fs = totalTime > 0 ? (N - 1) / totalTime : 60 // fallback to 60Hz
+    const Fs = totalTime > 0 ? (N - 1) / totalTime : 500
+
+    const rawSignal = sliced.map((s) => {
+      const val = isJ1 ? s.t1_raw : s.t2_raw
+      return (val === undefined || isNaN(val)) ? 0 : val
+    })
+    const filtSignal = sliced.map((s) => {
+      const val = isJ1 ? s.t1_actual : s.t2_actual
+      return (val === undefined || isNaN(val)) ? 0 : val
+    })
 
     // Remove DC Offset
     const rawMean = rawSignal.reduce((a, b) => a + b, 0) / N
@@ -538,19 +646,14 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
       const filtMag = (2 * Math.sqrt(filtResult.re[i] * filtResult.re[i] + filtResult.im[i] * filtResult.im[i])) / N
 
       fftData.push({
-        freq: parseFloat(freq.toFixed(1)), // Adjusted to 0.1 Hz resolution
+        freq: parseFloat(freq.toFixed(1)),
         t1_raw: rawMag,
         t1_actual: filtMag
       })
     }
 
     return fftData
-  }
-
-  const fftData = useMemo(() => {
-    if (viewMode !== 'fft') return []
-    return calculateFFT()
-  }, [activeSelection, activeJoint, viewMode])
+  }, [recordedSamples, activeJoint])
 
   const nyquistFreq = useMemo(() => {
     if (fftData.length === 0) return 30
@@ -587,6 +690,45 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
     ? `Raw Peak: ${dominantFreqRaw.freq} Hz (${dominantFreqRaw.amp.toFixed(4)}°) | Filt Peak: ${dominantFreqFiltered.freq} Hz (${dominantFreqFiltered.amp.toFixed(4)}°)`
     : '--'
 
+  const handleStartFFTRecord = () => {
+    if (serialStatus !== 'connected') {
+      toast.error("Serial port not connected")
+      return
+    }
+    
+    setRecordedSamples([])
+    fftRecordBufferRef.current = []
+    setFftRecordingProgress(0)
+    setIsRecordingFFT(true)
+    fftRecordingRef.current = true
+    
+    // Send command to ESP32
+    serial.sendCommand("record_fft")
+    
+    // Simulate smooth 8.2-second visual progress bar while ESP32 collects samples silently
+    let elapsed = 0
+    const duration = 8200 // 4096 samples @ 500 Hz is exactly 8192 ms
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
+    
+    recordingTimerRef.current = setInterval(() => {
+      elapsed += 50
+      const progress = Math.min(99, Math.round((elapsed / duration) * 100))
+      setFftRecordingProgress(progress)
+      if (elapsed >= duration) {
+        clearInterval(recordingTimerRef.current)
+      }
+    }, 50)
+  }
+
+  const handleCancelFFTRecord = () => {
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
+    fftRecordingRef.current = false
+    setIsRecordingFFT(false)
+    setFftRecordingProgress(0)
+    fftRecordBufferRef.current = []
+    serial.sendCommand("cancel_fft")
+  }
+
   const handleMouseDown = (e: any) => {
     if (!e || typeof e.activeLabel !== 'number') return
     setSelecting(true)
@@ -616,22 +758,25 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
 
   const handleExportCSV = () => {
     let exportData: ZNSample[] = []
+    // Export always reads the full history — chartData only mirrors the
+    // last LIVE_WINDOW_S seconds for rendering.
+    const history = bufferRef.current
 
     if (exportScope === 'all') {
-      exportData = chartData
+      exportData = history
     } else if (exportScope === 'selection') {
       const tMin = selectStart !== null && selectEnd !== null ? Math.min(selectStart, selectEnd) : 0
       const tMax = selectStart !== null && selectEnd !== null ? Math.max(selectStart, selectEnd) : 0
-      exportData = chartData.filter((s) => s.t >= tMin && s.t <= tMax)
+      exportData = history.filter((s) => s.t >= tMin && s.t <= tMax)
     } else if (exportScope === '10s') {
-      exportData = chartData.filter((s) => s.t >= chartEndTime - 10 && s.t <= chartEndTime)
+      exportData = history.filter((s) => s.t >= chartEndTime - 10 && s.t <= chartEndTime)
     } else if (exportScope === '20s') {
-      exportData = chartData.filter((s) => s.t >= chartEndTime - 20 && s.t <= chartEndTime)
+      exportData = history.filter((s) => s.t >= chartEndTime - 20 && s.t <= chartEndTime)
     } else if (exportScope.startsWith('run-')) {
       const runId = parseInt(exportScope.replace('run-', ''), 10)
       const targetRun = runEvents.find((r) => r.id === runId)
       if (targetRun) {
-        exportData = chartData.filter((s) => s.t >= targetRun.t && s.t <= targetRun.t + 20)
+        exportData = history.filter((s) => s.t >= targetRun.t && s.t <= targetRun.t + 20)
         
         // Optionally sync caliper to visual charts
         if (applyCaliperOnExport) {
@@ -792,7 +937,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
               <Activity className="w-4 h-4 text-hmi-ideal" /> Buffer Control
             </span>
             <span className="text-[10px] font-mono text-hmi-muted">
-              {chartData.length} / {MAX_BUFFER} samples
+              {sampleCount} / {MAX_BUFFER} samples
             </span>
           </div>
 
@@ -887,6 +1032,15 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 </span>
               </div>
               <div className="flex items-center gap-2">
+                {viewMode === 'fft' && !isRecordingFFT && (
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs bg-emerald-700 hover:bg-emerald-600 text-white font-bold uppercase cursor-pointer transition-colors"
+                    onClick={handleStartFFTRecord}
+                  >
+                    Record FFT
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"
@@ -912,9 +1066,46 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
 
             <div className="flex-1 min-h-0">
               {viewMode === 'fft' ? (
-                fftData.length === 0 ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center border border-dashed border-hmi-grid rounded text-xs text-hmi-muted font-sans italic">
-                    Select a region containing at least 8 samples on any other graph view to preview spectrum.
+                isRecordingFFT ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center border border-dashed border-hmi-ideal/40 rounded bg-hmi-elevated/40 p-6 text-center select-none">
+                    <div className="text-sm font-bold text-hmi-text mb-2 flex items-center gap-2 animate-pulse">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                      Recording Sensor Telemetry for FFT...
+                    </div>
+                    <div className="text-xs text-hmi-muted font-mono mb-4">
+                      {fftRecordingProgress < 100 
+                        ? `Collecting samples in RAM: ${fftRecordingProgress}%` 
+                        : "Receiving high-speed serial packet burst..."}
+                    </div>
+                    <div className="w-64 h-2 bg-hmi-grid rounded-full overflow-hidden mb-6">
+                      <div 
+                        className="h-full bg-hmi-ideal transition-all duration-100 ease-out" 
+                        style={{ width: `${fftRecordingProgress}%` }}
+                      />
+                    </div>
+                    <Button 
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleCancelFFTRecord}
+                    >
+                      Cancel Recording
+                    </Button>
+                  </div>
+                ) : recordedSamples.length === 0 ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center border border-dashed border-hmi-grid rounded bg-hmi-panel/50 p-6 text-center select-none">
+                    <div className="text-sm font-semibold text-hmi-text mb-1">
+                      Frequency Analysis (FFT Spectrum)
+                    </div>
+                    <p className="text-xs text-hmi-muted max-w-sm mb-4">
+                      Capture a high-resolution 1024-sample window at 500 Hz to analyze vibrations, structural resonances, and sensor noise.
+                    </p>
+                    <Button 
+                      size="sm"
+                      className="bg-emerald-700 hover:bg-emerald-600 text-white font-semibold cursor-pointer"
+                      onClick={handleStartFFTRecord}
+                    >
+                      Start Telemetry Record
+                    </Button>
                   </div>
                 ) : (
                   <UniversalTimeSeriesChart
@@ -1383,7 +1574,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                     </div>
                   </div>
                   <span className="font-mono text-[10px] bg-hmi-btn px-1.5 py-0.5 rounded text-hmi-text-secondary">
-                    {chartData.length} pts
+                    {sampleCount} pts
                   </span>
                 </label>
 
@@ -1463,7 +1654,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                     </div>
                   </div>
                   <span className="font-mono text-[10px] bg-hmi-btn px-1.5 py-0.5 rounded text-hmi-text-secondary">
-                    {chartData.filter(s => s.t >= chartEndTime - 20 && s.t <= chartEndTime).length} pts
+                    {bufferRef.current.filter(s => s.t >= chartEndTime - 20 && s.t <= chartEndTime).length} pts
                   </span>
                 </label>
               </div>
@@ -1477,7 +1668,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                   <div className="flex flex-col gap-2 max-h-[120px] overflow-y-auto pr-1 border border-hmi-grid/45 rounded p-1.5 bg-hmi-bg/20">
                     {runEvents.map((event, idx) => {
                       const optVal = `run-${event.id}`
-                      const count = chartData.filter(s => s.t >= event.t && s.t <= event.t + 20).length
+                      const count = bufferRef.current.filter(s => s.t >= event.t && s.t <= event.t + 20).length
                       return (
                         <label key={event.id} className={cn(
                           "flex items-center justify-between p-2 rounded border text-xs cursor-pointer transition-all hover:bg-hmi-btn",

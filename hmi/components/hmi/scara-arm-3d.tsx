@@ -351,9 +351,11 @@ interface TrajectoryPoint3D {
 // render time too (persisted/ghost traces may predate the parser filter).
 const TRACE_COORD_MAX_MM = 250
 // T frames nominally arrive every 20 ms; a much larger timestamp gap means
-// frames were dropped. Split the polyline there instead of bridging the gap
-// with a fake straight segment (same rule as the old 2D canvas drawPath).
-const TRACE_GAP_MS = 250
+// frames were dropped. Short drop bursts are bridged (the robot moves only a
+// few mm in that time, and a hole reads as "the trace didn't persist"), but a
+// gap longer than this is a real outage and splits the polyline instead of
+// bridging it with a fake straight segment.
+const TRACE_GAP_MS = 1000
 
 function isPlausibleCoord(x: number, y: number): boolean {
   return (
@@ -746,11 +748,25 @@ export function SCARA3DCanvas({
   runs,
 }: SCARA3DCanvasProps) {
   const [localHoverPoint, setLocalHoverPoint] = useState<{ x: number; y: number } | null>(null)
-  
+
   const hoverPoint = externalHoverPoint !== undefined ? externalHoverPoint : localHoverPoint
   const setHoverPoint = externalSetHoverPoint || setLocalHoverPoint
 
   const controlsRef = useRef<any>(null)
+
+  // Pause the WebGL render loop when the canvas is not actually visible.
+  // The Monitor tab stays mounted (CSS-hidden) while other tabs are active,
+  // and the default frameloop kept three.js rendering at 60 fps behind
+  // display:none — stealing main-thread time from serial telemetry ingest.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [inView, setInView] = useState(true)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const obs = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting))
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
 
   const { theme } = useTheme()
   const isLight = theme === 'light'
@@ -782,10 +798,11 @@ export function SCARA3DCanvas({
   if (width <= 0 || height <= 0) return null
 
   return (
-    <div className="absolute inset-0 w-full h-full select-none rounded-lg overflow-hidden border border-hmi-grid/50 bg-hmi-bg">
+    <div ref={rootRef} className="absolute inset-0 w-full h-full select-none rounded-lg overflow-hidden border border-hmi-grid/50 bg-hmi-bg">
       <Canvas
         gl={{ alpha: true, antialias: true }}
         style={{ width: '100%', height: '100%' }}
+        frameloop={inView ? 'always' : 'never'}
       >
         <CameraInitializer controlsRef={controlsRef} resetTrigger={resetTrigger} />
         <PerspectiveCamera

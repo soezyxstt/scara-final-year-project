@@ -45,8 +45,8 @@ void setup() {
   pinMode(MS3,      OUTPUT);
 
   // --- Initial output states ---
-  digitalWrite(MS1,      HIGH);   // 1/16 microstep
-  digitalWrite(MS2,      HIGH);
+  digitalWrite(MS1,      HIGH);   // MS3 (GPIO35) is input-only → stays LOW
+  digitalWrite(MS2,      HIGH);   // → physical microstep is 1/8, see STEPPER_MSTEP
   digitalWrite(MS3,      HIGH);
   digitalWrite(DC_IN3,   LOW);
   digitalWrite(DC_IN4,   LOW);
@@ -161,8 +161,20 @@ void loop() {
   }
 
   // --- Telemetry E / F / T at 50 Hz ---
-  if (op_mode != MODE_IDLE && !estop_active
-      && (now_ms - last_telemetry_ms >= TELEMETRY_MS)) {
+  // Suppressed in ZN mode: the ZN tuner/analysis views read everything they
+  // need from the D-line (position, raw ADC, velocity). E (J1 PID effort),
+  // F (CTC terms) and T (cartesian trace) are SCARA-oriented and unused during
+  // ZN tuning. Streaming them there ~2.5x's the serial LINE rate the browser
+  // must parse; the parser falls behind, telemetry backs up in the OS/UART
+  // buffer, and the plot plays old samples in slow motion ("stretched time").
+  // availableForWrite guard: the E/F/T burst is ~210 bytes of Serial.print
+  // calls. If the UART TX buffer can't take it, those calls BLOCK until the
+  // (slow) HMI drains the link — stalling loop() and the fixed-rate control
+  // tick, which undersamples motion and stretches the plotted timeline. Skip
+  // this telemetry cycle instead; control timing must never wait on the HMI.
+  if (op_mode != MODE_IDLE && op_mode != MODE_ZN && !estop_active
+      && (now_ms - last_telemetry_ms >= TELEMETRY_MS)
+      && Serial.availableForWrite() >= 256) {
     last_telemetry_ms = now_ms;
 
     float x_act, y_act;
