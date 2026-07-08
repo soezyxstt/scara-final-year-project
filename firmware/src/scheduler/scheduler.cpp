@@ -140,6 +140,7 @@ void allOutputsOff() {
   is_resting      = false;
   rest_ticks      = 0;
   dbtest_active   = false;
+  traj_timeout_hold = false;
 
   dTheta1_d  = dTheta2_d  = 0.0f;
   ddTheta1_d = ddTheta2_d = 0.0f;
@@ -264,9 +265,8 @@ void runControlLoop() {
     bool ok = IK(x_cmd, y_cmd, elbow_config, theta1_d, theta2_d);
     if (!ok) {
       is_moving = false;
-      // Force stop motor correction on IK failure
-      theta1_d = theta1;
-      theta2_d = theta2;
+      // Activate trajectory timeout hold state on IK failure
+      traj_timeout_hold = true;
       dTheta1_d_prev_acc = 0.0f;
       dTheta2_d_prev_acc = 0.0f;
       Serial.println("ERR: IK failed mid-trajectory — stopped.");

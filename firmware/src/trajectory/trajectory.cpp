@@ -21,6 +21,7 @@ using namespace Params;
 void startTrajectory(float new_x, float new_y, bool allow_split, bool is_continuation) {
   is_resting = false;
   rest_ticks = 0;
+  traj_timeout_hold = false;
 
   // Determine elbow config from current measured theta2
   if      (theta2 >  0.009f) elbow_config =  1;
@@ -207,9 +208,8 @@ void checkTrajectoryDone() {
     pending_move   = false;
     is_resting     = false;
 
-    // Force stop motor correction by setting targets to current actual positions
-    theta1_d = theta1;
-    theta2_d = theta2;
+    // Activate trajectory timeout hold state
+    traj_timeout_hold = true;
     dTheta1_d_prev_acc = 0.0f;
     dTheta2_d_prev_acc = 0.0f;
 
@@ -223,9 +223,8 @@ void checkTrajectoryDone() {
     is_moving    = false;
     pending_move = false;
 
-    // Force stop motor correction on IK failure
-    theta1_d = theta1;
-    theta2_d = theta2;
+    // Activate trajectory timeout hold state on IK failure
+    traj_timeout_hold = true;
     dTheta1_d_prev_acc = 0.0f;
     dTheta2_d_prev_acc = 0.0f;
 

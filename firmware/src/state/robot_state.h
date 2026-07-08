@@ -157,6 +157,9 @@ namespace TrajState {
   extern float dTheta1_d_prev_acc;
   extern float dTheta2_d_prev_acc;
 
+  // traj_timeout_hold: disables motor correction when a trajectory times out
+  extern bool  traj_timeout_hold;
+
 }  // namespace TrajState
 
 // ============================================================

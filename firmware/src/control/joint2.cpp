@@ -41,6 +41,15 @@ void controlJoint2() {
     return;
   }
 
+  // ---- Trajectory Timeout Hold ----
+  if (traj_timeout_hold) {
+    stepper2_active = false;
+    step_period_us = 0;
+    omega2_prev = 0.0f;
+    integral2 *= (1.0f - INTEGRAL_DECAY);
+    return;
+  }
+
   float e2 = theta2_d - theta2;
 
   // ---- Deadband hold logic ----

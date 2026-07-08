@@ -121,6 +121,8 @@ namespace TrajState {
   float dTheta1_d_prev_acc = 0.0f;
   float dTheta2_d_prev_acc = 0.0f;
 
+  bool  traj_timeout_hold = false;
+
 }  // namespace TrajState
 
 // ============================================================

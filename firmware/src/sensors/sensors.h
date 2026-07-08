@@ -21,13 +21,13 @@ struct TD {
   float v1 = 0.0f;
   float v2 = 0.0f;
   float r  = 50.0f;
-  float h  = 0.002f;
+  float h  = 0.006f;
 
   void init(float pos, float bandwidth, float dt) {
     v1 = pos;
     v2 = 0.0f;
     r  = bandwidth;
-    h  = dt;
+    h  = 3.0f * dt;
   }
 
   void update(float x0, float dt) {

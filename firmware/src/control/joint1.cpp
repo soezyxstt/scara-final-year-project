@@ -16,6 +16,22 @@ using namespace Params;
 
 void controlJoint1() {
   if (dbtest_active) return;
+
+  // ---- Trajectory Timeout Hold ----
+  if (traj_timeout_hold) {
+    motor1_active   = false;
+    motor1_on_ticks = 0;
+    integral1 *= (1.0f - INTEGRAL_DECAY);
+    digitalWrite(DC_IN3, LOW);
+    digitalWrite(DC_IN4, LOW);
+    pwmWrite(0);
+    last_pwm1       = 0;
+    u1_total_out    = 0.0f;
+    ff1_contrib_out = 0.0f;
+    p1_out = i1_out = d1_out = 0.0f;
+    return;
+  }
+
   float e1 = theta1_d - theta1;
 
   // ---- Error deadzone (hold mode only) ----
