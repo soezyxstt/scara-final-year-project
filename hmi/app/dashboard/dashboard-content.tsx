@@ -9,23 +9,23 @@ import { PidTab } from '@/components/dashboard/pid-tab'
 import { FeedforwardTab } from '@/components/dashboard/feedforward-tab'
 import { MetricsTab } from '@/components/dashboard/metrics-tab'
 import { AdvancedTab } from '@/components/dashboard/advanced-tab'
-import { CopilotTab } from '@/components/dashboard/copilot-tab'
+import { GroupCompareTab } from '@/components/dashboard/group-compare-tab'
 import type { Run, Sample, TrajectoryPoint } from '@/lib/db/schema'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
 import { ThemeToggle } from '@/components/hmi/theme-toggle'
 
-type TabId = 'trajectory' | 'velocity' | 'pid' | 'feedforward' | 'metrics' | 'advanced' | 'copilot'
+type TabId = 'trajectory' | 'velocity' | 'pid' | 'feedforward' | 'metrics' | 'advanced' | 'groupCompare'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'trajectory', label: 'Trajectory' },
   { id: 'velocity', label: 'Velocity & Control' },
-  { id: 'pid', label: 'PID & CTE' },
+  { id: 'pid', label: 'PID, CTE & ATE' },
   { id: 'feedforward', label: 'Feedforward' },
   { id: 'metrics', label: 'Metrics' },
   { id: 'advanced', label: 'Advanced' },
-  { id: 'copilot', label: '🤖 AI Copilot' },
+  { id: 'groupCompare', label: 'Group Compare' },
 ]
 
 interface LoadedRun {
@@ -169,20 +169,7 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
             )}
           </div>
 
-          {/* Run badges */}
-          {activeRunData.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {activeRunData.map(r => (
-                <span
-                  key={r.runId}
-                  className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                  style={{ backgroundColor: `${r.color}20`, color: r.color, border: `1px solid ${r.color}40` }}
-                >
-                  {r.runName}
-                </span>
-              ))}
-            </div>
-          )}
+
 
           {/* Tab nav */}
           <div className="ml-auto flex items-center gap-4 h-full">
@@ -217,27 +204,15 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
             <MetricsTab runs={activeRunData.map(r => ({ run: r.run, color: r.color }))} />
           )}
           {tab === 'advanced' && <AdvancedTab runs={activeRunData} />}
-          {tab === 'copilot' && (
-            <CopilotTab
+          {tab === 'groupCompare' && (
+            <GroupCompareTab
               runs={activeRunData}
-              onUpdateRunSuggestion={(runId, suggestion) => {
-                setLoadedData(prev => {
-                  const runObj = prev[runId]
-                  if (!runObj) return prev
-                  return {
-                    ...prev,
-                    [runId]: {
-                      ...runObj,
-                      run: {
-                        ...runObj.run,
-                        aiSuggestion: suggestion
-                      }
-                    }
-                  }
-                })
-              }}
+              allRuns={runs}
+              onSelectRuns={setSelectedIds}
+              selectedIds={selectedIds}
             />
           )}
+
         </div>
       </div>
     </div>

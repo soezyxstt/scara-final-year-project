@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { ChartCard } from './chart-card'
 import type { Sample, TrajectoryPoint } from '@/lib/db/schema'
-import { computeCTEList } from '@/lib/cte-utils'
+import { computeCTEList, computeATEList } from '@/lib/cte-utils'
 import type { TPoint } from '@/lib/hmi-types'
 
 interface RunData {
@@ -52,6 +52,25 @@ export function PidTab({ runs }: Props) {
       }
     }), [runs])
 
+  const ateDatasets = useMemo(() =>
+    runs.map(r => {
+      const t0 = r.samples[0]?.t ?? 0
+      const tPoints: TPoint[] = r.trajectoryPoints.map(p => ({
+        xi: p.xi ?? 0, yi: p.yi ?? 0, xa: p.xa ?? 0, ya: p.ya ?? 0,
+      }))
+      const ates = computeATEList(tPoints)
+      return {
+        runId: r.runId,
+        runName: r.runName,
+        color: r.color,
+        data: tPoints.map((_, i) => {
+          const sample = r.samples[i]
+          const tRel = sample ? (sample.t - t0) : i * 10
+          return { t: tRel, ate: ates[i] ?? 0 }
+        }),
+      }
+    }), [runs])
+
   const loopDatasets = useMemo(() =>
     runs.map(r => {
       const t0 = r.samples[0]?.t ?? 0
@@ -95,6 +114,13 @@ export function PidTab({ runs }: Props) {
         title="Cross-Track Error — CTE (mm)"
         datasets={cteDatasets}
         series={[{ dataKey: 'cte', color: '#FF9800', label: 'CTE' }]}
+        xKey="t" xLabel="ms" yLabel="mm" height={200} type="area"
+      />
+
+      <ChartCard
+        title="Along-Track Error — ATE (mm)"
+        datasets={ateDatasets}
+        series={[{ dataKey: 'ate', color: '#E91E63', label: 'ATE' }]}
         xKey="t" xLabel="ms" yLabel="mm" height={200} type="area"
       />
 

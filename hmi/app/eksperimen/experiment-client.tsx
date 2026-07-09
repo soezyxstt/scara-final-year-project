@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
+import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -153,6 +154,9 @@ function buildConditionCommands(
 export function ExperimentClient() {
   const { state: hmiState, serial } = useHMISlow()
   const { serialStatus, gains, online, estopped } = hmiState
+
+  // Keep the firmware watchdog alive during experiment runs
+  useHeartbeat(serialStatus === 'connected')
 
   // UI Selection State
   const [activeTab, setActiveTab] = useState<'EXP-1' | 'EXP-2' | 'EXP-3' | 'EXP-4' | 'EXP-5' | 'EXP-6'>('EXP-1')
@@ -1016,6 +1020,31 @@ export function ExperimentClient() {
         handleRunFailure(`Firmware rejected command: ${trimmed}`)
         return
       }
+    }
+
+    // 0b. Auto-recover if M-packet is missed in transit but we start receiving telemetry
+    if ((tag === 'D' || tag === 'T' || tag === 'F' || tag === 'E') && st === 'running' && awaitingMRef.current) {
+      addLog('⚠️ Missed M-packet in transit. Auto-recovering move phase...')
+      awaitingMRef.current = false
+      mPacketReceivedRef.current = true
+      capturePhaseRef.current = 'move'
+      lastDWallClockRef.current = Date.now()
+      armWatchdog(WD_RUNNING_MS, 'no S-packet during trajectory')
+
+      // Telemetry stall detection while moving
+      if (stallIntervalRef.current) clearInterval(stallIntervalRef.current)
+      stallIntervalRef.current = setInterval(() => {
+        if (stateRef.current !== 'running' || !mPacketReceivedRef.current) {
+          clearInterval(stallIntervalRef.current!)
+          stallIntervalRef.current = null
+          return
+        }
+        if (Date.now() - lastDWallClockRef.current > TELEMETRY_STALL_MS) {
+          clearInterval(stallIntervalRef.current!)
+          stallIntervalRef.current = null
+          handleRunFailure(`Telemetry stalled (no D-packet for >${TELEMETRY_STALL_MS} ms)`)
+        }
+      }, 500)
     }
 
     // 1. Capture M-packet (trajectory move accepted and started)
