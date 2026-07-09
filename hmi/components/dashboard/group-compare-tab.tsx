@@ -333,8 +333,43 @@ function getTrajectoryPhases(r: Run) {
     tf: tf * 1000,
   }
 }
-
-
+const tableSvgToPngBlob = (svgMarkup: string, width: number, height: number): Promise<Blob | null> => {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve(null)
+      return
+    }
+    const svgBlob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(svgBlob)
+    
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const scale = 2 // 2x scaling for ultra sharp text
+      canvas.width = width * scale
+      canvas.height = height * scale
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.scale(scale, scale)
+        ctx.drawImage(img, 0, 0, width, height)
+        canvas.toBlob((blob) => {
+          resolve(blob)
+        }, 'image/png')
+      } else {
+        resolve(null)
+      }
+      URL.revokeObjectURL(url)
+    }
+    img.onerror = () => {
+      resolve(null)
+      URL.revokeObjectURL(url)
+    }
+    img.src = url
+  })
+}
 
 export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Props) {
   // State
@@ -1370,6 +1405,199 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
     const xyPathComparisonSvg = generateXYTraceSvgStr()
     if (xyPathComparisonSvg) {
       zip.file(`charts/scara_chart_xy_path.svg`, xyPathComparisonSvg)
+    }
+
+    // Helper to generate SVG Box Plot Stats Table string
+    const generateStatsTableSvgStr = (metricLabel: string, unit: string, subgroupsStats: any[]) => {
+      const rowH = 30
+      const headerH = 40
+      const titleH = 40
+      const h = titleH + headerH + subgroupsStats.length * rowH + 10
+      const w = 600
+
+      let html = `
+        <rect x="0" y="0" width="${w}" height="${h}" fill="#FFFFFF" stroke="#D0D0D0" stroke-width="1" />
+        <text x="300" y="25" font-family="'Times New Roman', Times, serif" font-size="14px" font-weight="bold" fill="#000000" text-anchor="middle">
+          ${metricLabel} (${unit}) - Subgroup Statistics
+        </text>
+      `
+
+      const cols = [
+        { label: 'Subgroup', x: 20, align: 'start' },
+        { label: 'N', x: 200, align: 'end' },
+        { label: 'Min', x: 260, align: 'end' },
+        { label: 'Q1', x: 320, align: 'end' },
+        { label: 'Median', x: 390, align: 'end' },
+        { label: 'Q3', x: 460, align: 'end' },
+        { label: 'Max', x: 520, align: 'end' },
+        { label: 'Mean', x: 580, align: 'end' }
+      ]
+
+      html += `<rect x="10" y="${titleH}" width="${w - 20}" height="${headerH - 10}" fill="#F5F5F7" stroke="#D0D0D0" stroke-width="1" />`
+
+      cols.forEach(col => {
+        html += `
+          <text x="${col.x}" y="${titleH + 20}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="#000000" text-anchor="${col.align}">
+            ${col.label}
+          </text>
+        `
+      })
+
+      subgroupsStats.forEach((sgData, idx) => {
+        const { subgroup, stats } = sgData
+        const yRow = titleH + headerH + idx * rowH
+        
+        if (idx % 2 === 1) {
+          html += `<rect x="10" y="${yRow - 5}" width="${w - 20}" height="${rowH}" fill="#FAFAFA" stroke="none" />`
+        }
+        html += `<line x1="10" y1="${yRow + rowH - 5}" x2="${w - 20}" y2="${yRow + rowH - 5}" stroke="#EAEAEA" stroke-width="0.8" />`
+
+        html += `
+          <circle cx="20" cy="${yRow + 10}" r="4.5" fill="${subgroup.color}" />
+          <text x="32" y="${yRow + 13}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="#000000">
+            ${subgroup.name}
+          </text>
+        `
+
+        if (!stats) {
+          html += `<text x="200" y="${yRow + 13}" font-family="'Times New Roman', Times, serif" font-size="11px" font-style="italic" fill="#757575" text-anchor="start">No runs assigned</text>`
+          return
+        }
+
+        const formatCell = (val: number) => {
+          if (val >= 1000) return val.toFixed(1)
+          if (val < 0.001) return val.toExponential(3)
+          return val.toFixed(4)
+        }
+
+        html += `<text x="${cols[1].x}" y="${yRow + 13}" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#000000" text-anchor="end">${stats.n}</text>`
+        html += `<text x="${cols[2].x}" y="${yRow + 13}" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#000000" text-anchor="end">${formatCell(stats.min)}</text>`
+        html += `<text x="${cols[3].x}" y="${yRow + 13}" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#000000" text-anchor="end">${formatCell(stats.q1)}</text>`
+        html += `<text x="${cols[4].x}" y="${yRow + 13}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="#000000" text-anchor="end">${formatCell(stats.median)}</text>`
+        html += `<text x="${cols[5].x}" y="${yRow + 13}" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#000000" text-anchor="end">${formatCell(stats.q3)}</text>`
+        html += `<text x="${cols[6].x}" y="${yRow + 13}" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#000000" text-anchor="end">${formatCell(stats.max)}</text>`
+        html += `<text x="${cols[7].x}" y="${yRow + 13}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="#155724" text-anchor="end">${formatCell(stats.mean)}</text>`
+      })
+
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${html}</svg>`
+    }
+
+    // Helper to generate SVG Welch t-Test Table string
+    const generateTTestTableSvgStr = (subgroupAName: string, subgroupBName: string, colorA: string, colorB: string, comparisons: any[]) => {
+      const rowH = 28
+      const headerH = 40
+      const titleH = 50
+      const h = titleH + headerH + comparisons.length * rowH + 10
+      const w = 780
+
+      let html = `
+        <rect x="0" y="0" width="${w}" height="${h}" fill="#FFFFFF" stroke="#D0D0D0" stroke-width="1" />
+        <text x="${w/2}" y="25" font-family="'Times New Roman', Times, serif" font-size="14px" font-weight="bold" fill="#000000" text-anchor="middle">
+          Welch's t-Test &amp; Effect Size Summary
+        </text>
+        <text x="${w/2}" y="42" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#555555" text-anchor="middle">
+          Subgroup A: ${subgroupAName} vs. Subgroup B: ${subgroupBName}
+        </text>
+      `
+
+      const cols = [
+        { label: 'Metric', x: 20, align: 'start' },
+        { label: 'Mean (A)', x: 250, align: 'end' },
+        { label: 'Mean (B)', x: 380, align: 'end' },
+        { label: '% Diff', x: 450, align: 'end' },
+        { label: 't-stat (df)', x: 540, align: 'end' },
+        { label: 'p-value', x: 620, align: 'end' },
+        { label: 'Significance', x: 670, align: 'center' },
+        { label: 'Cohen\'s d', x: 740, align: 'center' }
+      ]
+
+      html += `<rect x="10" y="${titleH}" width="${w - 20}" height="${headerH - 10}" fill="#F5F5F7" stroke="#D0D0D0" stroke-width="1" />`
+
+      cols.forEach((col, idx) => {
+        if (idx === 1) {
+          html += `
+            <circle cx="${col.x - 55}" cy="${titleH + 17}" r="4" fill="${colorA}" />
+            <text x="${col.x}" y="${titleH + 20}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="#000000" text-anchor="${col.align}">
+              Mean (A)
+            </text>
+          `
+        } else if (idx === 2) {
+          html += `
+            <circle cx="${col.x - 55}" cy="${titleH + 17}" r="4" fill="${colorB}" />
+            <text x="${col.x}" y="${titleH + 20}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="#000000" text-anchor="${col.align}">
+              Mean (B)
+            </text>
+          `
+        } else {
+          html += `
+            <text x="${col.x}" y="${titleH + 20}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="#000000" text-anchor="${col.align}">
+              ${col.label}
+            </text>
+          `
+        }
+      })
+
+      comparisons.forEach((c, idx) => {
+        const yRow = titleH + headerH + idx * rowH
+        
+        if (idx % 2 === 1) {
+          html += `<rect x="10" y="${yRow - 5}" width="${w - 20}" height="${rowH}" fill="#FAFAFA" stroke="none" />`
+        }
+        html += `<line x1="10" y1="${yRow + rowH - 5}" x2="${w - 20}" y2="${yRow + rowH - 5}" stroke="#EAEAEA" stroke-width="0.8" />`
+
+        const diffColor = c.diffPct < 0 ? '#155724' : c.diffPct > 0 ? '#721C24' : '#000000'
+        const sigBg = c.significance === 'Highly Significant' ? '#D4EDDA' : c.significance === 'Significant' ? '#FFF3CD' : '#E2E3E5'
+        const sigFg = c.significance === 'Highly Significant' ? '#155724' : c.significance === 'Significant' ? '#856404' : '#383D41'
+        
+        const cohenBg = c.effectSize === 'Large' ? '#CCE5FF' : c.effectSize === 'Medium' ? '#E2D9F3' : '#F8D7DA'
+        const cohenFg = c.effectSize === 'Large' ? '#004085' : c.effectSize === 'Medium' ? '#383D41' : '#721C24'
+
+        html += `<text x="${cols[0].x}" y="${yRow + 12}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="#000000">${c.metricLabel} (${c.unit})</text>`
+        
+        html += `<text x="${cols[1].x}" y="${yRow + 12}" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#000000" text-anchor="end">${c.meanA.toFixed(4)} ±${c.sdA.toFixed(3)}</text>`
+        html += `<text x="${cols[2].x}" y="${yRow + 12}" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#000000" text-anchor="end">${c.meanB.toFixed(4)} ±${c.sdB.toFixed(3)}</text>`
+        
+        html += `<text x="${cols[3].x}" y="${yRow + 12}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="${diffColor}" text-anchor="end">${c.diffPct > 0 ? '+' : ''}${c.diffPct.toFixed(2)}%</text>`
+        
+        html += `<text x="${cols[4].x}" y="${yRow + 12}" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#555555" text-anchor="end">${c.tStat.toFixed(2)} (${c.df.toFixed(1)})</text>`
+        
+        html += `<text x="${cols[5].x}" y="${yRow + 12}" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#000000" text-anchor="end">${c.pValue.toFixed(5)}</text>`
+        
+        html += `
+          <rect x="${cols[6].x - 45}" y="${yRow}" width="90" height="15" rx="3" fill="${sigBg}" />
+          <text x="${cols[6].x}" y="${yRow + 11}" font-family="'Times New Roman', Times, serif" font-size="9px" font-weight="bold" fill="${sigFg}" text-anchor="middle">${c.significance}</text>
+        `
+
+        html += `
+          <rect x="${cols[7].x - 40}" y="${yRow}" width="80" height="15" rx="3" fill="${cohenBg}" />
+          <text x="${cols[7].x}" y="${yRow + 11}" font-family="'Times New Roman', Times, serif" font-size="9px" font-weight="bold" fill="${cohenFg}" text-anchor="middle">${c.effectSize} (d=${Math.abs(c.cohenD).toFixed(2)})</text>
+        `
+      })
+
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${html}</svg>`
+    }
+
+    // Generate clean Metrics Summary Table PNG and add to ZIP
+    const activeMetric = METRICS.find(m => m.key === selectedMetric) || METRICS[0]
+    const statsTableSvg = generateStatsTableSvgStr(activeMetric.label, activeMetric.unit, boxPlotData)
+    const statsTableH = 40 + 40 + boxPlotData.length * 30 + 10
+    const statsTablePngBlob = await tableSvgToPngBlob(statsTableSvg, 600, statsTableH)
+    if (statsTablePngBlob) {
+      zip.file('scara_metrics_summary.png', statsTablePngBlob)
+    }
+
+    // Generate Welch t-Test Summary Table PNG and add to ZIP
+    if (activeGroup.subgroups.length >= 2 && subgroupAId && subgroupBId && subgroupAId !== subgroupBId) {
+      const sgA = activeGroup.subgroups.find(s => s.id === subgroupAId)
+      const sgB = activeGroup.subgroups.find(s => s.id === subgroupBId)
+      if (sgA && sgB && statisticalComparisons.length > 0) {
+        const tTestTableSvg = generateTTestTableSvgStr(sgA.name, sgB.name, sgA.color, sgB.color, statisticalComparisons)
+        const tTestTableH = 50 + 40 + statisticalComparisons.length * 28 + 10
+        const tTestTablePngBlob = await tableSvgToPngBlob(tTestTableSvg, 780, tTestTableH)
+        if (tTestTablePngBlob) {
+          zip.file('scara_ttests_summary.png', tTestTablePngBlob)
+        }
+      }
     }
 
     // 6. Generate zip archive and download it
