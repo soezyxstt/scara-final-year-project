@@ -1407,6 +1407,55 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
       zip.file(`charts/scara_chart_xy_path.svg`, xyPathComparisonSvg)
     }
 
+    // Helper to calculate stats for a specific metric on the fly
+    const getStatsForMetric = (metricKey: MetricKey) => {
+      return activeGroup.subgroups.map(sg => {
+        const runsInSg = sg.runIds.map((id: string) => computedMetrics[id]).filter(Boolean) as RunMetrics[]
+        if (runsInSg.length === 0) {
+          return { subgroup: sg, stats: null }
+        }
+
+        const values = runsInSg.map((r: RunMetrics) => {
+          if (metricKey === 'mcte') return r.mcte
+          if (metricKey === 'mcte_accel') return r.mcte_accel
+          if (metricKey === 'mcte_cruise') return r.mcte_cruise
+          if (metricKey === 'mcte_decel') return r.mcte_decel
+          if (metricKey === 'mate') return r.mate
+          if (metricKey === 'mate_accel') return r.mate_accel
+          if (metricKey === 'mate_cruise') return r.mate_cruise
+          if (metricKey === 'mate_decel') return r.mate_decel
+          if (metricKey === 'eefRmse') return r.eefRmse
+          if (metricKey === 'j1Rmse') return r.j1Rmse
+          if (metricKey === 'j2Rmse') return r.j2Rmse
+          if (metricKey === 'ssErr') return r.ssErr
+          if (metricKey === 'time') return r.time
+          return 0
+        }).sort((a: number, b: number) => a - b)
+
+        const n = values.length
+        const min = values[0]
+        const max = values[n - 1]
+        const sum = values.reduce((a: number, b: number) => a + b, 0)
+        const mean = sum / n
+
+        const getPercentile = (p: number) => {
+          const idx = p * (n - 1)
+          const low = Math.floor(idx)
+          const high = Math.ceil(idx)
+          return values[low] + (values[high] - values[low]) * (idx - low)
+        }
+
+        const q1 = getPercentile(0.25)
+        const median = getPercentile(0.5)
+        const q3 = getPercentile(0.75)
+
+        return {
+          subgroup: sg,
+          stats: { min, q1, median, q3, max, mean, n }
+        }
+      })
+    }
+
     // Helper to generate SVG Box Plot Stats Table string
     const generateStatsTableSvgStr = (metricLabel: string, unit: string, subgroupsStats: any[]) => {
       const rowH = 30
@@ -1482,13 +1531,107 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
       return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${html}</svg>`
     }
 
+    // Helper to generate a single consolidated metrics summary table
+    const generateConsolidatedMetricsTableSvgStr = (subgroups: any[], computedMetrics: any) => {
+      const rowH = 28
+      const headerH = 40
+      const titleH = 50
+      const h = titleH + headerH + METRICS.length * rowH + 10
+      const w = Math.max(620, 280 + subgroups.length * 180)
+
+      let html = `
+        <rect x="0" y="0" width="${w}" height="${h}" fill="#FFFFFF" stroke="#D0D0D0" stroke-width="1" />
+        <text x="${w/2}" y="25" font-family="'Times New Roman', Times, serif" font-size="14px" font-weight="bold" fill="#000000" text-anchor="middle">
+          SCARA Trajectory Tracking Metrics Summary
+        </text>
+        <text x="${w/2}" y="42" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#555555" text-anchor="middle">
+          Calculated subgroup means and standard deviations across all runs
+        </text>
+      `
+
+      html += `<rect x="10" y="${titleH}" width="${w - 20}" height="${headerH - 10}" fill="#F5F5F7" stroke="#D0D0D0" stroke-width="1" />`
+      html += `
+        <text x="20" y="${titleH + 20}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="#000000" text-anchor="start">
+          Metric
+        </text>
+      `
+
+      subgroups.forEach((sg, idx) => {
+        const xPos = 300 + idx * 180
+        html += `
+          <circle cx="${xPos - 55}" cy="${titleH + 17}" r="4" fill="${sg.color}" />
+          <text x="${xPos}" y="${titleH + 20}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="#000000" text-anchor="middle">
+            ${sg.name}
+          </text>
+        `
+      })
+
+      METRICS.forEach((metric, rowIdx) => {
+        const yRow = titleH + headerH + rowIdx * rowH
+        
+        if (rowIdx % 2 === 1) {
+          html += `<rect x="10" y="${yRow - 5}" width="${w - 20}" height="${rowH}" fill="#FAFAFA" stroke="none" />`
+        }
+        html += `<line x1="10" y1="${yRow + rowH - 5}" x2="${w - 20}" y2="${yRow + rowH - 5}" stroke="#EAEAEA" stroke-width="0.8" />`
+
+        html += `
+          <text x="20" y="${yRow + 12}" font-family="'Times New Roman', Times, serif" font-size="11px" font-weight="bold" fill="#000000" text-anchor="start">
+            ${metric.label} (${metric.unit})
+          </text>
+        `
+
+        subgroups.forEach((sg, colIdx) => {
+          const xPos = 300 + colIdx * 180
+          const runsInSg = sg.runIds.map((id: string) => computedMetrics[id]).filter(Boolean) as RunMetrics[]
+          
+          if (runsInSg.length === 0) {
+            html += `
+              <text x="${xPos}" y="${yRow + 12}" font-family="'Times New Roman', Times, serif" font-size="11px" font-style="italic" fill="#757575" text-anchor="middle">
+                —
+              </text>
+            `
+            return
+          }
+
+          const vals = runsInSg.map((r: RunMetrics) => {
+            if (metric.key === 'mcte') return r.mcte
+            if (metric.key === 'mcte_accel') return r.mcte_accel
+            if (metric.key === 'mcte_cruise') return r.mcte_cruise
+            if (metric.key === 'mcte_decel') return r.mcte_decel
+            if (metric.key === 'mate') return r.mate
+            if (metric.key === 'mate_accel') return r.mate_accel
+            if (metric.key === 'mate_cruise') return r.mate_cruise
+            if (metric.key === 'mate_decel') return r.mate_decel
+            if (metric.key === 'eefRmse') return r.eefRmse
+            if (metric.key === 'j1Rmse') return r.j1Rmse
+            if (metric.key === 'j2Rmse') return r.j2Rmse
+            if (metric.key === 'ssErr') return r.ssErr
+            if (metric.key === 'time') return r.time
+            return 0
+          })
+
+          const mean = vals.reduce((a: number, b: number) => a + b, 0) / vals.length
+          const variance = vals.reduce((sum: number, val: number) => sum + Math.pow(val - mean, 2), 0) / Math.max(1, vals.length - 1)
+          const sd = Math.sqrt(variance)
+
+          html += `
+            <text x="${xPos}" y="${yRow + 12}" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#000000" text-anchor="middle">
+              ${mean.toFixed(4)} ±${sd.toFixed(3)}
+            </text>
+          `
+        })
+      })
+
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${html}</svg>`
+    }
+
     // Helper to generate SVG Welch t-Test Table string
     const generateTTestTableSvgStr = (subgroupAName: string, subgroupBName: string, colorA: string, colorB: string, comparisons: any[]) => {
       const rowH = 28
       const headerH = 40
       const titleH = 50
       const h = titleH + headerH + comparisons.length * rowH + 10
-      const w = 780
+      const w = 890
 
       let html = `
         <rect x="0" y="0" width="${w}" height="${h}" fill="#FFFFFF" stroke="#D0D0D0" stroke-width="1" />
@@ -1502,13 +1645,13 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
 
       const cols = [
         { label: 'Metric', x: 20, align: 'start' },
-        { label: 'Mean (A)', x: 250, align: 'end' },
-        { label: 'Mean (B)', x: 380, align: 'end' },
-        { label: '% Diff', x: 450, align: 'end' },
-        { label: 't-stat (df)', x: 540, align: 'end' },
-        { label: 'p-value', x: 620, align: 'end' },
-        { label: 'Significance', x: 670, align: 'center' },
-        { label: 'Cohen\'s d', x: 740, align: 'center' }
+        { label: 'Mean (A)', x: 270, align: 'end' },
+        { label: 'Mean (B)', x: 410, align: 'end' },
+        { label: '% Diff', x: 490, align: 'end' },
+        { label: 't-stat (df)', x: 590, align: 'end' },
+        { label: 'p-value', x: 670, align: 'end' },
+        { label: 'Significance', x: 740, align: 'center' },
+        { label: 'Cohen\'s d', x: 835, align: 'center' }
       ]
 
       html += `<rect x="10" y="${titleH}" width="${w - 20}" height="${headerH - 10}" fill="#F5F5F7" stroke="#D0D0D0" stroke-width="1" />`
@@ -1564,7 +1707,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
         html += `<text x="${cols[5].x}" y="${yRow + 12}" font-family="'Times New Roman', Times, serif" font-size="11px" fill="#000000" text-anchor="end">${c.pValue.toFixed(5)}</text>`
         
         html += `
-          <rect x="${cols[6].x - 45}" y="${yRow}" width="90" height="15" rx="3" fill="${sigBg}" />
+          <rect x="${cols[6].x - 50}" y="${yRow}" width="100" height="15" rx="3" fill="${sigBg}" />
           <text x="${cols[6].x}" y="${yRow + 11}" font-family="'Times New Roman', Times, serif" font-size="9px" font-weight="bold" fill="${sigFg}" text-anchor="middle">${c.significance}</text>
         `
 
@@ -1577,13 +1720,24 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
       return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${html}</svg>`
     }
 
-    // Generate clean Metrics Summary Table PNG and add to ZIP
-    const activeMetric = METRICS.find(m => m.key === selectedMetric) || METRICS[0]
-    const statsTableSvg = generateStatsTableSvgStr(activeMetric.label, activeMetric.unit, boxPlotData)
-    const statsTableH = 40 + 40 + boxPlotData.length * 30 + 10
-    const statsTablePngBlob = await tableSvgToPngBlob(statsTableSvg, 600, statsTableH)
-    if (statsTablePngBlob) {
-      zip.file('scara_metrics_summary.png', statsTablePngBlob)
+    // Generate consolidated Subgroup Summary Table PNG and add to ZIP
+    const consolidatedSvg = generateConsolidatedMetricsTableSvgStr(activeGroup.subgroups, computedMetrics)
+    const consolidatedH = 50 + 40 + METRICS.length * 28 + 10
+    const consolidatedW = Math.max(620, 280 + activeGroup.subgroups.length * 180)
+    const consolidatedPngBlob = await tableSvgToPngBlob(consolidatedSvg, consolidatedW, consolidatedH)
+    if (consolidatedPngBlob) {
+      zip.file('scara_metrics_summary.png', consolidatedPngBlob)
+    }
+
+    // Generate stats tables for all 13 metrics and add to ZIP tables/ folder
+    for (const metric of METRICS) {
+      const stats = getStatsForMetric(metric.key)
+      const statsSvg = generateStatsTableSvgStr(metric.label, metric.unit, stats)
+      const statsH = 40 + 40 + stats.length * 30 + 10
+      const statsPngBlob = await tableSvgToPngBlob(statsSvg, 600, statsH)
+      if (statsPngBlob) {
+        zip.file(`tables/scara_stats_${metric.key.toLowerCase()}.png`, statsPngBlob)
+      }
     }
 
     // Generate Welch t-Test Summary Table PNG and add to ZIP
@@ -1593,7 +1747,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
       if (sgA && sgB && statisticalComparisons.length > 0) {
         const tTestTableSvg = generateTTestTableSvgStr(sgA.name, sgB.name, sgA.color, sgB.color, statisticalComparisons)
         const tTestTableH = 50 + 40 + statisticalComparisons.length * 28 + 10
-        const tTestTablePngBlob = await tableSvgToPngBlob(tTestTableSvg, 780, tTestTableH)
+        const tTestTablePngBlob = await tableSvgToPngBlob(tTestTableSvg, 890, tTestTableH)
         if (tTestTablePngBlob) {
           zip.file('scara_ttests_summary.png', tTestTablePngBlob)
         }
