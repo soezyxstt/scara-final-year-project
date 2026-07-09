@@ -878,15 +878,34 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
     
     const width = 500
     const height = 400
-    const padding = 50
-    const scale = Math.min((width - 2 * padding) / rMax, (height - 2 * padding) / rMax)
+    
+    const marginLeft = 75
+    const marginRight = 30
+    const marginTop = 60
+    const marginBottom = 50
+    
+    const chartW = width - marginLeft - marginRight
+    const chartH = height - marginTop - marginBottom
+    const scale = Math.min(chartW / rMax, chartH / rMax)
+    
+    const chartXMid = marginLeft + chartW / 2
+    const chartYMid = marginTop + chartH / 2
     
     const toScreen = (x: number, y: number) => ({
-      x: width / 2 + (x - xMid) * scale,
-      y: height / 2 - (y - yMid) * scale
+      x: chartXMid + (x - xMid) * scale,
+      y: chartYMid - (y - yMid) * scale
     })
     
-    return { toScreen }
+    return { toScreen, xMin, xMax, yMin, yMax }
+  }, [boundingBox])
+
+  // UI Tick generator for XY Trace
+  const uiTicks = useMemo(() => {
+    const { xMin, xMax, yMin, yMax } = boundingBox
+    const numTicks = 5
+    const xTicks = Array.from({ length: numTicks + 1 }).map((_, i) => xMin + i * (xMax - xMin) / numTicks)
+    const yTicks = Array.from({ length: numTicks + 1 }).map((_, i) => yMin + i * (yMax - yMin) / numTicks)
+    return { xTicks, yTicks }
   }, [boundingBox])
 
   const handleExportReport = async () => {
@@ -1004,7 +1023,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
       const w = 600
       const chartW = w - marginLeft - marginRight
       const rowH = 60
-      const h = subgroupsStats.length * rowH + 45
+      const h = subgroupsStats.length * rowH + 85
 
       const getX = (val: number) => {
         if (extMax === extMin) return marginLeft + chartW / 2
@@ -1019,26 +1038,46 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
 
       let content = ''
       
+      // Title
+      content += `<text x="300" y="20" font-weight="bold" text-anchor="middle" font-size="14px" fill="#000000">${metricLabel} (${unit})</text>`
+
+      // Legend
+      content += `
+        <g transform="translate(85, 36)">
+          <polygon points="0,-4 4,0 0,4 -4,0" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+          <text x="8" y="3" fill="#000000" font-size="10px" font-family="'Times New Roman', serif">Mean</text>
+
+          <line x1="75" y1="0" x2="90" y2="0" stroke="#000000" stroke-width="3" />
+          <text x="96" y="3" fill="#000000" font-size="10px" font-family="'Times New Roman', serif">Median</text>
+
+          <rect x="170" y="-5" width="15" height="10" fill="#000000" fill-opacity="0.15" stroke="#000000" stroke-width="1.5" />
+          <text x="190" y="3" fill="#000000" font-size="10px" font-family="'Times New Roman', serif">IQR (Q1-Q3)</text>
+
+          <circle cx="300" cy="0" r="3.5" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+          <text x="308" y="3" fill="#000000" font-size="10px" font-family="'Times New Roman', serif">Runs (Jittered)</text>
+        </g>
+      `
+
       // Grid lines
       for (let i = 0; i <= 4; i++) {
         const v = extMin + i * (extMax - extMin) / 4
         const x = getX(v)
         content += `
-          <line x1="${x}" y1="10" x2="${x}" y2="${h - 35}" stroke="#D0D0D0" stroke-dasharray="2,2" stroke-width="1" />
-          <text x="${x}" y="${h - 20}" fill="#000000" font-size="12px" text-anchor="middle">${formatNum(v)}</text>
+          <line x1="${x}" y1="50" x2="${x}" y2="${h - 35}" stroke="#D0D0D0" stroke-dasharray="2,2" stroke-width="1" />
+          <text x="${x}" y="${h - 18}" fill="#000000" font-size="12px" text-anchor="middle" font-family="'Times New Roman', serif">${formatNum(v)}</text>
         `
       }
 
       // Rows
       subgroupsStats.forEach((sgData, idx) => {
         const { subgroup, stats } = sgData
-        const yCenter = 15 + idx * rowH + rowH / 2
+        const yCenter = 50 + idx * rowH + rowH / 2
         
         // Label
-        content += `<text x="15" y="${yCenter + 4}" fill="#000000" font-size="12px" font-weight="bold">${subgroup.name}</text>`
+        content += `<text x="15" y="${yCenter + 4}" fill="#000000" font-size="12px" font-weight="bold" font-family="'Times New Roman', serif">${subgroup.name}</text>`
         
         if (!stats) {
-          content += `<text x="${marginLeft + 10}" y="${yCenter + 4}" fill="#757575" font-size="12px" font-style="italic">No runs assigned</text>`
+          content += `<text x="${marginLeft + 10}" y="${yCenter + 4}" fill="#757575" font-size="12px" font-style="italic" font-family="'Times New Roman', serif">No runs assigned</text>`
           return
         }
 
@@ -1103,9 +1142,9 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
       
       const w = 600
       const h = 300
-      const padLeft = 60
+      const padLeft = 75
       const padRight = 30
-      const padTop = 30
+      const padTop = 50
       const padBottom = 40
       
       const getX = (t: number) => padLeft + (t / 1000) / ((timeGrid[timeGrid.length - 1] || 1000) / 1000) * (w - padLeft - padRight)
@@ -1143,13 +1182,36 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
         `
       }
       
+      let titleAndLabelsHtml = ''
+      
+      // Centered Title
+      titleAndLabelsHtml += `<text x="300" y="20" font-weight="bold" text-anchor="middle" font-size="14px" fill="#000000">${title}</text>`
+      
+      // Horizontal Legend below Title
+      const itemSpacing = 120
+      const totalLegendWidth = subgroupAverages.length * itemSpacing
+      const startX = w / 2 - totalLegendWidth / 2 + 10
+      subgroupAverages.forEach((sgAvg, idx) => {
+        const itemX = startX + idx * itemSpacing
+        titleAndLabelsHtml += `
+          <line x1="${itemX}" y1="36" x2="${itemX + 15}" y2="36" stroke="${sgAvg.subgroup.color}" stroke-width="3.5" />
+          <text x="${itemX + 20}" y="40" fill="#000000" font-size="10px" font-weight="bold" font-family="'Times New Roman', serif" text-anchor="start">${sgAvg.subgroup.name}</text>
+        `
+      })
+      
+      // Y-axis Label (Rotated on the left)
+      titleAndLabelsHtml += `<text transform="translate(18, ${(h - padTop - padBottom)/2 + padTop}) rotate(-90)" font-weight="bold" text-anchor="middle" font-size="12px" fill="#000000">${title} (${unit})</text>`
+      
+      // X-axis Label (Centered at bottom)
+      titleAndLabelsHtml += `<text x="${(w - padLeft - padRight)/2 + padLeft}" y="${h - 6}" font-weight="bold" text-anchor="middle" font-size="12px" fill="#000000">Time (s)</text>`
+      
       const svgStyle = `
         <style>
           svg { background-color: #FFFFFF !important; }
           text { font-family: 'Times New Roman', Times, serif !important; font-size: 12pt !important; fill: #000000 !important; }
         </style>
       `
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="background:#FFFFFF; border:1px solid #D0D0D0; border-radius:4px; font-family:'Times New Roman', Times, serif;">${svgStyle}${gridHtml}${pathsHtml}</svg>`
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="background:#FFFFFF; border:1px solid #D0D0D0; border-radius:4px; font-family:'Times New Roman', Times, serif;">${svgStyle}${gridHtml}${pathsHtml}${titleAndLabelsHtml}</svg>`
     }
 
     // Helper to generate SVG XY Path Comparison string styled for academic papers
@@ -1165,27 +1227,51 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
       
       const w = 500
       const h = 400
-      const pad = 50
-      const scale = Math.min((w - 2 * pad) / rMax, (h - 2 * pad) / rMax)
+      
+      const marginLeft = 75
+      const marginRight = 30
+      const marginTop = 60
+      const marginBottom = 50
+      
+      const chartW = w - marginLeft - marginRight
+      const chartH = h - marginTop - marginBottom
+      const scale = Math.min(chartW / rMax, chartH / rMax)
+      
+      const chartXMid = marginLeft + chartW / 2
+      const chartYMid = marginTop + chartH / 2
       
       const toScreen = (x: number, y: number) => ({
-        x: w / 2 + (x - xMid) * scale,
-        y: h / 2 - (y - yMid) * scale
+        x: chartXMid + (x - xMid) * scale,
+        y: chartYMid - (y - yMid) * scale
       })
 
       let content = ''
       
-      // Grid lines
-      for (let idx = 0; idx <= 8; idx++) {
-        const xPos = 50 + idx * 50
-        const yPos = 40 + idx * 40
-        content += `
-          <line x1="${xPos}" y1="0" x2="${xPos}" y2="400" stroke="#E5E5E5" stroke-dasharray="2,2" stroke-width="1" />
-          <line x1="0" y1="${yPos}" x2="500" y2="${yPos}" stroke="#E5E5E5" stroke-dasharray="2,2" stroke-width="1" />
-        `
-      }
+      // Dynamic Ticks
+      const numTicks = 5
+      const xTicks = Array.from({ length: numTicks + 1 }).map((_, i) => xMin + i * (xMax - xMin) / numTicks)
+      const yTicks = Array.from({ length: numTicks + 1 }).map((_, i) => yMin + i * (yMax - yMin) / numTicks)
 
-      // Reference path (black dashed, thicker for paper prints)
+      // Draw Grid Lines & Tick Labels
+      xTicks.forEach(xPhys => {
+        const screenPtBottom = toScreen(xPhys, yMin)
+        const screenPtTop = toScreen(xPhys, yMax)
+        content += `
+          <line x1="${screenPtBottom.x}" y1="${screenPtTop.y}" x2="${screenPtBottom.x}" y2="${screenPtBottom.y}" stroke="#E5E5E5" stroke-dasharray="2,2" stroke-width="1" />
+          <text x="${screenPtBottom.x}" y="${screenPtBottom.y + 16}" fill="#000000" font-size="10px" text-anchor="middle" font-family="'Times New Roman', serif">${xPhys.toFixed(1)}</text>
+        `
+      })
+
+      yTicks.forEach(yPhys => {
+        const screenPtLeft = toScreen(xMin, yPhys)
+        const screenPtRight = toScreen(xMax, yPhys)
+        content += `
+          <line x1="${screenPtLeft.x}" y1="${screenPtLeft.y}" x2="${screenPtRight.x}" y2="${screenPtLeft.y}" stroke="#E5E5E5" stroke-dasharray="2,2" stroke-width="1" />
+          <text x="${screenPtLeft.x - 8}" y="${screenPtLeft.y + 4}" fill="#000000" font-size="10px" text-anchor="end" font-family="'Times New Roman', serif">${yPhys.toFixed(1)}</text>
+        `
+      })
+
+      // Reference path (black dashed)
       const dRef = referencePoints.map((p, idx) => {
         const s = toScreen(p.xi, p.yi)
         return `${idx === 0 ? 'M' : 'L'} ${s.x} ${s.y}`
@@ -1211,13 +1297,48 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
         `
       })
 
+      let labelsHtml = ''
+      
+      // Title
+      labelsHtml += `<text x="250" y="20" font-weight="bold" text-anchor="middle" font-size="14px" fill="#000000">XY Cartesian Path Comparison</text>`
+      
+      // Legend
+      const legendItems = [
+        { name: 'Desired Reference', color: '#000000', dashed: true },
+        ...subgroupTraces.map(t => ({ name: t.subgroup.name, color: t.subgroup.color, dashed: false }))
+      ]
+      const itemSpacing = 135
+      const totalLegendWidth = legendItems.length * itemSpacing
+      const startX = w / 2 - totalLegendWidth / 2 + 10
+      legendItems.forEach((item, idx) => {
+        const itemX = startX + idx * itemSpacing
+        if (item.dashed) {
+          labelsHtml += `
+            <line x1="${itemX}" y1="36" x2="${itemX + 15}" y2="36" stroke="${item.color}" stroke-dasharray="3,3" stroke-width="2" />
+            <text x="${itemX + 20}" y="40" fill="#000000" font-size="10px" font-weight="bold" font-family="'Times New Roman', serif" text-anchor="start">${item.name}</text>
+          `
+        } else {
+          labelsHtml += `
+            <rect x="${itemX}" y="31" width="15" height="10" fill="${item.color}" fill-opacity="0.15" stroke="none" />
+            <line x1="${itemX}" y1="36" x2="${itemX + 15}" y2="36" stroke="${item.color}" stroke-width="3" />
+            <text x="${itemX + 20}" y="40" fill="#000000" font-size="10px" font-weight="bold" font-family="'Times New Roman', serif" text-anchor="start">${item.name}</text>
+          `
+        }
+      })
+
+      // Y-axis Title
+      labelsHtml += `<text transform="translate(18, ${(h - marginTop - marginBottom)/2 + marginTop}) rotate(-90)" font-weight="bold" text-anchor="middle" font-size="12px" fill="#000000">Y Position (mm)</text>`
+      
+      // X-axis Title
+      labelsHtml += `<text x="${(w - marginLeft - marginRight)/2 + marginLeft}" y="${h - 6}" font-weight="bold" text-anchor="middle" font-size="12px" fill="#000000">X Position (mm)</text>`
+
       const svgStyle = `
         <style>
           svg { background-color: #FFFFFF !important; }
           text { font-family: 'Times New Roman', Times, serif !important; font-size: 12pt !important; fill: #000000 !important; }
         </style>
       `
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="background:#FFFFFF; border:1px solid #D0D0D0; border-radius:4px; font-family:'Times New Roman', Times, serif;">${svgStyle}${content}</svg>`
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="background:#FFFFFF; border:1px solid #D0D0D0; border-radius:4px; font-family:'Times New Roman', Times, serif;">${svgStyle}${content}${labelsHtml}</svg>`
     }
 
     // 4. Generate all Box Plot SVGs and add to ZIP
@@ -2073,10 +2194,10 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">Average End-Effector Cartesian Error (Euclidean, mm)</p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={averageChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                    <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} />
-                      <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Error (mm)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <RechartsTooltip
                         contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                         labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
@@ -2104,10 +2225,10 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">Average Cross-Track Error (CTE, mm)</p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={averageChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                    <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} />
-                      <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Error (mm)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <RechartsTooltip
                         contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                         labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
@@ -2135,10 +2256,10 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">Average Along-Track Error (ATE, mm)</p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={averageChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                    <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} />
-                      <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Error (mm)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <RechartsTooltip
                         contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                         labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
@@ -2167,10 +2288,10 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">Average Joint 1 Position Error (e₁, rad)</p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={averageChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                    <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} />
-                      <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Error (rad)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <RechartsTooltip
                         contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                         labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
@@ -2182,6 +2303,38 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                           key={sg.id}
                           type="monotone"
                           dataKey={`${sg.id}_e1`}
+                          stroke={sg.color}
+                          name={sg.name}
+                          dot={false}
+                          strokeWidth={1.8}
+                          isAnimationActive={false}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Joint 2 error average */}
+              <div className="bg-hmi-bg/30 border border-hmi-grid rounded-lg p-3">
+                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">Average Joint 2 Position Error (e₂, rad)</p>
+                <div className="h-52">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
+                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Error (rad)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <RechartsTooltip
+                        contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
+                        labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 9 }} />
+                      <ReferenceLine y={0} stroke="var(--color-hmi-grid)" strokeDasharray="3 3" />
+                      {activeGroup.subgroups.map(sg => (
+                        <Line
+                          key={sg.id}
+                          type="monotone"
+                          dataKey={`${sg.id}_e2`}
                           stroke={sg.color}
                           name={sg.name}
                           dot={false}
@@ -2223,16 +2376,16 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
               {jointPositionsChartData.length === 0 ? (
                 <div className="py-8 text-center text-[10px] italic text-hmi-muted">No runs assigned or selected for this subgroup.</div>
               ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Joint 1 Position Chart */}
                   <div className="bg-hmi-panel/50 border border-hmi-grid/60 rounded-lg p-3">
                     <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider text-center mb-1.5">Joint 1 Position (rad)</p>
                     <div className="h-44">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={jointPositionsChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                        <LineChart data={jointPositionsChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                          <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} />
-                          <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                          <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                          <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Position (rad)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                           <RechartsTooltip
                             contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                             labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
@@ -2250,10 +2403,10 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                     <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider text-center mb-1.5">Joint 2 Position (rad)</p>
                     <div className="h-44">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={jointPositionsChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                        <LineChart data={jointPositionsChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                          <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} />
-                          <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                          <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                          <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Position (rad)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                           <RechartsTooltip
                             contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                             labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
@@ -2437,17 +2590,85 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                         </div>
                         
                         <svg viewBox="0 0 500 400" className="w-full h-auto">
-                          {/* Draw grid lines */}
-                          {Array.from({ length: 9 }).map((_, idx) => {
-                            const xPos = 50 + idx * 50
-                            const yPos = 40 + idx * 40
+                          {/* Draw grid lines & ticks */}
+                          {uiTicks.xTicks.map((xPhys, idx) => {
+                            const screenPtBottom = mapPoints.toScreen(xPhys, mapPoints.yMin)
+                            const screenPtTop = mapPoints.toScreen(xPhys, mapPoints.yMax)
                             return (
-                              <g key={idx} className="stroke-hmi-grid/20" strokeWidth={0.5}>
-                                <line x1={xPos} y1="0" x2={xPos} y2="400" strokeDasharray="2 2" />
-                                <line x1="0" y1={yPos} x2="500" y2={yPos} strokeDasharray="2 2" />
+                              <g key={`x-${idx}`}>
+                                <line 
+                                  x1={screenPtBottom.x} 
+                                  y1={screenPtTop.y} 
+                                  x2={screenPtBottom.x} 
+                                  y2={screenPtBottom.y} 
+                                  className="stroke-hmi-grid/25" 
+                                  strokeDasharray="2 2" 
+                                  strokeWidth={0.8} 
+                                />
+                                <text 
+                                  x={screenPtBottom.x} 
+                                  y={screenPtBottom.y + 14} 
+                                  fill="currentColor" 
+                                  className="text-hmi-text-secondary fill-current font-mono text-[9px]"
+                                  textAnchor="middle"
+                                >
+                                  {xPhys.toFixed(1)}
+                                </text>
                               </g>
                             )
                           })}
+                          
+                          {uiTicks.yTicks.map((yPhys, idx) => {
+                            const screenPtLeft = mapPoints.toScreen(mapPoints.xMin, yPhys)
+                            const screenPtRight = mapPoints.toScreen(mapPoints.xMax, yPhys)
+                            return (
+                              <g key={`y-${idx}`}>
+                                <line 
+                                  x1={screenPtLeft.x} 
+                                  y1={screenPtLeft.y} 
+                                  x2={screenPtRight.x} 
+                                  y2={screenPtLeft.y} 
+                                  className="stroke-hmi-grid/25" 
+                                  strokeDasharray="2 2" 
+                                  strokeWidth={0.8} 
+                                />
+                                <text 
+                                  x={screenPtLeft.x - 8} 
+                                  y={screenPtLeft.y + 3} 
+                                  fill="currentColor" 
+                                  className="text-hmi-text-secondary fill-current font-mono text-[9px]"
+                                  textAnchor="end"
+                                >
+                                  {yPhys.toFixed(1)}
+                                </text>
+                              </g>
+                            )
+                          })}
+                          
+                          {/* Rotated Y-axis title */}
+                          <text 
+                            transform={`translate(18, ${(400 - 60 - 50)/2 + 60}) rotate(-90)`} 
+                            fontWeight="bold" 
+                            textAnchor="middle" 
+                            fontSize={10} 
+                            fill="currentColor"
+                            className="text-hmi-text-secondary fill-current"
+                          >
+                            Y Position (mm)
+                          </text>
+
+                          {/* X-axis title */}
+                          <text 
+                            x={(500 - 75 - 30)/2 + 75} 
+                            y={400 - 6} 
+                            fontWeight="bold" 
+                            textAnchor="middle" 
+                            fontSize={10} 
+                            fill="currentColor"
+                            className="text-hmi-text-secondary fill-current"
+                          >
+                            X Position (mm)
+                          </text>
                           
                           {/* 1. Reference Path */}
                           {(() => {
