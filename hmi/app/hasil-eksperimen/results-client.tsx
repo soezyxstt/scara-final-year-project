@@ -217,7 +217,7 @@ function JointPositionChart({ data }: { data: any[] }) {
       <LineChart data={data} margin={MARGIN}>
         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
         <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('θ (°)')} width={52} />
+        <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('θ (°)')} width={52} />
         <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + '°' : v} />
         <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
         <Line type="monotone" dataKey="th1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J1 Act" hide={!!hidden.th1} />
@@ -241,7 +241,7 @@ function JointVelocityChart({ data }: { data: any[] }) {
       <LineChart data={data} margin={MARGIN}>
         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
         <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('ω (°/s)')} width={52} />
+        <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('ω (°/s)')} width={52} />
         <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + '°/s' : v} />
         <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
         <Line type="monotone" dataKey="v1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J1 Act" hide={!!hidden.v1} />
@@ -265,7 +265,7 @@ function CartesianXYChart({ data }: { data: any[] }) {
       <LineChart data={data} margin={MARGIN}>
         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
         <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
+        <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
         <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(2) + ' mm' : v} />
         <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
         <Line type="monotone" dataKey="x" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="X Act" hide={!!hidden.x} />
@@ -295,7 +295,7 @@ function PwmOutputChart({ data, runId }: { data: any[], runId: string }) {
         </defs>
         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
         <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-        <YAxis domain={[-260, 260]} tick={AT} axisLine={AL} tickLine={false} label={YLABEL('PWM')} width={48} />
+        <YAxis allowDecimals={false} domain={[-260, 260]} tick={AT} axisLine={AL} tickLine={false} label={YLABEL('PWM')} width={48} />
         <ReferenceLine y={0} stroke="var(--color-hmi-grid)" strokeDasharray="4 2" />
         <Tooltip contentStyle={TS} />
         <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
@@ -317,7 +317,7 @@ function ControlEffortChart({ data }: { data: any[] }) {
       <LineChart data={data} margin={MARGIN}>
         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
         <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Control')} width={52} />
+        <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Control')} width={52} />
         <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(4) : v} />
         <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
         <Line type="monotone" dataKey="u1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="U1 Total" hide={!!hidden.u1} />
@@ -340,7 +340,7 @@ function PidBreakdownChart({ data }: { data: any[] }) {
       <LineChart data={data} margin={MARGIN}>
         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
         <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Output')} width={52} />
+        <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('Output')} width={52} />
         <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(4) : v} />
         <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
         <Line type="monotone" dataKey="p1" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="P Out" hide={!!hidden.p1} />
@@ -363,7 +363,7 @@ function VelocityProfileChart({ data }: { data: any[] }) {
       <LineChart data={data} margin={MARGIN}>
         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
         <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('Time (ms)')} />
-        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('ω (°/s)')} width={52} />
+        <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('ω (°/s)')} width={52} />
         <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + '°/s' : v} />
         <Legend verticalAlign="top" align="left" height={20} onClick={handleLegendClick} wrapperStyle={{ ...LEGEND_STYLE, cursor: 'pointer' }} />
         <Line type="monotone" dataKey="v1" stroke="var(--color-hmi-actual)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="Measured" hide={!!hidden.v1} />
@@ -420,7 +420,7 @@ function RunCharts({ runId, runSamples, runMetrics }: { runId: string; runSample
           <BarChart data={metricsBar} margin={MARGIN}>
             <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
             <XAxis dataKey="name" tick={AT} axisLine={AL} tickLine={false} />
-            <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={48} />
+            <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={48} />
             <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + ' mm' : v} />
             <Bar dataKey="value" radius={[3, 3, 0, 0]} isAnimationActive={false}>
               {metricsBar.map((entry, i) => (
@@ -437,7 +437,7 @@ function RunCharts({ runId, runSamples, runMetrics }: { runId: string; runSample
           <ScatterChart margin={{ top: 8, right: 16, bottom: 28, left: 8 }}>
             <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
             <XAxis type="number" dataKey="x" name="X" tick={AT} axisLine={AL} tickLine={false} label={XLABEL('X (mm)')} domain={[-185, 185]} ticks={[-150, -100, -50, 0, 50, 100, 150]} />
-            <YAxis type="number" dataKey="y" name="Y" tick={AT} axisLine={AL} tickLine={false} label={YLABEL('Y (mm)')} domain={[-10, 210]} ticks={[0, 50, 100, 150, 200]} />
+            <YAxis allowDecimals={false} type="number" dataKey="y" name="Y" tick={AT} axisLine={AL} tickLine={false} label={YLABEL('Y (mm)')} domain={[-10, 210]} ticks={[0, 50, 100, 150, 200]} />
             <Tooltip contentStyle={TS} cursor={{ strokeDasharray: '3 3' }} />
             <Scatter data={outerArcData} line={{ stroke: '#374151', strokeDasharray: '3 3' }} shape={() => null} name="Outer" />
             <Scatter data={innerArcData} line={{ stroke: '#374151', strokeDasharray: '3 3' }} shape={() => null} name="Inner" />
@@ -896,7 +896,7 @@ export function ResultsClient({ initialRuns }: Props) {
                       <BarChart data={exp4AlphasData} margin={MARGIN}>
                         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
                         <XAxis dataKey="alpha" tick={AT} axisLine={AL} tickLine={false} />
-                        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
+                        <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
                         <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + ' mm' : v} />
                         <Legend verticalAlign="top" align="left" height={24} wrapperStyle={LEGEND_STYLE} />
                         <Bar dataKey="FFG ON" fill="var(--color-hmi-j1)" radius={[3, 3, 0, 0]} isAnimationActive={false}>
@@ -914,7 +914,7 @@ export function ResultsClient({ initialRuns }: Props) {
                       <BarChart data={exp4AlphasData} margin={MARGIN}>
                         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
                         <XAxis dataKey="alpha" tick={AT} axisLine={AL} tickLine={false} />
-                        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
+                        <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
                         <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + ' mm' : v} />
                         <Legend verticalAlign="top" align="left" height={24} wrapperStyle={LEGEND_STYLE} />
                         <Bar dataKey="EEF ON" fill="var(--color-hmi-pwm-pos)" radius={[3, 3, 0, 0]} isAnimationActive={false}>
@@ -935,7 +935,7 @@ export function ResultsClient({ initialRuns }: Props) {
                         <LineChart data={exp6ChartsData[k]} margin={MARGIN}>
                           <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
                           <XAxis dataKey="level" tick={AT} axisLine={AL} tickLine={false} />
-                          <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} width={48} />
+                          <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} width={48} />
                           <Tooltip contentStyle={TS} />
                           <Legend verticalAlign="top" align="left" height={20} wrapperStyle={LEGEND_STYLE} />
                           <Line type="monotone" dataKey="MATE" stroke="var(--color-hmi-j1)" strokeWidth={2} dot={{ r: 3, fill: 'var(--color-hmi-j1)' }} isAnimationActive={false} name="MATE (mm)" />
@@ -953,7 +953,7 @@ export function ResultsClient({ initialRuns }: Props) {
                       <BarChart data={barChartData} margin={MARGIN}>
                         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
                         <XAxis dataKey="name" tick={AT} axisLine={AL} tickLine={false} />
-                        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
+                        <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
                         <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + ' mm' : v} />
                         <Legend verticalAlign="top" align="left" height={24} wrapperStyle={LEGEND_STYLE} />
                         <Bar dataKey="MATE" fill="var(--color-hmi-j1)" radius={[3, 3, 0, 0]} isAnimationActive={false}>
@@ -971,7 +971,7 @@ export function ResultsClient({ initialRuns }: Props) {
                       <BarChart data={eefBarChartData} margin={MARGIN}>
                         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
                         <XAxis dataKey="name" tick={AT} axisLine={AL} tickLine={false} />
-                        <YAxis tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
+                        <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} label={YLABEL('mm')} width={52} />
                         <Tooltip contentStyle={TS} formatter={(v: any) => typeof v === 'number' ? v.toFixed(3) + ' mm' : v} />
                         <Legend verticalAlign="top" align="left" height={24} wrapperStyle={LEGEND_STYLE} />
                         <Bar dataKey="EEF Mean" fill="var(--color-hmi-pwm-pos)" radius={[3, 3, 0, 0]} isAnimationActive={false}>

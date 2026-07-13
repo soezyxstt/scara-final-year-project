@@ -734,15 +734,32 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
   // Overall metric range for SVG box plot alignment
   const overallExtent = useMemo(() => {
     const allVals = boxPlotData.flatMap(d => d.stats ? d.stats.values : [])
-    if (allVals.length === 0) return { min: 0, max: 10 }
-    const min = Math.min(...allVals)
-    const max = Math.max(...allVals)
-    const range = max - min
+    if (allVals.length === 0) return { min: 0, max: 10, step: 1 }
+    const rawMin = Math.min(...allVals)
+    const rawMax = Math.max(...allVals)
+    const range = rawMax - rawMin
     const pad = range === 0 ? 0.5 : range * 0.15
-    return {
-      min: Math.max(0, min - pad),
-      max: max + pad
-    }
+    const paddedMin = Math.max(0, rawMin - pad)
+    const paddedMax = rawMax + pad
+    
+    const rawRange = paddedMax - paddedMin
+    if (rawRange <= 0) return { min: 0, max: 1, step: 1 }
+
+    const targetTicks = 5
+    const roughStep = rawRange / (targetTicks - 1)
+    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)))
+    const normalized = roughStep / magnitude
+    let stepMultiplier = 1
+    if (normalized < 1.5) stepMultiplier = 1
+    else if (normalized < 3) stepMultiplier = 2
+    else if (normalized < 7) stepMultiplier = 5
+    else stepMultiplier = 10
+    
+    const step = stepMultiplier * magnitude
+    const minOut = Math.floor(paddedMin / step) * step
+    const maxOut = Math.ceil(paddedMax / step) * step
+    
+    return { min: minOut, max: maxOut, step }
   }, [boxPlotData])
 
   // Setup statistical t-test selectors default
@@ -1050,25 +1067,38 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
       const maxVal = Math.max(...allVals)
       const range = maxVal - minVal
       const pad = range === 0 ? 0.5 : range * 0.15
-      const extMin = Math.max(0, minVal - pad)
-      const extMax = maxVal + pad
+      const rawMin = Math.max(0, minVal - pad)
+      const rawMax = maxVal + pad
 
-      const marginLeft = 130
-      const marginRight = 30
-      const w = 600
-      const chartW = w - marginLeft - marginRight
-      const rowH = 60
-      const h = subgroupsStats.length * rowH + 85
-
-      const getX = (val: number) => {
-        if (extMax === extMin) return marginLeft + chartW / 2
-        return marginLeft + ((val - extMin) / (extMax - extMin)) * chartW
+      const rawRange = rawMax - rawMin
+      let extMin = 0, extMax = 1, step = 1
+      if (rawRange > 0) {
+        const roughStep = rawRange / 4
+        const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)))
+        const normalized = roughStep / magnitude
+        let stepMultiplier = 1
+        if (normalized < 1.5) stepMultiplier = 1
+        else if (normalized < 3) stepMultiplier = 2
+        else if (normalized < 7) stepMultiplier = 5
+        else stepMultiplier = 10
+        
+        step = stepMultiplier * magnitude
+        extMin = Math.floor(rawMin / step) * step
+        extMax = Math.ceil(rawMax / step) * step
       }
 
-      const formatNum = (val: number) => {
-        if (val >= 1000) return val.toFixed(1)
-        if (val < 0.001) return val.toExponential(3)
-        return val.toFixed(4)
+      const marginLeft = 80
+      const marginRight = 20
+      const w = 600
+      const chartW = w - marginLeft - marginRight
+      const chartH = 255
+      const paddingTop = 45
+      const paddingBottom = 55
+      const h = paddingTop + chartH + paddingBottom
+
+      const getY = (val: number) => {
+        if (extMax === extMin) return paddingTop + chartH / 2
+        return paddingTop + chartH - ((val - extMin) / (extMax - extMin)) * chartH
       }
 
       let content = ''
@@ -1078,73 +1108,80 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
 
       // Legend
       content += `
-        <g transform="translate(85, 36)">
+        <g transform="translate(140, 36)">
           <polygon points="0,-4 4,0 0,4 -4,0" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
           <text x="8" y="3" fill="#000000" font-size="10px" font-family="'Times New Roman', serif">Mean</text>
 
           <line x1="75" y1="0" x2="90" y2="0" stroke="#000000" stroke-width="3" />
           <text x="96" y="3" fill="#000000" font-size="10px" font-family="'Times New Roman', serif">Median</text>
 
-          <rect x="170" y="-5" width="15" height="10" fill="#000000" fill-opacity="0.15" stroke="#000000" stroke-width="1.5" />
+          <rect x="170" y="-5" width="15" height="10" fill="#E0E0E0" stroke="#000000" stroke-width="1.5" />
           <text x="190" y="3" fill="#000000" font-size="10px" font-family="'Times New Roman', serif">IQR (Q1-Q3)</text>
-
-          <circle cx="300" cy="0" r="3.5" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
-          <text x="308" y="3" fill="#000000" font-size="10px" font-family="'Times New Roman', serif">Runs (Jittered)</text>
         </g>
       `
 
-      // Grid lines
-      for (let i = 0; i <= 4; i++) {
-        const v = extMin + i * (extMax - extMin) / 4
-        const x = getX(v)
-        content += `
-          <line x1="${x}" y1="50" x2="${x}" y2="${h - 35}" stroke="#D0D0D0" stroke-dasharray="2,2" stroke-width="1" />
-          <text x="${x}" y="${h - 18}" fill="#000000" font-size="12px" text-anchor="middle" font-family="'Times New Roman', serif">${formatNum(v)}</text>
-        `
+      // Grid lines & Y ticks
+      const tickVals = []
+      for (let v = extMin; v <= extMax + step / 10; v += step) {
+        tickVals.push(v)
       }
+      
+      tickVals.forEach(v => {
+        const y = getY(v)
+        const label = Number(v.toFixed(4)).toString().replace('.', ',')
+        content += `
+          <line x1="${marginLeft}" y1="${y}" x2="${w - marginRight}" y2="${y}" stroke="#D0D0D0" stroke-dasharray="2,2" stroke-width="1" />
+          <text x="${marginLeft - 8}" y="${y + 4}" fill="#000000" font-size="10px" text-anchor="end" font-family="'Times New Roman', serif">${label}</text>
+        `
+      })
 
-      // Rows
+      // Axes lines
+      content += `<line x1="${marginLeft}" y1="${paddingTop}" x2="${marginLeft}" y2="${paddingTop + chartH}" stroke="#000000" stroke-width="1" />`
+      content += `<line x1="${marginLeft}" y1="${paddingTop + chartH}" x2="${w - marginRight}" y2="${paddingTop + chartH}" stroke="#000000" stroke-width="1" />`
+
+      // Columns
+      const subgroupCount = subgroupsStats.length
+      const colW = chartW / Math.max(1, subgroupCount)
+      const boxW = 32
+
       subgroupsStats.forEach((sgData, idx) => {
         const { subgroup, stats } = sgData
-        const yCenter = 50 + idx * rowH + rowH / 2
+        const xCenter = marginLeft + idx * colW + colW / 2
+        const xLeft = xCenter - boxW / 2
         
         // Label
-        content += `<text x="15" y="${yCenter + 4}" fill="#000000" font-size="12px" font-weight="bold" font-family="'Times New Roman', serif">${subgroup.name}</text>`
+        content += `<text x="${xCenter}" y="${paddingTop + chartH + 18}" fill="#000000" font-size="11px" font-weight="bold" text-anchor="middle" font-family="'Times New Roman', serif">${subgroup.name}</text>`
         
         if (!stats) {
-          content += `<text x="${marginLeft + 10}" y="${yCenter + 4}" fill="#757575" font-size="12px" font-style="italic" font-family="'Times New Roman', serif">No runs assigned</text>`
+          content += `
+            <line x1="${xCenter}" y1="${paddingTop}" x2="${xCenter}" y2="${paddingTop + chartH}" stroke="#D0D0D0" stroke-dasharray="2,2" stroke-width="1" />
+            <text x="${xCenter}" y="${paddingTop + chartH / 2}" fill="#757575" font-size="10px" font-style="italic" text-anchor="middle" font-family="'Times New Roman', serif">No runs</text>
+          `
           return
         }
 
-        const xMin = getX(stats.min)
-        const xMax = getX(stats.max)
-        const xQ1 = getX(stats.q1)
-        const xMed = getX(stats.median)
-        const xQ3 = getX(stats.q3)
-        const xMean = getX(stats.mean)
+        const yMin = getY(stats.min)
+        const yMax = getY(stats.max)
+        const yQ1 = getY(stats.q1)
+        const yMed = getY(stats.median)
+        const yQ3 = getY(stats.q3)
+        const yMean = getY(stats.mean)
 
         // Whisker line
-        content += `<line x1="${xMin}" y1="${yCenter}" x2="${xMax}" y2="${yCenter}" stroke="${subgroup.color}" stroke-width="2" />`
+        content += `<line x1="${xCenter}" y1="${yMin}" x2="${xCenter}" y2="${yMax}" stroke="${subgroup.color}" stroke-width="2" />`
         // Whisker caps
-        content += `<line x1="${xMin}" y1="${yCenter - 6}" x2="${xMin}" y2="${yCenter + 6}" stroke="${subgroup.color}" stroke-width="2" />`
-        content += `<line x1="${xMax}" y1="${yCenter - 6}" x2="${xMax}" y2="${yCenter + 6}" stroke="${subgroup.color}" stroke-width="2" />`
+        content += `<line x1="${xCenter - 6}" y1="${yMin}" x2="${xCenter + 6}" y2="${yMin}" stroke="${subgroup.color}" stroke-width="2" />`
+        content += `<line x1="${xCenter - 6}" y1="${yMax}" x2="${xCenter + 6}" y2="${yMax}" stroke="${subgroup.color}" stroke-width="2" />`
         
         // Box
-        content += `<rect x="${xQ1}" y="${yCenter - 12}" width="${Math.max(1, xQ3 - xQ1)}" height="24" fill="${subgroup.color}" fill-opacity="0.15" stroke="${subgroup.color}" stroke-width="2" />`
+        const boxHeight = Math.max(1, yQ1 - yQ3)
+        content += `<rect x="${xLeft}" y="${yQ3}" width="${boxW}" height="${boxHeight}" fill="${subgroup.color}" fill-opacity="0.15" stroke="${subgroup.color}" stroke-width="2" />`
         
         // Median line
-        content += `<line x1="${xMed}" y1="${yCenter - 12}" x2="${xMed}" y2="${yCenter + 12}" stroke="${subgroup.color}" stroke-width="4.5" />`
+        content += `<line x1="${xLeft}" y1="${yMed}" x2="${xLeft + boxW}" y2="${yMed}" stroke="${subgroup.color}" stroke-width="4.5" />`
         
         // Mean diamond
-        content += `<polygon points="${xMean},${yCenter - 5} ${xMean + 5},${yCenter} ${xMean},${yCenter + 5} ${xMean - 5},${yCenter}" fill="#FFFFFF" stroke="${subgroup.color}" stroke-width="1.5" />`
-
-        // Jittered dots
-        stats.values.forEach((v: number, dotIdx: number) => {
-          const pseudoNoise = Math.sin(dotIdx * 7.5 + idx * 3) * 6
-          const xDot = getX(v)
-          const yDot = yCenter + pseudoNoise
-          content += `<circle cx="${xDot}" cy="${yDot}" r="4" fill="#FFFFFF" stroke="${subgroup.color}" stroke-width="2" />`
-        })
+        content += `<polygon points="${xCenter},${yMean - 5} ${xCenter + 5},${yMean} ${xCenter},${yMean + 5} ${xCenter - 5},${yMean}" fill="#FFFFFF" stroke="${subgroup.color}" stroke-width="1.5" />`
       })
 
       const svgStyle = `
@@ -1906,20 +1943,24 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
     onSelectRuns(ids)
   }
 
-  // Draw Horizontal SVG Box Plot parameters
-  const marginLeft = 140
-  const marginRight = 30
-  const boxWidth = 600
-  const chartWidth = boxWidth - marginLeft - marginRight
-  const rowHeight = 65
-  const paddingTop = 15
-  const paddingBottom = 40
-  const boxHeight = 26
+  // Draw Vertical SVG Box Plot parameters
+  const marginLeft = 80
+  const marginRight = 20
+  const totalHeight = 380
+  const paddingTop = 25
+  const paddingBottom = 60
+  const chartHeight = totalHeight - paddingTop - paddingBottom
+  const boxWidthPx = 36
   
-  const scaleX = (val: number) => {
+  // Dynamic width to remove excessive horizontal white space
+  const subgroupCountForWidth = activeGroup ? activeGroup.subgroups.length : 0
+  const chartWidth = Math.max(200, subgroupCountForWidth * 140)
+  const boxWidth = marginLeft + chartWidth + marginRight
+  
+  const scaleY = (val: number) => {
     const { min, max } = overallExtent
-    if (max === min) return marginLeft + chartWidth / 2
-    return marginLeft + ((val - min) / (max - min)) * chartWidth
+    if (max === min) return paddingTop + chartHeight / 2
+    return paddingTop + chartHeight - ((val - min) / (max - min)) * chartHeight
   }
 
   const formatXVal = (val: number) => {
@@ -2205,7 +2246,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                               : "border border-transparent hover:bg-hmi-grid/10 text-hmi-muted hover:text-hmi-text"
                           )}
                         >
-                          <span>{m.label}</span>
+                          <span>{m.label} ({m.unit})</span>
                           <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{m.desc}</span>
                         </button>
                       ))}
@@ -2236,7 +2277,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                               : "border border-transparent hover:bg-hmi-grid/10 text-hmi-muted hover:text-hmi-text"
                           )}
                         >
-                          <span>{m.label}</span>
+                          <span>{m.label} ({m.unit})</span>
                           <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{m.desc}</span>
                         </button>
                       ))}
@@ -2261,7 +2302,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                             : "border border-transparent hover:bg-hmi-grid/10 text-hmi-muted hover:text-hmi-text"
                         )}
                       >
-                        <span>{m.label}</span>
+                        <span>{m.label} ({m.unit})</span>
                         <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{m.desc}</span>
                       </button>
                     ))}
@@ -2295,22 +2336,102 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 )}
 
                 {/* Box plot SVG */}
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto flex justify-center w-full">
                   <svg
-                    viewBox={`0 0 ${boxWidth} ${paddingTop + boxPlotData.length * rowHeight + paddingBottom}`}
-                    className="w-full h-auto min-w-[500px]"
+                    viewBox={`0 0 ${boxWidth} ${totalHeight}`}
+                    style={{ maxWidth: boxWidth, width: '100%' }}
+                    className="h-auto"
                   >
+                    {/* Left Y-Axis */}
+                    <g>
+                      {(() => {
+                        const axisX = marginLeft - 10
+                        const { min, max, step } = overallExtent
+                        
+                        const tickVals = []
+                        for (let v = min; v <= max + step / 10; v += step) {
+                          tickVals.push(v)
+                        }
+                        
+                        return (
+                          <>
+                            {/* Axis line */}
+                            <line
+                              x1={axisX}
+                              y1={paddingTop}
+                              x2={axisX}
+                              y2={paddingTop + chartHeight}
+                              stroke="var(--color-hmi-text)"
+                              strokeWidth={1.5}
+                              opacity={0.3}
+                            />
+                            
+                            {/* Ticks and text */}
+                            {tickVals.map((tv, idx) => {
+                              const ty = scaleY(tv)
+                              return (
+                                <g key={idx}>
+                                  {/* Grid Line */}
+                                  <line
+                                    x1={axisX}
+                                    y1={ty}
+                                    x2={marginLeft + chartWidth}
+                                    y2={ty}
+                                    stroke="var(--color-hmi-text)"
+                                    strokeWidth={1}
+                                    strokeDasharray="4 4"
+                                    opacity={0.15}
+                                  />
+                                  <line
+                                    x1={axisX - 4}
+                                    y1={ty}
+                                    x2={axisX}
+                                    y2={ty}
+                                    stroke="var(--color-hmi-text)"
+                                    strokeWidth={1.5}
+                                    opacity={0.3}
+                                  />
+                                  <text
+                                    x={axisX - 8}
+                                    y={ty + 3}
+                                    textAnchor="end"
+                                    className="fill-hmi-text text-[11px] font-mono font-bold select-none"
+                                  >
+                                    {Number(tv.toFixed(4)).toString().replace('.', ',')}
+                                  </text>
+                                </g>
+                              )
+                            })}
+                          </>
+                        )
+                      })()}
+                    </g>
+
+                    {/* Bottom X-Axis Line */}
+                    <line
+                      x1={marginLeft - 10}
+                      y1={paddingTop + chartHeight}
+                      x2={marginLeft + chartWidth}
+                      y2={paddingTop + chartHeight}
+                      stroke="var(--color-hmi-text)"
+                      strokeWidth={1.5}
+                      opacity={0.3}
+                    />
+
                     {boxPlotData.map((d, i) => {
-                      const yCenter = paddingTop + i * rowHeight + rowHeight / 2
-                      const yTop = yCenter - boxHeight / 2
+                      const subgroupCount = boxPlotData.length
+                      const colWidth = chartWidth / Math.max(1, subgroupCount)
+                      const xCenter = marginLeft + i * colWidth + colWidth / 2
+                      const xLeft = xCenter - boxWidthPx / 2
                       
                       return (
                         <g key={d.subgroup.id}>
-                          {/* Label */}
+                          {/* Label on X Axis */}
                           <text
-                            x="10"
-                            y={yCenter + 4}
-                            className="fill-hmi-text text-xs font-semibold select-none"
+                            x={xCenter}
+                            y={paddingTop + chartHeight + 20}
+                            textAnchor="middle"
+                            className="fill-hmi-text text-[12px] font-bold select-none"
                           >
                             {d.subgroup.name}
                           </text>
@@ -2319,58 +2440,59 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                           {!d.stats ? (
                             <g>
                               <line
-                                x1={marginLeft}
-                                y1={yCenter}
-                                x2={marginLeft + chartWidth}
-                                y2={yCenter}
+                                x1={xCenter}
+                                y1={paddingTop}
+                                x2={xCenter}
+                                y2={paddingTop + chartHeight}
                                 stroke="var(--color-hmi-grid)"
                                 strokeDasharray="3 3"
                                 strokeWidth={1}
                               />
                               <text
-                                x={marginLeft + 15}
-                                y={yCenter + 4}
+                                x={xCenter}
+                                y={paddingTop + chartHeight / 2}
+                                textAnchor="middle"
                                 className="fill-hmi-muted text-[10px] italic select-none"
                               >
-                                No runs assigned/loaded
+                                No runs assigned
                               </text>
                             </g>
                           ) : (
                             <g>
-                              {/* Horizontal whisker line */}
+                              {/* Vertical whisker line */}
                               <line
-                                x1={scaleX(d.stats.min)}
-                                y1={yCenter}
-                                x2={scaleX(d.stats.max)}
-                                y2={yCenter}
+                                x1={xCenter}
+                                y1={scaleY(d.stats.min)}
+                                x2={xCenter}
+                                y2={scaleY(d.stats.max)}
                                 stroke="var(--color-hmi-grid)"
                                 strokeWidth={1.5}
                               />
                               
-                              {/* Whisker vertical ticks */}
+                              {/* Whisker horizontal ticks */}
                               <line
-                                x1={scaleX(d.stats.min)}
-                                y1={yCenter - 5}
-                                x2={scaleX(d.stats.min)}
-                                y2={yCenter + 5}
+                                x1={xCenter - 6}
+                                y1={scaleY(d.stats.min)}
+                                x2={xCenter + 6}
+                                y2={scaleY(d.stats.min)}
                                 stroke="var(--color-hmi-grid)"
                                 strokeWidth={1.5}
                               />
                               <line
-                                x1={scaleX(d.stats.max)}
-                                y1={yCenter - 5}
-                                x2={scaleX(d.stats.max)}
-                                y2={yCenter + 5}
+                                x1={xCenter - 6}
+                                y1={scaleY(d.stats.max)}
+                                x2={xCenter + 6}
+                                y2={scaleY(d.stats.max)}
                                 stroke="var(--color-hmi-grid)"
                                 strokeWidth={1.5}
                               />
 
                               {/* Box rectangle */}
                               <rect
-                                x={scaleX(d.stats.q1)}
-                                y={yTop}
-                                width={Math.max(2, scaleX(d.stats.q3) - scaleX(d.stats.q1))}
-                                height={boxHeight}
+                                x={xLeft}
+                                y={scaleY(d.stats.q3)}
+                                width={boxWidthPx}
+                                height={Math.max(2, scaleY(d.stats.q1) - scaleY(d.stats.q3))}
                                 rx={2}
                                 fill={`${d.subgroup.color}18`}
                                 stroke={d.subgroup.color}
@@ -2408,155 +2530,69 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
 
                               {/* Median line */}
                               <line
-                                x1={scaleX(d.stats.median)}
-                                y1={yTop}
-                                x2={scaleX(d.stats.median)}
-                                y2={yTop + boxHeight}
+                                x1={xLeft}
+                                y1={scaleY(d.stats.median)}
+                                x2={xLeft + boxWidthPx}
+                                y2={scaleY(d.stats.median)}
                                 stroke={d.subgroup.color}
                                 strokeWidth={2.5}
                               />
 
                               {/* Mean Diamond */}
                               <polygon
-                                points={`${scaleX(d.stats.mean)},${yCenter - 4.5} ${scaleX(d.stats.mean) + 4.5},${yCenter} ${scaleX(d.stats.mean)},${yCenter + 4.5} ${scaleX(d.stats.mean) - 4.5},${yCenter}`}
+                                points={`${xCenter},${scaleY(d.stats.mean) - 4.5} ${xCenter + 4.5},${scaleY(d.stats.mean)} ${xCenter},${scaleY(d.stats.mean) + 4.5} ${xCenter - 4.5},${scaleY(d.stats.mean)}`}
                                 fill="#ffffff"
                                 stroke={d.subgroup.color}
                                 strokeWidth={1}
                               />
-
-                              {/* Individual Run points with jitter */}
-                              {d.runs.map((r, runIdx) => {
-                                const val = r[selectedMetric]
-                                const cx = scaleX(val)
-                                // Deterministic jitter based on index
-                                const jitter = Math.sin(runIdx * 10) * 7
-                                const cy = yCenter + jitter
-                                const metricUnit = METRICS.find(m => m.key === selectedMetric)?.unit ?? ''
-                                
-                                return (
-                                  <circle
-                                    key={r.runId}
-                                    cx={cx}
-                                    cy={cy}
-                                    r={4}
-                                    fill={d.subgroup.color}
-                                    stroke="#ffffff"
-                                    strokeWidth={0.8}
-                                    className="cursor-pointer hover:r-[5.5px] transition-all"
-                                    onMouseEnter={(e) => {
-                                      const rect = e.currentTarget.getBoundingClientRect()
-                                      const parentRect = e.currentTarget.parentElement?.parentElement?.parentElement?.getBoundingClientRect()
-                                      const x = rect.left - (parentRect?.left ?? 0) + rect.width / 2
-                                      const y = rect.top - (parentRect?.top ?? 0) - 8
-                                      
-                                      setHoveredPoint({
-                                        x,
-                                        y,
-                                        content: (
-                                          <div className="text-[10px] leading-normal min-w-[100px]">
-                                            <p className="font-semibold text-hmi-text truncate max-w-[140px]">{r.runName}</p>
-                                            <p className="text-hmi-muted font-mono mt-0.5">
-                                              Val: <span className="text-hmi-text font-bold">{formatXVal(val)} {metricUnit}</span>
-                                            </p>
-                                          </div>
-                                        )
-                                      })
-                                    }}
-                                    onMouseLeave={() => setHoveredPoint(null)}
-                                  />
-                                )
-                              })}
                             </g>
                           )}
                         </g>
                       )
                     })}
-
-                    {/* Bottom Axis */}
-                    <g>
-                      {(() => {
-                        const axisY = paddingTop + boxPlotData.length * rowHeight + 10
-                        const { min, max } = overallExtent
-                        const ticksCount = 5
-                        const tickVals = Array.from({ length: ticksCount }, (_, idx) => min + (idx / (ticksCount - 1)) * (max - min))
-                        
-                        return (
-                          <>
-                            {/* Axis line */}
-                            <line
-                              x1={marginLeft}
-                              y1={axisY}
-                              x2={marginLeft + chartWidth}
-                              y2={axisY}
-                              stroke="var(--color-hmi-grid)"
-                              strokeWidth={1}
-                            />
-                            
-                            {/* Ticks and text */}
-                            {tickVals.map((tv, idx) => {
-                              const tx = scaleX(tv)
-                              return (
-                                <g key={idx}>
-                                  <line
-                                    x1={tx}
-                                    y1={axisY}
-                                    x2={tx}
-                                    y2={axisY + 4}
-                                    stroke="var(--color-hmi-grid)"
-                                    strokeWidth={1}
-                                  />
-                                  <text
-                                    x={tx}
-                                    y={axisY + 16}
-                                    textAnchor="middle"
-                                    className="fill-hmi-muted text-[10px] font-mono font-medium select-none"
-                                  >
-                                    {formatXVal(tv)}
-                                  </text>
-                                </g>
-                              )
-                            })}
-                          </>
-                        )
-                      })()}
-                    </g>
                   </svg>
                 </div>
               </div>
 
               {/* Box plot Stats Table */}
               <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
-                <table className="w-full text-[11px] border-collapse text-left">
-                  <thead>
-                    <tr className="bg-hmi-bg/50 border-b border-hmi-grid text-[10px] text-hmi-muted uppercase font-bold tracking-wider">
-                      <th className="py-2 px-3">Subgroup</th>
-                      <th className="py-2 px-3 text-right">N</th>
-                      <th className="py-2 px-3 text-right">Min</th>
-                      <th className="py-2 px-3 text-right">Q1</th>
-                      <th className="py-2 px-3 text-right">Median</th>
-                      <th className="py-2 px-3 text-right">Q3</th>
-                      <th className="py-2 px-3 text-right">Max</th>
-                      <th className="py-2 px-3 text-right">Mean</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {boxPlotData.map((d) => (
-                      <tr key={d.subgroup.id} className="border-b border-hmi-grid/40 hover:bg-hmi-grid/10 transition-colors">
-                        <td className="py-1.5 px-3 font-semibold text-hmi-text flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.subgroup.color }} />
-                          <span>{d.subgroup.name}</span>
-                        </td>
-                        <td className="py-1.5 px-3 text-right font-mono text-hmi-muted">{d.stats?.n ?? 0}</td>
-                        <td className="py-1.5 px-3 text-right font-mono">{d.stats ? formatXVal(d.stats.min) : '—'}</td>
-                        <td className="py-1.5 px-3 text-right font-mono text-hmi-muted">{d.stats ? formatXVal(d.stats.q1) : '—'}</td>
-                        <td className="py-1.5 px-3 text-right font-mono font-medium text-hmi-text">{d.stats ? formatXVal(d.stats.median) : '—'}</td>
-                        <td className="py-1.5 px-3 text-right font-mono text-hmi-muted">{d.stats ? formatXVal(d.stats.q3) : '—'}</td>
-                        <td className="py-1.5 px-3 text-right font-mono">{d.stats ? formatXVal(d.stats.max) : '—'}</td>
-                        <td className="py-1.5 px-3 text-right font-mono font-semibold text-hmi-ideal">{d.stats ? formatXVal(d.stats.mean) : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {(() => {
+                  const metricUnit = METRICS.find(m => m.key === selectedMetric)?.unit ?? ''
+                  const unitStr = metricUnit ? ` (${metricUnit})` : ''
+                  return (
+                    <table className="w-full text-[11px] border-collapse text-left">
+                      <thead>
+                        <tr className="bg-hmi-bg/50 border-b border-hmi-grid text-[10px] text-hmi-muted uppercase font-bold tracking-wider">
+                          <th className="py-2 px-3">Subgroup</th>
+                          <th className="py-2 px-3 text-right">N</th>
+                          <th className="py-2 px-3 text-right">{`Min${unitStr}`}</th>
+                          <th className="py-2 px-3 text-right">{`Q1${unitStr}`}</th>
+                          <th className="py-2 px-3 text-right">{`Median${unitStr}`}</th>
+                          <th className="py-2 px-3 text-right">{`Q3${unitStr}`}</th>
+                          <th className="py-2 px-3 text-right">{`Max${unitStr}`}</th>
+                          <th className="py-2 px-3 text-right">{`Mean${unitStr}`}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {boxPlotData.map((d) => (
+                          <tr key={d.subgroup.id} className="border-b border-hmi-grid/40 hover:bg-hmi-grid/10 transition-colors">
+                            <td className="py-1.5 px-3 font-semibold text-hmi-text flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.subgroup.color }} />
+                              <span>{d.subgroup.name}</span>
+                            </td>
+                            <td className="py-1.5 px-3 text-right font-mono text-hmi-muted">{d.stats?.n ?? 0}</td>
+                            <td className="py-1.5 px-3 text-right font-mono">{d.stats ? formatXVal(d.stats.min) : '—'}</td>
+                            <td className="py-1.5 px-3 text-right font-mono text-hmi-muted">{d.stats ? formatXVal(d.stats.q1) : '—'}</td>
+                            <td className="py-1.5 px-3 text-right font-mono font-medium text-hmi-text">{d.stats ? formatXVal(d.stats.median) : '—'}</td>
+                            <td className="py-1.5 px-3 text-right font-mono text-hmi-muted">{d.stats ? formatXVal(d.stats.q3) : '—'}</td>
+                            <td className="py-1.5 px-3 text-right font-mono">{d.stats ? formatXVal(d.stats.max) : '—'}</td>
+                            <td className="py-1.5 px-3 text-right font-mono font-semibold text-hmi-ideal">{d.stats ? formatXVal(d.stats.mean) : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
+                })()}
               </div>
             </div>
           </div>
