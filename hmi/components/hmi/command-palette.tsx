@@ -26,6 +26,7 @@ import {
   Cpu
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 
 interface CommandItem {
@@ -39,6 +40,7 @@ interface CommandItem {
 }
 
 export function CommandPalette() {
+  const t = useTranslations('CommandPalette')
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -95,8 +97,8 @@ export function CommandPalette() {
     // --- NAVIGASI HALAMAN ---
     {
       id: 'nav-monitor',
-      title: 'HMI Monitor',
-      subtitle: 'Monitor telemetry, trajectory motion, and 2D XY trace.',
+      title: t('commands.nav-monitor.title'),
+      subtitle: t('commands.nav-monitor.subtitle'),
       category: 'Page Navigation',
       icon: <Monitor className="w-4 h-4 text-sky-400" />,
       action: () => navigateTo('/?tab=monitor'),
@@ -104,8 +106,8 @@ export function CommandPalette() {
     },
     {
       id: 'nav-analysis',
-      title: 'Trajectory Analysis',
-      subtitle: 'Detailed error charts (CTE, ATE, and joint position errors).',
+      title: t('commands.nav-analysis.title'),
+      subtitle: t('commands.nav-analysis.subtitle'),
       category: 'Page Navigation',
       icon: <LineChart className="w-4 h-4 text-emerald-400" />,
       action: () => navigateTo('/?tab=analysis'),
@@ -113,8 +115,8 @@ export function CommandPalette() {
     },
     {
       id: 'nav-rest',
-      title: 'Ziegler-Nichols Step Response (Rest)',
-      subtitle: 'Step response charts and PID tuning suggestions.',
+      title: t('commands.nav-rest.title'),
+      subtitle: t('commands.nav-rest.subtitle'),
       category: 'Page Navigation',
       icon: <Activity className="w-4 h-4 text-amber-400" />,
       action: () => navigateTo('/?tab=rest'),
@@ -122,8 +124,8 @@ export function CommandPalette() {
     },
     {
       id: 'nav-readme',
-      title: 'Documentation & README',
-      subtitle: 'SCARA robot kinematics guide, parameters, and wiring.',
+      title: t('commands.nav-readme.title'),
+      subtitle: t('commands.nav-readme.subtitle'),
       category: 'Page Navigation',
       icon: <BookOpen className="w-4 h-4 text-indigo-400" />,
       action: () => navigateTo('/?tab=readme'),
@@ -131,8 +133,8 @@ export function CommandPalette() {
     },
     {
       id: 'nav-zn',
-      title: 'ZN Tuner Workspace',
-      subtitle: 'Real-time PID tuning with ZN visualization.',
+      title: t('commands.nav-zn.title'),
+      subtitle: t('commands.nav-zn.subtitle'),
       category: 'Page Navigation',
       icon: <Sliders className="w-4 h-4 text-purple-400" />,
       action: () => navigateTo('/zn'),
@@ -140,8 +142,8 @@ export function CommandPalette() {
     },
     {
       id: 'nav-test',
-      title: 'Testing & Parameter Playground',
-      subtitle: 'Manual motion test, control signals, and Advanced Tuner.',
+      title: t('commands.nav-test.title'),
+      subtitle: t('commands.nav-test.subtitle'),
       category: 'Page Navigation',
       icon: <Settings className="w-4 h-4 text-teal-400" />,
       action: () => navigateTo('/test'),
@@ -149,35 +151,17 @@ export function CommandPalette() {
     },
     {
       id: 'nav-dashboard',
-      title: 'Run History Dashboard',
-      subtitle: 'Performance comparison of past runs and trajectory data.',
+      title: t('commands.nav-dashboard.title'),
+      subtitle: t('commands.nav-dashboard.subtitle'),
       category: 'Page Navigation',
       icon: <FolderClock className="w-4 h-4 text-pink-400" />,
       action: () => navigateTo('/dashboard'),
       keywords: ['dashboard', 'history', 'run', 'gains']
     },
     {
-      id: 'nav-eksperimen',
-      title: 'Experiment Automation',
-      subtitle: 'Run automated test sequences from EXP-1 to EXP-6.',
-      category: 'Page Navigation',
-      icon: <PlayCircle className="w-4 h-4 text-rose-400" />,
-      action: () => navigateTo('/eksperimen'),
-      keywords: ['experiment', 'automation', 'run', 'turso']
-    },
-    {
-      id: 'nav-hasil',
-      title: 'Experiment Results Visualization',
-      subtitle: 'Average, standard deviation charts, and database statistics.',
-      category: 'Page Navigation',
-      icon: <BarChart3 className="w-4 h-4 text-fuchsia-400" />,
-      action: () => navigateTo('/hasil-eksperimen'),
-      keywords: ['results', 'data', 'statistics', 'charts', 'recharts']
-    },
-    {
       id: 'nav-pcb',
-      title: 'Controller PCB',
-      subtitle: 'Hardware documentation for the custom ESP32 + A4988 + LM2596 controller board.',
+      title: t('commands.nav-pcb.title'),
+      subtitle: t('commands.nav-pcb.subtitle'),
       category: 'Page Navigation',
       icon: <Cpu className="w-4 h-4 text-cyan-400" />,
       action: () => navigateTo('/pcb'),
@@ -187,57 +171,57 @@ export function CommandPalette() {
     // --- AKSI CEPAT HMI ---
     {
       id: 'action-estop',
-      title: '🚨 EMERGENCY STOP (E-STOP)',
-      subtitle: 'Immediately stop all robot trajectory motion.',
+      title: t('commands.action-estop.title'),
+      subtitle: t('commands.action-estop.subtitle'),
       category: 'HMI Quick Actions',
       icon: <AlertOctagon className="w-4 h-4 text-hmi-estop" />,
       action: () => {
         setOpen(false)
         serial.sendCommand('estop')
-          .then(() => toast.error('🛑 E-STOP Sent!'))
-          .catch(() => toast.error('Failed to send E-STOP'))
+          .then(() => toast.error(t('estopSent')))
+          .catch(() => toast.error(t('estopFailed')))
       },
       keywords: ['estop', 'stop', 'emergency', 'kill', 'halt']
     },
     {
       id: 'action-resume',
-      title: '🔄 Resume Motors',
-      subtitle: 'Recover the robot and clear E-STOP status.',
+      title: t('commands.action-resume.title'),
+      subtitle: t('commands.action-resume.subtitle'),
       category: 'HMI Quick Actions',
       icon: <RotateCcw className="w-4 h-4 text-hmi-pwm-pos" />,
       action: () => {
         setOpen(false)
         serial.sendCommand('resume')
-          .then(() => toast.success('🔄 Status recovered.'))
-          .catch(() => toast.error('Failed to recover status'))
+          .then(() => toast.success(t('statusRecovered')))
+          .catch(() => toast.error(t('statusRecoverFailed')))
       },
       keywords: ['resume', 'start', 'reset', 'clear', 'estop']
     },
     {
       id: 'action-connect',
-      title: '🔌 Connect Serial Port',
-      subtitle: 'Initialize Web Serial connection with the robot.',
+      title: t('commands.action-connect.title'),
+      subtitle: t('commands.action-connect.subtitle'),
       category: 'HMI Quick Actions',
       icon: <Zap className="w-4 h-4 text-hmi-pwm-pos" />,
       action: () => {
         setOpen(false)
         serial.connect()
-          .then(() => toast.success('🔌 Attempting to connect...'))
-          .catch(() => toast.error('Failed to connect port'))
+          .then(() => toast.success(t('attemptConnect')))
+          .catch(() => toast.error(t('connectFailed')))
       },
       keywords: ['connect', 'serial', 'port', 'webserial', 'baudrate']
     },
     {
       id: 'action-disconnect',
-      title: '🔌 Disconnect Serial Port',
-      subtitle: 'Close the currently active serial connection.',
+      title: t('commands.action-disconnect.title'),
+      subtitle: t('commands.action-disconnect.subtitle'),
       category: 'HMI Quick Actions',
       icon: <ZapOff className="w-4 h-4 text-hmi-muted" />,
       action: () => {
         setOpen(false)
         serial.disconnect()
-          .then(() => toast.info('🔌 Port disconnected.'))
-          .catch(() => toast.error('Failed to disconnect port'))
+          .then(() => toast.info(t('portDisconnected')))
+          .catch(() => toast.error(t('disconnectFailed')))
       },
       keywords: ['disconnect', 'serial', 'port', 'close']
     }
@@ -296,7 +280,7 @@ export function CommandPalette() {
     return (
       <div className="py-2">
         <h3 className="px-4 py-1 text-[10px] font-bold text-hmi-muted uppercase tracking-wider">
-          {category}
+          {category === 'Page Navigation' ? t('pageNavigation') : t('hmiQuickActions')}
         </h3>
         <div className="mt-1 space-y-0.5">
           {items.map(item => {
@@ -359,7 +343,7 @@ export function CommandPalette() {
             <input
               ref={inputRef}
               type="text"
-              placeholder="Type to search pages or robot actions... (e.g. 'monitor', 'estop')"
+              placeholder={t('searchPlaceholder')}
               value={query}
               onChange={e => setQuery(e.target.value)}
               className="w-full h-14 bg-transparent text-xs text-hmi-text placeholder-hmi-muted focus:outline-none"
@@ -381,7 +365,7 @@ export function CommandPalette() {
           >
             {filtered.length === 0 ? (
               <div className="py-12 text-center text-xs text-hmi-muted italic">
-                No search results for "{query}"
+                {t('noResults', { query })}
               </div>
             ) : (
               <>
@@ -395,13 +379,13 @@ export function CommandPalette() {
           <div className="px-4 py-2 border-t border-hmi-grid bg-hmi-bg/50 flex items-center justify-between text-[9px] text-hmi-muted font-mono shrink-0">
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-0.5 border border-hmi-grid bg-hmi-bg px-1 rounded">↑↓</span>
-              <span>Navigation</span>
+              <span>{t('navigationKey')}</span>
               <span className="w-1.5 h-1.5 rounded-full bg-hmi-grid mx-1" />
               <span className="flex items-center gap-0.5 border border-hmi-grid bg-hmi-bg px-1 rounded">Esc</span>
-              <span>Close</span>
+              <span>{t('closeKey')}</span>
             </div>
             <div className="flex items-center gap-1">
-              <span>Connection Status:</span>
+              <span>{t('connectionStatus')}</span>
               <span className={cn(
                 'w-2 h-2 rounded-full inline-block',
                 serialStatus === 'connected' ? 'bg-hmi-ok' : 'bg-hmi-off'
@@ -416,6 +400,7 @@ export function CommandPalette() {
 }
 
 export function CommandPaletteTrigger() {
+  const t = useTranslations('CommandPalette')
   const [shortcutText, setShortcutText] = useState('Ctrl+K')
   
   useEffect(() => {
@@ -432,7 +417,7 @@ export function CommandPaletteTrigger() {
     <button
       onClick={handleOpen}
       className="flex items-center gap-1.5 px-2 py-1 text-xs text-hmi-muted hover:text-hmi-text hover:bg-hmi-grid/30 rounded-md transition-colors cursor-pointer group shrink-0"
-      title="Open Command Palette"
+      title={t('triggerTitle')}
     >
       <Search className="w-4 h-4 group-hover:text-hmi-ideal transition-colors shrink-0" />
       <kbd className="text-[9px] px-1 py-0.5 rounded bg-hmi-panel border border-hmi-grid font-mono text-hmi-muted select-none shrink-0">

@@ -11,6 +11,7 @@ import { computeCTEList, computeMCTE, computeATEList } from '@/lib/cte-utils'
 import type { TPoint } from '@/lib/hmi-types'
 import { cn } from '@/lib/utils'
 import JSZip from 'jszip'
+import { useTranslations, useLocale } from 'next-intl'
 
 // Interfaces
 interface Subgroup {
@@ -372,6 +373,15 @@ const tableSvgToPngBlob = (svgMarkup: string, width: number, height: number): Pr
 }
 
 export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Props) {
+  const t = useTranslations('DashboardGroupCompareTab')
+  const locale = useLocale()
+
+  const formatFloat = (val: number, decimals: number = 3) => {
+    return val.toLocaleString(locale === 'id' ? 'id-ID' : 'en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    })
+  }
   // State
   const [groups, setGroups] = useState<RunGroup[]>([])
   const [activeGroupId, setActiveGroupId] = useState<string>('')
@@ -1964,9 +1974,9 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
   }
 
   const formatXVal = (val: number) => {
-    if (val >= 1000) return val.toFixed(1)
-    if (val < 0.001) return val.toExponential(3)
-    return val.toFixed(4)
+    if (val >= 1000) return formatFloat(val, 1)
+    if (val < 0.001) return val.toExponential(3).replace('.', locale === 'id' ? ',' : '.')
+    return formatFloat(val, 4)
   }
 
   const isGroupConfigured = activeGroup && activeGroup.subgroups.some(s => s.runIds.length > 0)
@@ -1976,7 +1986,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
       {/* Header Panel */}
       <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-sm font-bold text-hmi-text">Statistical Group Comparison</h2>
+          <h2 className="text-sm font-bold text-hmi-text">{t('title')}</h2>
         </div>
         
         <div className="flex items-center gap-2">
@@ -1989,7 +1999,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
               }}
               className="appearance-none bg-hmi-bg border border-hmi-grid rounded px-3 py-1.5 pr-8 text-xs font-semibold text-hmi-text focus:outline-none focus:border-hmi-ideal"
             >
-              {groups.length === 0 && <option value="">No Groups Defined</option>}
+              {groups.length === 0 && <option value="">{t('noGroups')}</option>}
               {groups.map(g => (
                 <option key={g.id} value={g.id}>{g.name}</option>
               ))}
@@ -2002,7 +2012,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
             className="px-3 py-1.5 bg-hmi-ideal hover:bg-hmi-ideal/80 text-white rounded text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
-            New Group
+            {t('newGroup')}
           </button>
           
           {activeGroupId && (
@@ -2013,7 +2023,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                   className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white border border-transparent rounded text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Download className="h-3.5 w-3.5" />
-                  Export Report
+                  {t('exportReport')}
                 </button>
               )}
               <button
@@ -2024,14 +2034,14 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 )}
               >
                 <Sliders className="h-3.5 w-3.5" />
-                {editorExpanded ? 'Close Editor' : 'Edit Group'}
+                {editorExpanded ? t('closeEditor') : t('editGroup')}
               </button>
               <button
                 onClick={() => {
-                  if (confirm('Delete this comparison group?')) handleDeleteGroup(activeGroupId)
+                  if (confirm(t('deleteConfirm'))) handleDeleteGroup(activeGroupId)
                 }}
                 className="p-1.5 border border-hmi-grid text-hmi-muted hover:text-red-400 hover:border-red-400/50 rounded transition-colors cursor-pointer"
-                title="Delete group"
+                title={t('deleteGroup')}
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -2047,13 +2057,13 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
             <div className="bg-amber-500/10 border border-amber-500/30 text-amber-500 rounded-lg px-3 py-2 text-[10px] flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Info className="h-3.5 w-3.5 shrink-0" />
-                <span><strong>{unassignedSelectedRuns.length}</strong> selected runs are not assigned to any subgroup of this group.</span>
+                <span>{t.rich('unassignedWarning', { count: unassignedSelectedRuns.length, strong: (chunks) => <strong>{chunks}</strong> })}</span>
               </span>
               <button
                 onClick={handleSyncSelectedRuns}
                 className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-bold uppercase transition-colors cursor-pointer"
               >
-                Sync Into Group
+                {t('syncIntoGroup')}
               </button>
             </div>
           )}
@@ -2063,14 +2073,14 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
               <span className="flex items-center gap-1.5">
                 <Info className="h-3.5 w-3.5 shrink-0" />
                 <span>
-                  <strong>{unloadedGroupRuns.length}</strong> runs assigned in this group configuration are not currently selected in the sidebar.
+                  {t.rich('unloadedWarning', { count: unloadedGroupRuns.length, strong: (chunks) => <strong>{chunks}</strong> })}
                 </span>
               </span>
               <button
                 onClick={handleLoadMissingRuns}
                 className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-500 border border-blue-500/30 px-2 py-0.5 rounded text-[9px] font-bold uppercase transition-colors cursor-pointer"
               >
-                Select & Load Runs
+                {t('selectAndLoadRuns')}
               </button>
             </div>
           )}
@@ -2081,7 +2091,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
       {activeGroup && editorExpanded && (
         <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-4 flex flex-col gap-4 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center gap-3 border-b border-hmi-grid pb-2">
-            <span className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider">Group Editor</span>
+            <span className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider">{t('groupEditor')}</span>
             <input
               type="text"
               value={activeGroup.name}
@@ -2121,7 +2131,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                   <button
                     onClick={() => handleDeleteSubgroup(sg.id)}
                     className="p-1 border border-hmi-grid text-hmi-muted hover:text-red-400 hover:border-red-400/30 rounded transition-colors shrink-0 cursor-pointer"
-                    title="Delete subgroup"
+                    title={t('deleteGroup')}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -2129,10 +2139,10 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
 
                 {/* Subgroup assigned runs list */}
                 <div className="flex flex-col gap-1">
-                  <div className="text-[9px] font-bold text-hmi-muted uppercase tracking-wider mb-1">Assigned Runs ({sg.runIds.length})</div>
+                  <div className="text-[9px] font-bold text-hmi-muted uppercase tracking-wider mb-1">{t('assignedRuns', { count: sg.runIds.length })}</div>
                   <div className="flex flex-wrap gap-1.5 min-h-[30px] p-2 bg-hmi-bg/60 border border-hmi-grid/50 rounded-lg">
                     {sg.runIds.length === 0 ? (
-                      <span className="text-[10px] text-hmi-muted italic">No runs assigned</span>
+                      <span className="text-[10px] text-hmi-muted italic">{t('noRunsAssigned')}</span>
                     ) : (
                       sg.runIds.map(runId => {
                         const runInfo = runs.find(r => r.runId === runId) || allRuns.find(r => r.id === runId)
@@ -2162,7 +2172,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 {/* Add loaded runs dropdown */}
                 {runs.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-hmi-muted whitespace-nowrap">Add Run:</span>
+                    <span className="text-[10px] text-hmi-muted whitespace-nowrap">{t('addRun')}</span>
                     <select
                       value=""
                       onChange={(e) => {
@@ -2173,7 +2183,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                       }}
                       className="bg-hmi-bg border border-hmi-grid rounded px-2 py-0.5 text-[10px] text-hmi-text focus:outline-none flex-1 cursor-pointer"
                     >
-                      <option value="">— Select Loaded Run —</option>
+                      <option value="">{t('selectLoadedRun')}</option>
                       {runs
                         .filter(r => !sg.runIds.includes(r.runId))
                         .map(r => (
@@ -2190,7 +2200,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
               className="border-2 border-dashed border-hmi-grid hover:border-hmi-ideal text-hmi-muted hover:text-hmi-ideal rounded-lg p-6 flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer min-h-[140px]"
             >
               <Plus className="h-5 w-5" />
-              <span className="text-xs font-semibold">Add Subgroup</span>
+              <span className="text-xs font-semibold">{t('addSubgroup')}</span>
             </button>
           </div>
         </div>
@@ -2201,16 +2211,18 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
         <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-12 text-center text-xs text-hmi-muted flex flex-col items-center gap-3">
           <Info className="h-6 w-6 text-hmi-muted" />
           <div>
-            <p className="font-semibold text-hmi-text">This group has no assigned runs.</p>
+            <p className="font-semibold text-hmi-text">{t('noAssignedRunsWarning')}</p>
             <p className="text-[10px] text-hmi-muted mt-0.5">
-              Open the **Group Editor** to add subgroups and assign runs loaded from the sidebar.
+              {t.rich('noAssignedRunsDesc', {
+                strong: (chunks) => <strong>{chunks}</strong>
+              })}
             </p>
           </div>
           <button
             onClick={() => setEditorExpanded(true)}
             className="mt-2 px-3 py-1.5 border border-hmi-grid hover:border-hmi-ideal hover:text-hmi-ideal rounded text-xs transition-colors font-medium cursor-pointer"
           >
-            Open Group Editor
+            {t('openGroupEditor')}
           </button>
         </div>
       ) : (
@@ -2221,7 +2233,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
             <div className="lg:col-span-1 relative min-h-[350px]">
               {/* Inner container that dynamically fits the absolute bounds of the parent cell */}
               <div className="lg:absolute lg:inset-0 bg-hmi-panel border border-hmi-grid rounded-lg p-3 flex flex-col gap-2 overflow-y-auto">
-                <span className="text-[9px] font-bold text-hmi-muted uppercase tracking-wider px-2 mb-1">Select Metric</span>
+                <span className="text-[9px] font-bold text-hmi-muted uppercase tracking-wider px-2 mb-1">{t('selectMetric')}</span>
                 
                 {/* CTE Group */}
                 <div className="flex flex-col gap-1">
@@ -2246,8 +2258,8 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                               : "border border-transparent hover:bg-hmi-grid/10 text-hmi-muted hover:text-hmi-text"
                           )}
                         >
-                          <span>{m.label} ({m.unit})</span>
-                          <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{m.desc}</span>
+                          <span>{t(`metrics.${m.key}.label` as any)} ({m.unit})</span>
+                          <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{t(`metrics.${m.key}.desc` as any)}</span>
                         </button>
                       ))}
                     </div>
@@ -2277,8 +2289,8 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                               : "border border-transparent hover:bg-hmi-grid/10 text-hmi-muted hover:text-hmi-text"
                           )}
                         >
-                          <span>{m.label} ({m.unit})</span>
-                          <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{m.desc}</span>
+                          <span>{t(`metrics.${m.key}.label` as any)} ({m.unit})</span>
+                          <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{t(`metrics.${m.key}.desc` as any)}</span>
                         </button>
                       ))}
                     </div>
@@ -2288,7 +2300,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 {/* Other Metrics Group */}
                 <div className="flex flex-col gap-1 mt-1">
                   <span className="px-2 py-1 text-[10px] font-bold text-hmi-muted uppercase tracking-wider block select-none">
-                    Other Metrics
+                    {t('otherMetrics')}
                   </span>
                   <div className="flex flex-col gap-1 pl-1 border-l border-hmi-grid/40 ml-2">
                     {METRICS.filter(m => !m.key.startsWith('mcte') && !m.key.startsWith('mate')).map(m => (
@@ -2302,8 +2314,8 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                             : "border border-transparent hover:bg-hmi-grid/10 text-hmi-muted hover:text-hmi-text"
                         )}
                       >
-                        <span>{m.label} ({m.unit})</span>
-                        <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{m.desc}</span>
+                        <span>{t(`metrics.${m.key}.label` as any)} ({m.unit})</span>
+                        <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{t(`metrics.${m.key}.desc` as any)}</span>
                       </button>
                     ))}
                   </div>
@@ -2317,10 +2329,10 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 <div className="flex items-center justify-between border-b border-hmi-grid pb-2 mb-4">
                   <div>
                     <h3 className="text-xs font-bold text-hmi-text">
-                      Distribution Box Plot: {METRICS.find(m => m.key === selectedMetric)?.label} ({METRICS.find(m => m.key === selectedMetric)?.unit})
+                      {t('distributionTitle', { metric: t(`metrics.${selectedMetric}.label` as any), unit: METRICS.find(m => m.key === selectedMetric)?.unit ?? '' })}
                     </h3>
                     <p className="text-[10px] text-hmi-muted mt-0.5">
-                      Hover on circles to view run details or boxes to inspect quantiles (whiskers: min/max, boxes: Q1/Q3).
+                      {t('distributionDesc')}
                     </p>
                   </div>
                 </div>
@@ -2600,25 +2612,25 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
           {/* Aligned Resampled Averages */}
           <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-4 mt-2">
             <div>
-              <h3 className="text-xs font-bold text-hmi-text">Relative-Time Aligned Averages</h3>
+              <h3 className="text-xs font-bold text-hmi-text">{t('relativeTimeTitle')}</h3>
               <p className="text-[10px] text-hmi-muted mt-0.5">
-                Resampled telemetry runs aligned relatively to $t_0=0$ and averaged within subgroups. Final values held constant (steady-state clamp).
+                {t('relativeTimeDesc')}
               </p>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
-              {/* Cartesian Euclidean Error average */}
               <div className="bg-hmi-bg/30 border border-hmi-grid rounded-lg p-3">
-                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">Average End-Effector Cartesian Error (Euclidean, mm)</p>
+                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">{t('avgCartesianError')}</p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${formatFloat(v/1000, 1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Error (mm)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <RechartsTooltip
                         contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                         labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
+                        formatter={(val) => [typeof val === 'number' ? formatFloat(val, 4) : '—']}
                       />
                       <Legend wrapperStyle={{ fontSize: 9 }} />
                       {activeGroup.subgroups.map(sg => (
@@ -2638,18 +2650,18 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 </div>
               </div>
 
-              {/* Tracking Errors CTE & ATE average */}
               <div className="bg-hmi-bg/30 border border-hmi-grid rounded-lg p-3">
-                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">Average Cross-Track Error (CTE, mm)</p>
+                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">{t('avgCte')}</p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${formatFloat(v/1000, 1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Error (mm)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <RechartsTooltip
                         contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                         labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
+                        formatter={(val) => [typeof val === 'number' ? formatFloat(val, 4) : '—']}
                       />
                       <Legend wrapperStyle={{ fontSize: 9 }} />
                       {activeGroup.subgroups.map(sg => (
@@ -2669,18 +2681,18 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 </div>
               </div>
 
-              {/* ATE Aligned averages */}
               <div className="bg-hmi-bg/30 border border-hmi-grid rounded-lg p-3">
-                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">Average Along-Track Error (ATE, mm)</p>
+                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">{t('avgAte')}</p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${formatFloat(v/1000, 1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Error (mm)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <RechartsTooltip
                         contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                         labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
+                        formatter={(val) => [typeof val === 'number' ? formatFloat(val, 4) : '—']}
                       />
                       <Legend wrapperStyle={{ fontSize: 9 }} />
                       <ReferenceLine y={0} stroke="var(--color-hmi-grid)" strokeDasharray="3 3" />
@@ -2701,18 +2713,18 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 </div>
               </div>
 
-              {/* Joint errors average (e1 & e2 side by side) */}
               <div className="bg-hmi-bg/30 border border-hmi-grid rounded-lg p-3">
-                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">Average Joint 1 Position Error (e₁, rad)</p>
+                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">{t('avgJ1Error')}</p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${formatFloat(v/1000, 1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Error (rad)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <RechartsTooltip
                         contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                         labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
+                        formatter={(val) => [typeof val === 'number' ? formatFloat(val, 4) : '—']}
                       />
                       <Legend wrapperStyle={{ fontSize: 9 }} />
                       <ReferenceLine y={0} stroke="var(--color-hmi-grid)" strokeDasharray="3 3" />
@@ -2733,18 +2745,18 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 </div>
               </div>
 
-              {/* Joint 2 error average */}
               <div className="bg-hmi-bg/30 border border-hmi-grid rounded-lg p-3">
-                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">Average Joint 2 Position Error (e₂, rad)</p>
+                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">{t('avgJ2Error')}</p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                      <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${formatFloat(v/1000, 1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Error (rad)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                       <RechartsTooltip
                         contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                         labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
+                        formatter={(val) => [typeof val === 'number' ? formatFloat(val, 4) : '—']}
                       />
                       <Legend wrapperStyle={{ fontSize: 9 }} />
                       <ReferenceLine y={0} stroke="var(--color-hmi-grid)" strokeDasharray="3 3" />
@@ -2770,12 +2782,12 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
             <div className="border border-hmi-grid/80 rounded-lg p-4 mt-4 bg-hmi-bg/25">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-hmi-grid/50 pb-3 mb-4">
                 <div>
-                  <h4 className="text-xs font-bold text-hmi-text">Average Resampled Joint Trajectories</h4>
-                  <p className="text-[10px] text-hmi-muted mt-0.5">Select a subgroup below to view actual vs desired tracking trends for Joint 1 and Joint 2.</p>
+                  <h4 className="text-xs font-bold text-hmi-text">{t('avgJointTrajectories')}</h4>
+                  <p className="text-[10px] text-hmi-muted mt-0.5">{t('jointTrajectoriesDesc')}</p>
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-hmi-muted font-medium">Subgroup:</span>
+                  <span className="text-[10px] text-hmi-muted font-medium">{t('subgroupLabel')}</span>
                   <div className="relative">
                     <select
                       value={selectedJointSgId}
@@ -2792,25 +2804,26 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
               </div>
 
               {jointPositionsChartData.length === 0 ? (
-                <div className="py-8 text-center text-[10px] italic text-hmi-muted">No runs assigned or selected for this subgroup.</div>
+                <div className="py-8 text-center text-[10px] italic text-hmi-muted">{t('noRunsForSubgroup')}</div>
               ) : (
                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Joint 1 Position Chart */}
                   <div className="bg-hmi-panel/50 border border-hmi-grid/60 rounded-lg p-3">
-                    <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider text-center mb-1.5">Joint 1 Position (rad)</p>
+                    <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider text-center mb-1.5">{t('j1Position')}</p>
                     <div className="h-44">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={jointPositionsChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                          <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                          <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${formatFloat(v/1000, 1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                           <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Position (rad)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                           <RechartsTooltip
                             contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                             labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
+                            formatter={(val) => [typeof val === 'number' ? formatFloat(val, 4) : '—']}
                           />
                           <Legend wrapperStyle={{ fontSize: 9 }} />
-                          <Line type="monotone" dataKey="th1d" stroke="#9E9E9E" strokeDasharray="4 3" name="Desired θ₁d" dot={false} strokeWidth={1.5} isAnimationActive={false} />
-                          <Line type="monotone" dataKey="th1" stroke="#2196F3" name="Actual θ₁" dot={false} strokeWidth={2} isAnimationActive={false} />
+                          <Line type="monotone" dataKey="th1d" stroke="#9E9E9E" strokeDasharray="4 3" name={t('desiredJ1')} dot={false} strokeWidth={1.5} isAnimationActive={false} />
+                          <Line type="monotone" dataKey="th1" stroke="#2196F3" name={t('actualJ1')} dot={false} strokeWidth={2} isAnimationActive={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -2818,20 +2831,21 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
 
                   {/* Joint 2 Position Chart */}
                   <div className="bg-hmi-panel/50 border border-hmi-grid/60 rounded-lg p-3">
-                    <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider text-center mb-1.5">Joint 2 Position (rad)</p>
+                    <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider text-center mb-1.5">{t('j2Position')}</p>
                     <div className="h-44">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={jointPositionsChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hmi-grid-subtle)" />
-                          <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
+                          <XAxis dataKey="t" tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} tickFormatter={(v) => `${formatFloat(v/1000, 1)}s`} label={{ value: 'Time (s)', position: 'insideBottom', offset: -10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                           <YAxis tick={{ fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} width={38} label={{ value: 'Position (rad)', angle: -90, position: 'insideLeft', offset: 10, fill: 'var(--color-hmi-text-secondary)', fontSize: 9 }} />
                           <RechartsTooltip
                             contentStyle={{ backgroundColor: 'var(--color-hmi-elevated)', border: '1px solid var(--color-hmi-grid)', fontSize: 10 }}
                             labelFormatter={(v) => `t = ${Number(v).toFixed(0)} ms`}
+                            formatter={(val) => [typeof val === 'number' ? formatFloat(val, 4) : '—']}
                           />
                           <Legend wrapperStyle={{ fontSize: 9 }} />
-                          <Line type="monotone" dataKey="th2d" stroke="#9E9E9E" strokeDasharray="4 3" name="Desired θ₂d" dot={false} strokeWidth={1.5} isAnimationActive={false} />
-                          <Line type="monotone" dataKey="th2" stroke="#FF9800" name="Actual θ₂" dot={false} strokeWidth={2} isAnimationActive={false} />
+                          <Line type="monotone" dataKey="th2d" stroke="#9E9E9E" strokeDasharray="4 3" name={t('desiredJ2')} dot={false} strokeWidth={1.5} isAnimationActive={false} />
+                          <Line type="monotone" dataKey="th2" stroke="#FF9800" name={t('actualJ2')} dot={false} strokeWidth={2} isAnimationActive={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -2845,9 +2859,9 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
           <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-hmi-grid pb-3 mb-4">
               <div>
-                <h3 className="text-xs font-bold text-hmi-text">Welch's t-Test & Effect Size Comparison</h3>
+                <h3 className="text-xs font-bold text-hmi-text">{t('welchTitle')}</h3>
                 <p className="text-[10px] text-hmi-muted mt-0.5">
-                  Check if differences between two subgroups are statistically significant (Welch's t-test handles unequal sample sizes and variances).
+                  {t('welchDesc')}
                 </p>
               </div>
 
@@ -2883,56 +2897,56 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
             </div>
 
             {subgroupAId === subgroupBId || !subgroupAId || !subgroupBId ? (
-              <div className="py-8 text-center text-xs text-hmi-muted italic">Select two different subgroups to run t-tests.</div>
+              <div className="py-8 text-center text-xs text-hmi-muted italic">{t('selectTwoSubgroups')}</div>
             ) : statisticalComparisons.length === 0 ? (
-              <div className="py-8 text-center text-xs text-hmi-muted italic">Both subgroups must have at least one loaded run to perform analysis.</div>
+              <div className="py-8 text-center text-xs text-hmi-muted italic">{t('subgroupsMustHaveRuns')}</div>
             ) : (
               <div className="flex flex-col gap-4">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left border-collapse">
                     <thead>
                       <tr className="bg-hmi-bg/50 border-b border-hmi-grid text-[10px] text-hmi-muted uppercase font-bold tracking-wider">
-                        <th className="py-2.5 px-3">Metric</th>
+                        <th className="py-2.5 px-3">{t('table.metric')}</th>
                         <th className="py-2.5 px-3 text-right">
                           <span className="inline-flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeGroup.subgroups.find(s => s.id === subgroupAId)?.color }} />
-                            <span>Mean (A)</span>
+                            <span>{t('table.meanA')}</span>
                           </span>
                         </th>
                         <th className="py-2.5 px-3 text-right">
                           <span className="inline-flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeGroup.subgroups.find(s => s.id === subgroupBId)?.color }} />
-                            <span>Mean (B)</span>
+                            <span>{t('table.meanB')}</span>
                           </span>
                         </th>
-                        <th className="py-2.5 px-3 text-right">% Diff</th>
-                        <th className="py-2.5 px-3 text-right">t-stat (df)</th>
-                        <th className="py-2.5 px-3 text-right">p-value</th>
-                        <th className="py-2.5 px-3 text-center">Significance Badge</th>
-                        <th className="py-2.5 px-3 text-center">Cohen's d (Effect Size)</th>
+                        <th className="py-2.5 px-3 text-right">{t('table.diff')}</th>
+                        <th className="py-2.5 px-3 text-right">{t('table.tStat')}</th>
+                        <th className="py-2.5 px-3 text-right">{t('table.pValue')}</th>
+                        <th className="py-2.5 px-3 text-center">{t('table.significance')}</th>
+                        <th className="py-2.5 px-3 text-center">{t('table.effectSize')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {statisticalComparisons.map((c) => (
                         <tr key={c.metricKey} className="border-b border-hmi-grid/40 hover:bg-hmi-grid/10 transition-colors">
-                          <td className="py-2 px-3 font-medium text-hmi-text">{c.metricLabel} ({c.unit})</td>
+                          <td className="py-2 px-3 font-medium text-hmi-text">{t(`metrics.${c.metricKey}.label` as any)} ({c.unit})</td>
                           <td className="py-2 px-3 text-right font-mono">
-                            {c.meanA.toFixed(4)} <span className="text-[10px] text-hmi-muted">±{c.sdA.toFixed(3)}</span>
+                            {formatFloat(c.meanA, 4)} <span className="text-[10px] text-hmi-muted">±{formatFloat(c.sdA, 3)}</span>
                           </td>
                           <td className="py-2 px-3 text-right font-mono">
-                            {c.meanB.toFixed(4)} <span className="text-[10px] text-hmi-muted">±{c.sdB.toFixed(3)}</span>
+                            {formatFloat(c.meanB, 4)} <span className="text-[10px] text-hmi-muted">±{formatFloat(c.sdB, 3)}</span>
                           </td>
                           <td className={cn(
                             "py-2 px-3 text-right font-mono font-semibold",
                             c.diffPct < 0 ? "text-green-400" : c.diffPct > 0 ? "text-red-400" : "text-hmi-text"
                           )}>
-                            {c.diffPct > 0 ? '+' : ''}{c.diffPct.toFixed(2)}%
+                            {c.diffPct > 0 ? '+' : ''}{formatFloat(c.diffPct, 2)}%
                           </td>
                           <td className="py-2 px-3 text-right font-mono text-hmi-muted">
-                            {c.tStat.toFixed(2)} <span className="text-[10px]">({c.df.toFixed(1)})</span>
+                            {formatFloat(c.tStat, 2)} <span className="text-[10px]">({formatFloat(c.df, 1)})</span>
                           </td>
                           <td className="py-2 px-3 text-right font-mono font-semibold text-hmi-text">
-                            {c.pValue < 0.001 ? '<0.001' : c.pValue.toFixed(4)}
+                            {c.pValue < 0.001 ? '<0.001' : formatFloat(c.pValue, 4)}
                           </td>
                           <td className="py-2 px-3 text-center">
                             <span className={cn(
@@ -2941,18 +2955,18 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                               c.significance === 'Significant' ? "bg-amber-500/10 text-amber-400 border border-amber-500/30" :
                               "bg-hmi-grid/55 text-hmi-muted border border-hmi-grid/80"
                             )}>
-                              {c.significance}
+                              {c.significance === 'Highly Significant' ? t('significanceHighly') : c.significance === 'Significant' ? t('significanceSig') : t('significanceNotSig')}
                             </span>
                           </td>
                           <td className="py-2 px-3 text-center font-mono">
-                            <span className="font-semibold text-hmi-text">{c.cohenD.toFixed(3)}</span>{' '}
+                            <span className="font-semibold text-hmi-text">{formatFloat(c.cohenD, 3)}</span>{' '}
                             <span className={cn(
                               "text-[10px] uppercase font-bold",
                               c.effectSize === 'Large' ? "text-red-400" :
                               c.effectSize === 'Medium' ? "text-amber-400" :
                               c.effectSize === 'Small' ? "text-blue-400" : "text-hmi-muted"
                             )}>
-                              ({c.effectSize})
+                              ({c.effectSize === 'Large' ? t('effectLarge') : c.effectSize === 'Medium' ? t('effectMedium') : c.effectSize === 'Small' ? t('effectSmall') : t('effectNegligible')})
                             </span>
                           </td>
                         </tr>
@@ -2964,15 +2978,19 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 <div className="bg-hmi-bg/40 border border-hmi-grid rounded-lg p-3 text-[10px] text-hmi-muted flex items-start gap-2 leading-relaxed">
                   <Info className="h-4 w-4 text-hmi-ideal mt-0.5 shrink-0" />
                   <div>
-                    <span className="font-bold text-hmi-text">Statistical Reference Guide:</span>
+                    <span className="font-bold text-hmi-text">{t('refGuideTitle')}</span>
                     <ul className="list-disc pl-4 mt-1 flex flex-col gap-0.5">
                       <li>
-                        <strong>Welch's t-test</strong> computes the probability (p-value) that the difference between means is due to random chance. 
-                        A <code className="bg-hmi-bg px-1 py-0.5 rounded text-hmi-text font-mono text-[9px]">p &lt; 0.05</code> (Significant) indicates less than 5% probability, validating a true performance difference.
+                        {t.rich('refGuideWelch', {
+                          strong: (chunks) => <strong>{chunks}</strong>,
+                          code: (chunks) => <code className="bg-hmi-bg px-1 py-0.5 rounded text-hmi-text font-mono text-[9px]">p &lt; 0.05</code>
+                        })}
                       </li>
                       <li>
-                        <strong>Cohen's d</strong> measures the effect size (standardized difference). 
-                        A value <code className="bg-hmi-bg px-1 py-0.5 rounded text-hmi-text font-mono text-[9px]">d &ge; 0.8</code> indicates a **Large** effect, showing a highly practical difference in control regimes.
+                        {t.rich('refGuideCohen', {
+                          strong: (chunks) => <strong>{chunks}</strong>,
+                          code: (chunks) => <code className="bg-hmi-bg px-1 py-0.5 rounded text-hmi-text font-mono text-[9px]">d &ge; 0.8</code>
+                        })}
                       </li>
                     </ul>
                   </div>
@@ -2982,9 +3000,9 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 {referencePoints.length > 0 && (
                   <div className="bg-hmi-bg/25 border border-hmi-grid/80 rounded-lg p-4 mt-2">
                     <div className="border-b border-hmi-grid pb-2 mb-4">
-                      <h4 className="text-xs font-bold text-hmi-text">Geometrical XY Path Comparison</h4>
+                      <h4 className="text-xs font-bold text-hmi-text">{t('geometricalTitle')}</h4>
                       <p className="text-[10px] text-hmi-muted mt-0.5">
-                        Average trajectory coordinate traces (solid lines) plotted on the Cartesian XY plane, surrounded by a 1-standard-deviation confidence corridor (shaded bands) representing geometric spread.
+                        {t('geometricalDesc')}
                       </p>
                     </div>
                     
@@ -2995,7 +3013,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                         <div className="absolute top-2 left-2 bg-hmi-panel/85 border border-hmi-grid/55 rounded p-1.5 text-[9px] flex flex-col gap-1 z-10">
                           <div className="flex items-center gap-1.5">
                             <span className="w-3 h-0.5 border-t border-dashed border-hmi-text/60" />
-                            <span className="text-hmi-muted">Desired path</span>
+                            <span className="text-hmi-muted">{t('desiredPath')}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="w-3 h-1 inline-block" style={{ backgroundColor: activeGroup.subgroups.find(s => s.id === subgroupAId)?.color }} />
@@ -3072,7 +3090,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                             fill="currentColor"
                             className="text-hmi-text-secondary fill-current"
                           >
-                            Y Position (mm)
+                            {t('yPosition', { unit: 'mm' })}
                           </text>
 
                           {/* X-axis title */}
@@ -3085,7 +3103,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                             fill="currentColor"
                             className="text-hmi-text-secondary fill-current"
                           >
-                            X Position (mm)
+                            {t('xPosition', { unit: 'mm' })}
                           </text>
                           
                           {/* 1. Reference Path */}
@@ -3145,19 +3163,30 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                       
                       {/* Description */}
                       <div className="flex-1 text-[10px] leading-relaxed text-hmi-muted flex flex-col gap-2 max-w-[400px]">
-                        <p className="font-bold text-[11px] text-hmi-text">Understanding the Geometrical Spread</p>
+                        <p className="font-bold text-[11px] text-hmi-text">{t('understandingTitle')}</p>
                         <p>
-                          The dashed line represents the <strong>desired trajectory</strong>. The solid colored lines represent the <strong>average Cartesian path</strong> followed by each subgroup.
+                          {t.rich('understandingP1', {
+                            desired: () => <strong>{t('desiredTrajectory')}</strong>,
+                            average: () => <strong>{t('avgCartesianPath')}</strong>
+                          })}
                         </p>
                         <p>
-                          The shaded area surrounding each line is the <strong>confidence corridor</strong>:
+                          {t.rich('understandingP2', {
+                            corridor: () => <strong>{t('confidenceCorridor')}</strong>
+                          })}
                           <span className="block my-1 font-mono text-[9px] bg-hmi-bg/40 p-1.5 rounded text-hmi-text border border-hmi-grid/40 select-text">
                             corridor(s) = [p̄(s) - σ(s)n̂, p̄(s) + σ(s)n̂]
                           </span>
-                          where <code className="text-hmi-ideal">σ(s)</code> is the standard deviation of lateral (cross-track) error at position <code className="text-hmi-ideal">s</code>, and <code className="text-hmi-ideal">n̂</code> is the normal vector perpendicular to the desired path.
+                          {t.rich('understandingP3', {
+                            sigma: () => <code className="text-hmi-ideal">σ(s)</code>,
+                            s: () => <code className="text-hmi-ideal">s</code>,
+                            n: () => <code className="text-hmi-ideal">n̂</code>
+                          })}
                         </p>
                         <p>
-                          This visualizes <strong>geometric reproducibility</strong>. A larger offset of the average line from the desired path indicates persistent tracking errors (e.g. friction or dynamics lag), while a wider shaded band indicates higher run-to-run variation.
+                          {t.rich('understandingP4', {
+                            reproducibility: () => <strong>{t('geometricReproducibility')}</strong>
+                          })}
                         </p>
                       </div>
                     </div>

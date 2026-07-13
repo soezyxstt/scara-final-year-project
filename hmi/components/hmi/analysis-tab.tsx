@@ -11,6 +11,7 @@ import { EEFErrChart, EEFVelocityChart, PWMChart, J1EncoderVelocityChart } from 
 import { useHMISlow } from '@/lib/hmi-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useTranslations } from 'next-intl'
 
 // Helper to format inline bold text **text** to HTML tags in React
 function parseInlineBold(text: string) {
@@ -131,6 +132,7 @@ function extractTuningJSON(text: string) {
 
 // AI Copilot Section component
 export function AICopilotSection() {
+  const t = useTranslations('AnalysisTab')
   const { state, serial } = useHMISlow()
   const { lastSavedRunId, stats, currentMove } = state
   const [mode, setMode] = useState<'explain' | 'diagnose' | 'recommend'>('diagnose')
@@ -201,7 +203,7 @@ export function AICopilotSection() {
   const isSerialConnected = state.serialStatus === 'connected'
 
   const handleApplyTuning = async (tuning: Record<string, number>) => {
-    const toastId = toast.loading('Applying AI recommendations to hardware...')
+    const toastId = toast.loading(t('applyingRecommendations'))
     try {
       for (const [cmd, val] of Object.entries(tuning)) {
         await serial.sendCommand(`${cmd},${val}`)
@@ -209,9 +211,9 @@ export function AICopilotSection() {
       // Query refresh values from physical device
       await serial.sendCommand('getparams')
       await serial.sendCommand('getgains')
-      toast.success('AI recommendations applied successfully!', { id: toastId })
+      toast.success(t('appliedSuccessfully'), { id: toastId })
     } catch (err: any) {
-      toast.error('Failed to apply gains', { description: err.message || err, id: toastId })
+      toast.error(t('failedApply'), { description: err.message || err, id: toastId })
     }
   }
 
@@ -224,8 +226,12 @@ export function AICopilotSection() {
               <Brain className="h-5 w-5 animate-pulse" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-hmi-text">SCARA AI Copilot Advisor</h3>
-              <p className="text-xs text-hmi-muted">Run a move and select <strong>Run + Save to DB</strong> to consult the AI Copilot regarding your controller parameters and telemetry.</p>
+              <h3 className="text-sm font-bold text-hmi-text">{t('copilotAdvisor')}</h3>
+              <p className="text-xs text-hmi-muted">
+                {t.rich('copilotAdvisorDesc', {
+                  bold: (chunks) => <strong className="font-bold text-hmi-text">{chunks}</strong>
+                })}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -242,14 +248,14 @@ export function AICopilotSection() {
           </div>
           <div>
             <CardTitle className="text-sm font-bold text-hmi-text flex items-center gap-1.5">
-              SCARA AI Copilot
+              {t('copilotTitle')}
               {modelUsed && (
                 <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-hmi-grid/70 text-hmi-muted border border-hmi-grid">
                   via {modelUsed}
                 </span>
               )}
             </CardTitle>
-            <p className="text-[10px] text-hmi-muted">Senior Control Systems Engineer Persona</p>
+            <p className="text-[10px] text-hmi-muted">{t('seniorEngineerPersona')}</p>
           </div>
         </div>
 
@@ -267,7 +273,7 @@ export function AICopilotSection() {
                   : "text-hmi-muted hover:text-hmi-text"
               )}
             >
-              {m}
+              {m === 'explain' ? t('modeExplain') : m === 'diagnose' ? t('modeDiagnose') : t('modeRecommend')}
             </button>
           ))}
         </div>
@@ -276,11 +282,11 @@ export function AICopilotSection() {
       <CardContent className="p-4 flex flex-col gap-4">
         {/* Run summary badge */}
         <div className="flex flex-wrap gap-4 text-[10px] bg-hmi-bg/40 border border-hmi-grid/30 p-2.5 rounded-lg font-mono">
-          <div><span className="text-hmi-muted">Max Err:</span> <span className="text-hmi-text font-bold">{(stats?.max_err ?? 0).toFixed(4)} mm</span></div>
-          <div><span className="text-hmi-muted">Mean Err:</span> <span className="text-hmi-text font-bold">{(stats?.mean_err ?? 0).toFixed(4)} mm</span></div>
-          <div><span className="text-hmi-muted">Max PWM:</span> <span className="text-hmi-text font-bold">{stats?.pwm_max ?? 0}</span></div>
+          <div><span className="text-hmi-muted">{t('maxErr')}:</span> <span className="text-hmi-text font-bold">{(stats?.max_err ?? 0).toFixed(4)} mm</span></div>
+          <div><span className="text-hmi-muted">{t('meanErr')}:</span> <span className="text-hmi-text font-bold">{(stats?.mean_err ?? 0).toFixed(4)} mm</span></div>
+          <div><span className="text-hmi-muted">{t('maxPwm')}:</span> <span className="text-hmi-text font-bold">{stats?.pwm_max ?? 0}</span></div>
           {currentMove && (
-            <div><span className="text-hmi-muted">Path:</span> <span className="text-hmi-text font-bold">({currentMove.x0},{currentMove.y0}) ➔ ({currentMove.xf},{currentMove.yf})</span></div>
+            <div><span className="text-hmi-muted">{t('path')}:</span> <span className="text-hmi-text font-bold">({currentMove.x0},{currentMove.y0}) ➔ ({currentMove.xf},{currentMove.yf})</span></div>
           )}
         </div>
 
@@ -297,7 +303,7 @@ export function AICopilotSection() {
                 <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                   <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping shrink-0" />
-                    Tuning Recommendations Detected
+                    {t('tuningRecsDetected')}
                   </span>
                   <span className="text-[10px] text-hmi-muted font-mono leading-tight truncate">
                     {Object.entries(tuningParams).map(([cmd, val]) => `${cmd}: ${val}`).join(', ')}
@@ -309,7 +315,7 @@ export function AICopilotSection() {
                   onClick={() => handleApplyTuning(tuningParams)}
                   className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-[10px] uppercase tracking-wider py-1.5 px-3 h-8 shadow shrink-0 cursor-pointer transition-transform hover:scale-[1.02]"
                 >
-                  {isSerialConnected ? '✓ Apply to Hardware' : '⚠ Connect Serial to Apply'}
+                  {isSerialConnected ? t('applyToHardware') : t('connectSerialToApply')}
                 </Button>
               </div>
             )}
@@ -319,14 +325,14 @@ export function AICopilotSection() {
             {loading ? (
               <div className="flex flex-col items-center gap-3">
                 <Loader2 className="h-8 w-8 text-hmi-ideal animate-spin" />
-                <p className="text-xs text-hmi-text-secondary font-medium animate-pulse">Consulting the control engineer copilot...</p>
-                <p className="text-[10px] text-hmi-muted italic">Ingesting telemetry logs and history...</p>
+                <p className="text-xs text-hmi-text-secondary font-medium animate-pulse">{t('consultingCopilot')}</p>
+                <p className="text-[10px] text-hmi-muted italic">{t('ingestingTelemetry')}</p>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2 max-w-sm">
                 <Sparkles className="h-8 w-8 text-hmi-ideal/65 animate-pulse" />
-                <p className="text-xs font-semibold text-hmi-text">Copilot stands ready</p>
-                <p className="text-[10px] text-hmi-muted">Choose your mode and click Consult to stream live suggestions, explanation, or root cause diagnoses based on your telemetry.</p>
+                <p className="text-xs font-semibold text-hmi-text">{t('copilotReady')}</p>
+                <p className="text-[10px] text-hmi-muted">{t('copilotReadyDesc')}</p>
               </div>
             )}
           </div>
@@ -339,7 +345,7 @@ export function AICopilotSection() {
             className="w-full bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-bold text-xs uppercase tracking-widest gap-2 py-2 h-9 shadow-md transition-all hover:scale-[1.01] cursor-pointer"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            Consult Copilot ({mode})
+            {t('consultCopilot', { mode: mode === 'explain' ? t('modeExplain') : mode === 'diagnose' ? t('modeDiagnose') : t('modeRecommend') })}
           </Button>
         )}
       </CardContent>
@@ -359,6 +365,7 @@ function ExpandableChartCard({
   chartHeight?: number
   children: React.ReactNode
 }) {
+  const t = useTranslations('AnalysisTab')
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -367,7 +374,7 @@ function ExpandableChartCard({
         <CardHeader className="p-4 pb-2">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-sm font-semibold text-hmi-text-secondary">{title}</CardTitle>
-            <Tooltip content="Expand to fullscreen. Press ESC to exit." align="center">
+            <Tooltip content={t('expandFullscreen')} align="center">
               <Button
                 variant="outline"
                 size="sm"
@@ -396,7 +403,7 @@ function ExpandableChartCard({
               onClick={() => setExpanded(false)}
             >
               <Minimize2 className="h-3.5 w-3.5" />
-              Exit Focus
+              {t('exitFocus')}
             </Button>
           </div>
           <div className="flex-1 min-h-0">{children}</div>
@@ -414,12 +421,13 @@ function ExpandableSection({
   title: string
   children: React.ReactNode
 }) {
+  const t = useTranslations('AnalysisTab')
   const [expanded, setExpanded] = useState(false)
 
   return (
     <div className="relative">
       <div className="absolute top-3 right-3 z-10">
-        <Tooltip content="Expand to fullscreen." align="center">
+        <Tooltip content={t('expandFullscreenOnly')} align="center">
           <Button
             variant="outline"
             size="sm"
@@ -438,7 +446,7 @@ function ExpandableSection({
             <h2 className="text-base font-bold text-hmi-text">{title}</h2>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setExpanded(false)}>
               <Minimize2 className="h-3.5 w-3.5" />
-              Exit Focus
+              {t('exitFocus')}
             </Button>
           </div>
           <div className="flex-1 min-h-0">{children}</div>
@@ -449,6 +457,7 @@ function ExpandableSection({
 }
 
 export function AnalysisTab() {
+  const t = useTranslations('AnalysisTab')
   const { state } = useHMISlow()
   const [advOpen, setAdvOpen] = useState(true)
   const [tableOpen, setTableOpen] = useState(false)
@@ -458,22 +467,19 @@ export function AnalysisTab() {
   return (
     <div className="flex flex-col gap-6 p-4 overflow-y-auto">
 
-      {/* ── AI Copilot Section ──────────────────────────────── */}
-      <AICopilotSection />
-
       {/* ── Advanced Analysis (collapsible) ──────────────────── */}
       <Collapsible open={advOpen} onOpenChange={setAdvOpen}>
         <CollapsibleTrigger asChild>
           <Button variant="outline" className="w-full justify-start gap-2 text-xs uppercase tracking-widest font-semibold border-hmi-grid cursor-pointer">
             {advOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            Advanced Analysis Details
+            {t('advancedAnalysisDetails')}
           </Button>
         </CollapsibleTrigger>
 
         <CollapsibleContent className="mt-4 flex flex-col gap-6">
 
           {/* Row 1: Phase Portrait — full width */}
-          <ExpandableSection title="Phase Portrait">
+          <ExpandableSection title={t('phasePortrait')}>
             <div className="h-[320px] rounded-xl border border-hmi-grid overflow-hidden">
               <PhasePortrait />
             </div>
@@ -482,14 +488,14 @@ export function AnalysisTab() {
           {/* Row 2: EEF Cartesian Error + EEF Velocity */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ExpandableChartCard
-              title="End-Effector Cartesian Error (Euclidean)"
+              title={t('eefCartesianError')}
               hasData={frozenT.length > 0}
             >
               <EEFErrChart tBuf={frozenT} dBuf={frozenD} />
             </ExpandableChartCard>
 
             <ExpandableChartCard
-              title="End-Effector Velocity Profile (Trapezoidal vs Actual)"
+              title={t('eefVelocityProfile')}
               hasData={frozenD.length > 0}
             >
               <EEFVelocityChart dBuf={frozenD} />
@@ -499,24 +505,24 @@ export function AnalysisTab() {
           {/* Row 3: PWM Output + Control Effort */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ExpandableChartCard
-              title="Actuator PWM Output"
+              title={t('actuatorPwmOutput')}
               hasData={frozenD.length > 0}
             >
               <PWMChart dBuf={frozenD} />
             </ExpandableChartCard>
 
-            <ExpandableSection title="Control Effort">
+            <ExpandableSection title={t('controlEffort')}>
               <ControlEffortSection />
             </ExpandableSection>
           </div>
 
           {/* Row 4: CTC Feedforward Torques + Loop Duration */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ExpandableSection title="CTC Feedforward Torques">
+            <ExpandableSection title={t('ctcFeedforwardTorques')}>
               <CTCTorqueSection />
             </ExpandableSection>
 
-            <ExpandableSection title="Loop Duration">
+            <ExpandableSection title={t('loopDuration')}>
               <LoopDurationSection />
             </ExpandableSection>
           </div>
@@ -524,7 +530,7 @@ export function AnalysisTab() {
           {/* Row 5: J1 Velocity: TD vs Encoder */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ExpandableChartCard
-              title="J1 Velocity Estimation: Pot/TD vs. Encoder (Temporary)"
+              title={t('j1VelocityPotTd')}
               hasData={frozenD.length > 0}
             >
               <J1EncoderVelocityChart dBuf={frozenD} />
@@ -539,7 +545,7 @@ export function AnalysisTab() {
         <CollapsibleTrigger asChild>
           <Button variant="outline" className="w-full justify-start gap-2 text-xs uppercase tracking-widest font-semibold cursor-pointer">
             {tableOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            Ideal vs Actual Data Table
+            {t('idealVsActualDataTable')}
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-4">

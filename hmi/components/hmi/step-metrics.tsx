@@ -1,6 +1,7 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useHMISlow } from '@/lib/hmi-context'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
@@ -100,12 +101,13 @@ function MetricCard({ label, value, unit, sub, accent, textAccent, isEmpty }: Me
 }
 
 export function StepMetrics() {
+  const t = useTranslations('StepMetrics')
   const { state } = useHMISlow()
   const [signal, setSignal] = useState<SignalKey>('eef')
   const [bandPct, setBandPct] = useState<'2' | '5'>('2')
 
-  const d = state.frozenD, t = state.frozenT
-  const sig = extractSignal(signal, d, t)
+  const d = state.frozenD, tData = state.frozenT
+  const sig = extractSignal(signal, d, tData)
   const m = computeMetrics(sig)
   const hasData = d.length > 0
 
@@ -121,10 +123,10 @@ export function StepMetrics() {
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-bold text-hmi-text uppercase tracking-widest">
-            Control Performance Summary
+            {t('title')}
           </h2>
           <p className="mt-0.5 text-[11px] text-hmi-muted">
-            Step-response metrics for the selected signal
+            {t('subtitle')}
           </p>
         </div>
 
@@ -134,9 +136,9 @@ export function StepMetrics() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="eef">EEF error</SelectItem>
-              <SelectItem value="th1">θ1</SelectItem>
-              <SelectItem value="th2">θ2</SelectItem>
+              <SelectItem value="eef">{t('signals.eef')}</SelectItem>
+              <SelectItem value="th1">{t('signals.th1')}</SelectItem>
+              <SelectItem value="th2">{t('signals.th2')}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={bandPct} onValueChange={(v: string) => setBandPct(v as '2' | '5')}>
@@ -144,8 +146,8 @@ export function StepMetrics() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="2">±2% band</SelectItem>
-              <SelectItem value="5">±5% band</SelectItem>
+              <SelectItem value="2">{t('bands.pct2')}</SelectItem>
+              <SelectItem value="5">{t('bands.pct5')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -154,37 +156,37 @@ export function StepMetrics() {
       {/* Hero metric cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <MetricCard
-          label="Rise Time tr"
+          label={t('riseTime.label')}
           value={hasData && m.tr !== null ? String(m.tr) : '—'}
-          unit="samples"
-          sub="10 % → 90 % of final"
+          unit={t('units.samples')}
+          sub={t('riseTime.sub')}
           accent="border-blue-500/30"
           textAccent="text-blue-400"
           isEmpty={!hasData}
         />
         <MetricCard
-          label="Overshoot %OS"
+          label={t('overshoot.label')}
           value={hasData && m.os !== null ? fmt(m.os) : '—'}
           unit="%"
-          sub={`Peak above final value`}
+          sub={t('overshoot.sub')}
           accent="border-orange-500/30"
           textAccent="text-orange-400"
           isEmpty={!hasData}
         />
         <MetricCard
-          label={`Settling Time ts (±${bandPct}%)`}
+          label={t('settlingTime.label', { pct: bandPct })}
           value={hasData && tsVal !== null ? String(tsVal) : '—'}
-          unit="samples"
-          sub={`Last exit from ±${bandPct}% band`}
+          unit={t('units.samples')}
+          sub={t('settlingTime.sub', { pct: bandPct })}
           accent="border-emerald-500/30"
           textAccent="text-emerald-400"
           isEmpty={!hasData}
         />
         <MetricCard
-          label="Steady-State Error"
+          label={t('steadyStateError.label')}
           value={hasData ? Math.abs(m.ess).toFixed(3) : '—'}
           unit={unit}
-          sub="Mean of last 10 % of samples"
+          sub={t('steadyStateError.sub')}
           accent="border-violet-500/30"
           textAccent="text-violet-400"
           isEmpty={!hasData}
@@ -193,7 +195,7 @@ export function StepMetrics() {
 
       {!hasData && (
         <p className="mt-3 text-center text-xs text-hmi-muted">
-          Complete a move to populate metrics.
+          {t('noData')}
         </p>
       )}
     </section>

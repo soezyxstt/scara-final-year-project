@@ -27,7 +27,6 @@ The web dashboard (`/hmi`) connects at **921600** baud and auto-switches firmwar
 | `/` | `mode,scara` | Cartesian moves and trajectory monitoring |
 | `/zn` | `mode,zn` | Joint-level Ziegler-Nichols tuning |
 | `/test` | `mode,test` | Live parameter tuning (33 runtime constants) and raw signal diagnostics |
-| `/eksperimen` | `mode,test` | Automated experiment sequences (EXP-1 through EXP-6) |
 
 ## Commands & Telemetry
 

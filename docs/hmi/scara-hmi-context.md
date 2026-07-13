@@ -74,10 +74,10 @@ hmi/
 │   ├── dashboard/                    # Protected: /dashboard
 │   │   ├── page.tsx
 │   │   └── dashboard-content.tsx
-│   ├── eksperimen/                   # Protected: /eksperimen
+│   ├── eksperimen/                   # [DEPRECATED] Protected: /eksperimen
 │   │   ├── page.tsx
 │   │   └── experiment-client.tsx
-│   ├── hasil-eksperimen/             # Public: /hasil-eksperimen
+│   ├── hasil-eksperimen/             # [DEPRECATED] Public: /hasil-eksperimen
 │   │   ├── page.tsx
 │   │   └── results-client.tsx
 │   ├── login/                        # Public: /login

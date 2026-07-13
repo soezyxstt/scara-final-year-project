@@ -5,6 +5,7 @@ import { ChartCard } from './chart-card'
 import type { Sample, TrajectoryPoint } from '@/lib/db/schema'
 import { computeATEList } from '@/lib/cte-utils'
 import type { TPoint } from '@/lib/hmi-types'
+import { useTranslations } from 'next-intl'
 
 interface RunData {
   runId: string
@@ -17,6 +18,7 @@ interface RunData {
 interface Props { runs: RunData[] }
 
 export function AdvancedTab({ runs }: Props) {
+  const t = useTranslations('DashboardAdvancedTab')
   // Phase portrait: e1 vs dth1 (error vs error-rate)
   const phaseDatasets = useMemo(() =>
     runs.map(r => ({
@@ -112,32 +114,32 @@ export function AdvancedTab({ runs }: Props) {
       }
     }), [runs])
 
-  if (runs.length === 0) return <Empty />
+  if (runs.length === 0) return <Empty msg={t('selectRunsMessage')} />
 
   return (
     <div className="flex flex-col gap-4 p-4">
       <ChartCard
-        title="Phase Portrait J1 — Error vs Error-Rate (rad, rad/s)"
+        title={t('phasePortraitTitle')}
         datasets={phaseDatasets}
         series={[
           { dataKey: 'e1_dot', color: '#2196F3', label: 'ė₁' },
           { dataKey: 'e2_dot', color: '#FF9800', label: 'ė₂' },
         ]}
         xKey="t"
-        xLabel="e (rad)"
-        yLabel="ė (rad/s)"
+        xLabel={t('errorLabel')}
+        yLabel={t('errorRateLabel')}
         height={240}
       />
 
       <ChartCard
-        title="EEF Cartesian Error — Euclidean (mm)"
+        title={t('eefCartesianErrorTitle')}
         datasets={eefErrDatasets}
-        series={[{ dataKey: 'eef_err', color: '#EF5350', label: 'EEF error' }]}
+        series={[{ dataKey: 'eef_err', color: '#EF5350', label: t('eefError') }]}
         xKey="t" xLabel="ms" yLabel="mm" height={200} type="area"
       />
 
       <ChartCard
-        title="Along-Track Error — ATE (mm)"
+        title={t('alongTrackErrorTitle')}
         datasets={ateDatasets}
         series={[{ dataKey: 'ate', color: '#E91E63', label: 'ATE' }]}
         xKey="t" xLabel="ms" yLabel="mm" height={200} type="area"
@@ -145,28 +147,28 @@ export function AdvancedTab({ runs }: Props) {
 
       <div className="grid grid-cols-2 gap-4">
         <ChartCard
-          title="J1 Raw vs TD-Filtered (rad)"
+          title={t('j1RawVsFilteredTitle')}
           datasets={rawJ1Datasets}
           series={[
-            { dataKey: 'th1_raw', color: '#EF5350', label: 'θ₁ raw' },
-            { dataKey: 'th1', color: '#2196F3', label: 'θ₁ filtered', dashed: true },
+            { dataKey: 'th1_raw', color: '#EF5350', label: t('j1Raw') },
+            { dataKey: 'th1', color: '#2196F3', label: t('j1Filtered'), dashed: true },
           ]}
           xKey="t" xLabel="ms" yLabel="rad" height={200}
         />
 
         <ChartCard
-          title="J2 Raw vs TD-Filtered (rad)"
+          title={t('j2RawVsFilteredTitle')}
           datasets={rawJ2Datasets}
           series={[
-            { dataKey: 'th2_raw', color: '#FF5722', label: 'θ₂ raw' },
-            { dataKey: 'th2', color: '#FF9800', label: 'θ₂ filtered', dashed: true },
+            { dataKey: 'th2_raw', color: '#FF5722', label: t('j2Raw') },
+            { dataKey: 'th2', color: '#FF9800', label: t('j2Filtered'), dashed: true },
           ]}
           xKey="t" xLabel="ms" yLabel="rad" height={200}
         />
       </div>
 
       <ChartCard
-        title="Velocity Feedforward VFF₁ (fraction of U1_MAX)"
+        title={t('vffTitle')}
         datasets={vffDatasets}
         series={[{ dataKey: 'vff1', color: '#E91E63', label: 'vff₁' }]}
         xKey="t" xLabel="ms" yLabel="frac" height={180}
@@ -175,6 +177,6 @@ export function AdvancedTab({ runs }: Props) {
   )
 }
 
-function Empty() {
-  return <div className="p-8 text-center text-xs text-hmi-muted">Select one or more runs from the sidebar.</div>
+function Empty({ msg }: { msg: string }) {
+  return <div className="p-8 text-center text-xs text-hmi-muted">{msg}</div>
 }

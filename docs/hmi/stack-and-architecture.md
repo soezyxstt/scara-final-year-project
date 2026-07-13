@@ -41,10 +41,10 @@ hmi/
 │   ├── dashboard/                    # /dashboard - PROTECTED
 │   │   ├── page.tsx
 │   │   └── dashboard-content.tsx
-│   ├── eksperimen/                   # /eksperimen - PROTECTED
+│   ├── eksperimen/                   # [DEPRECATED] /eksperimen - PROTECTED
 │   │   ├── page.tsx
 │   │   └── experiment-client.tsx
-│   ├── hasil-eksperimen/             # /hasil-eksperimen - PUBLIC
+│   ├── hasil-eksperimen/             # [DEPRECATED] /hasil-eksperimen - PUBLIC
 │   │   ├── page.tsx
 │   │   └── results-client.tsx
 │   ├── login/                        # /login - PUBLIC
@@ -97,7 +97,7 @@ hmi/
 ## 3. Middleware and Authentication Boundaries
 
 To secure database writes and user-saved directories:
-- **Next.js Middleware (`middleware.ts`)**: Redirects unauthorized visitors hitting `/dashboard`, `/eksperimen`, or sending REST requests to `/api/runs` back to the `/login` portal.
+- **Next.js Middleware (`middleware.ts`)**: Redirects unauthorized visitors hitting `/dashboard` or sending REST requests to `/api/runs` back to the `/login` portal.
 - **NextAuth integration**: Google Provider authentication validates credentials, returning session cookies to enable database queries.
 
 ```
@@ -111,9 +111,8 @@ To secure database writes and user-saved directories:
   [Public Routes]                        [Protected Routes]
   - / (Home Dashboard)                   (auth.js Middleware verification)
   - /zn (ZN Joint Tuner)                 - /dashboard (Saved runs comparisons)
-  - /test (Params Tuner)                 - /eksperimen (Automation sequencer)
+  - /test (Params Tuner)
   - /pcb (Interactive PCB Viewer)
-  - /hasil-eksperimen (Analytics)
 ```
 
 ---

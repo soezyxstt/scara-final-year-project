@@ -100,12 +100,16 @@ constexpr int PWM_MAX = 255;
 // ------------------------------------------------------------
 
 constexpr int J1_RAW_0   = 851;
-constexpr int J1_RAW_90  = 2301;
+constexpr int J1_RAW_45  = 1491;
+constexpr int J1_RAW_90  = 2310;
+constexpr int J1_RAW_135 = 3137;
 constexpr int J1_RAW_180 = 4095;
 
-constexpr int J2_RAW_N90 = 198;
-constexpr int J2_RAW_0   = 1522;
-constexpr int J2_RAW_P90 = 2852;
+constexpr int J2_RAW_N90 = 497;
+constexpr int J2_RAW_N45 = 1127;
+constexpr int J2_RAW_0   = 1872;
+constexpr int J2_RAW_P45 = 2634;
+constexpr int J2_RAW_P90 = 3263;
 
 // ------------------------------------------------------------
 //  TELEMETRY & SERIAL

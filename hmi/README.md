@@ -26,8 +26,6 @@ For in-depth developer references, see the centralized documentation folder:
 | `/pcb` | — | Interactive ESP32 Controller PCB layout, schematic, and CAD viewer |
 | `/login` | — | Google OAuth sign-in portal |
 | `/dashboard` | — | Saved Runs History with comparison tabs (Trajectory, Velocity, PID, Feedforward, Metrics, Advanced, AI Copilot) — Protected |
-| `/eksperimen` | `TEST` | Automated experiment sequences (EXP-1 through EXP-6) — Protected |
-| `/hasil-eksperimen` | — | Comparative analytics table for completed sequences |
 
 All routes share a single `HMIProvider` serial session. Switch pages via the header menu without disconnecting.
 

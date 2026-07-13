@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { HelpCircle, ChevronRight, ChevronLeft } from 'lucide-react'
 import { useHMI } from '@/lib/hmi-context'
+import { useTranslations } from 'next-intl'
 
 // Persist tutorial state across page/component remounts (e.g. during Next.js router.push tab transitions)
 let g_tutorialOpen = false
@@ -89,6 +90,7 @@ const TOUR_STEPS: TourStep[] = [
 ]
 
 export function HMITutorial() {
+  const t = useTranslations('Tutorial')
   const { state, dispatch } = useHMI()
   const [stepIndex, setStepIndex] = useState(g_tutorialStep)
   const [isOpen, setIsOpen] = useState(g_tutorialOpen)
@@ -104,7 +106,17 @@ export function HMITutorial() {
   }, [stepIndex])
 
   // Retrieve current step details
-  const step = TOUR_STEPS[stepIndex]
+  const rawStep = TOUR_STEPS[stepIndex]
+  const step = rawStep ? {
+    ...rawStep,
+    title: t(`step${stepIndex}.title`),
+    description: t(`step${stepIndex}.description`),
+    nextLabelOverride: rawStep.nextLabelOverride === 'Skip Step' 
+      ? t('skipStep') 
+      : rawStep.nextLabelOverride === 'Simulate' 
+        ? t('simulate') 
+        : undefined
+  } : rawStep
 
   // Calculate coordinates for SVG cutout path
   const maskPath = useMemo(() => {
@@ -346,7 +358,7 @@ export function HMITutorial() {
         <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-hmi-muted font-mono">
           <span className="flex items-center gap-1">
             <HelpCircle className="h-3.5 w-3.5 text-hmi-ideal" />
-            {step.interactive ? 'SCARA First Run Guide' : 'SCARA Operator Guide'}
+            {step.interactive ? t('guideInteractive') : t('guideStandard')}
           </span>
           <span>
             {stepIndex + 1} / {TOUR_STEPS.length}
@@ -366,7 +378,7 @@ export function HMITutorial() {
         {/* Action instruction for interactive steps */}
         {step.interactive && (
           <p className="text-[10px] text-hmi-text-warning font-medium font-sans border-t border-hmi-grid pt-1.5 leading-normal">
-            ⚡ Action required: Perform this action on the HMI to advance automatically, or click skip/simulate below.
+            {t('actionRequired')}
           </p>
         )}
 
@@ -386,7 +398,7 @@ export function HMITutorial() {
             onClick={handleSkip}
             className="h-7 text-[11px] text-hmi-muted hover:text-hmi-text hover:bg-hmi-btn/50 px-2"
           >
-            Skip Tour
+            {t('skipTour')}
           </Button>
 
           <div className="flex items-center gap-1.5">
@@ -398,7 +410,7 @@ export function HMITutorial() {
                 className="h-7 text-[11px] border-hmi-grid bg-hmi-btn/40 text-hmi-text-secondary hover:text-hmi-text hover:bg-hmi-btn-hover/60 px-2.5 flex items-center gap-0.5"
               >
                 <ChevronLeft className="h-3 w-3" />
-                Back
+                {t('back')}
               </Button>
             )}
 
@@ -407,17 +419,17 @@ export function HMITutorial() {
               size="sm"
               onClick={handleNext}
               className={cn(
-                "h-7 text-[11px] text-hmi-text font-semibold shadow-md px-3 flex items-center gap-0.5 transition-all cursor-pointer",
+                "h-7 text-[11px] font-semibold shadow-md px-3 flex items-center gap-0.5 transition-all cursor-pointer",
                 step.interactive 
                   ? "bg-hmi-btn hover:bg-hmi-btn-hover text-hmi-text border border-hmi-grid" 
-                  : "bg-hmi-ideal hover:bg-hmi-ideal-dark"
+                  : "bg-hmi-ideal hover:bg-hmi-ideal-dark text-white"
               )}
             >
               {stepIndex === TOUR_STEPS.length - 1 ? (
-                <>Finish</>
+                <>{t('finish')}</>
               ) : (
                 <>
-                  {step.nextLabelOverride || 'Next'}
+                  {step.nextLabelOverride || t('next')}
                   <ChevronRight className="h-3.5 w-3.5" />
                 </>
               )}

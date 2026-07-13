@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Run } from '@/lib/db/schema'
 import { useHMISlow } from '@/lib/hmi-context'
+import { useTranslations } from 'next-intl'
 
 interface Props {
   runs: Array<{
@@ -136,6 +137,7 @@ function extractTuningJSON(text: string) {
 }
 
 export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
+  const t = useTranslations('DashboardCopilotTab')
   const { state, serial } = useHMISlow()
   const [mode, setMode] = useState<'explain' | 'diagnose' | 'recommend'>('diagnose')
   const [output, setOutput] = useState('')
@@ -157,7 +159,7 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
   if (runs.length === 0) {
     return (
       <div className="p-8 flex flex-col items-center justify-center text-center text-hmi-muted italic text-xs">
-        No runs selected. Please select at least one run from the sidebar.
+        {t('noRunsSelected')}
       </div>
     )
   }
@@ -180,7 +182,7 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
       }
 
       if (!response.body) {
-        throw new Error('Readable stream not supported.')
+        throw new Error(t('consultationFailed'))
       }
 
       const reader = response.body.getReader()
@@ -217,7 +219,7 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
       }
 
     } catch (err: any) {
-      toast.error('AI Copilot Error', { description: err.message || 'Consultation failed' })
+      toast.error(t('aiCopilotError'), { description: err.message || t('consultationFailed') })
     } finally {
       setLoading(false)
     }
@@ -227,16 +229,16 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
   const isSerialConnected = state.serialStatus === 'connected'
 
   const handleApplyTuning = async (tuning: Record<string, number>) => {
-    const toastId = toast.loading('Applying AI recommendations to hardware...')
+    const toastId = toast.loading(t('applyingRecommendations'))
     try {
       for (const [cmd, val] of Object.entries(tuning)) {
         await serial.sendCommand(`${cmd},${val}`)
       }
       await serial.sendCommand('getparams')
       await serial.sendCommand('getgains')
-      toast.success('AI recommendations applied successfully!', { id: toastId })
+      toast.success(t('appliedSuccessfully'), { id: toastId })
     } catch (err: any) {
-      toast.error('Failed to apply gains', { description: err.message || err, id: toastId })
+      toast.error(t('failedToApplyGains'), { description: err.message || err, id: toastId })
     }
   }
 
@@ -250,14 +252,14 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
           </div>
           <div>
             <h3 className="text-xs font-bold text-hmi-text flex items-center gap-1.5">
-              AI Copilot for {primary.runName}
+              {t('aiCopilotFor', { runName: primary.runName })}
               {modelUsed && (
                 <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-hmi-grid/70 text-hmi-muted border border-hmi-grid">
-                  via {modelUsed}
+                  {t('via', { model: modelUsed })}
                 </span>
               )}
             </h3>
-            <p className="text-[10px] text-hmi-muted">Senior Control Systems Engineer Persona</p>
+            <p className="text-[10px] text-hmi-muted">{t('persona')}</p>
           </div>
         </div>
 
@@ -276,7 +278,7 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
                     : "text-hmi-muted hover:text-hmi-text"
                 )}
               >
-                {m}
+                {t(`modes.${m}`)}
               </button>
             ))}
           </div>
@@ -292,7 +294,7 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
             ) : (
               <Sparkles className="h-3.5 w-3.5" />
             )}
-            {loading ? 'Consulting...' : output ? 'Re-Generate' : 'Generate'}
+            {loading ? t('consulting') : output ? t('reGenerate') : t('generate')}
           </Button>
         </div>
       </div>
@@ -310,7 +312,7 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
               <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                 <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping shrink-0" />
-                  Tuning Recommendations Detected
+                  {t('recommendationsDetected')}
                 </span>
                 <span className="text-[10px] text-hmi-muted font-mono leading-tight truncate">
                   {Object.entries(tuningParams).map(([cmd, val]) => `${cmd}: ${val}`).join(', ')}
@@ -322,7 +324,7 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
                 onClick={() => handleApplyTuning(tuningParams)}
                 className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-[10px] uppercase tracking-wider py-1.5 px-3 h-8 shadow shrink-0 cursor-pointer transition-transform hover:scale-[1.02]"
               >
-                {isSerialConnected ? '✓ Apply to Hardware' : '⚠ Connect Serial to Apply'}
+                {isSerialConnected ? t('applyToHardware') : t('connectSerialToApply')}
               </Button>
             </div>
           )}
@@ -332,14 +334,14 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
           {loading ? (
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="h-8 w-8 text-hmi-ideal animate-spin" />
-              <p className="text-xs text-hmi-text-secondary font-medium animate-pulse">Consulting the control engineer copilot...</p>
-              <p className="text-[10px] text-hmi-muted italic">Analyzing parameters, downsampling telemetry, and querying history...</p>
+              <p className="text-xs text-hmi-text-secondary font-medium animate-pulse">{t('consultingCopilot')}</p>
+              <p className="text-[10px] text-hmi-muted italic">{t('consultingSub')}</p>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 max-w-sm">
               <Sparkles className="h-8 w-8 text-hmi-ideal/65 animate-pulse" />
-              <p className="text-xs font-semibold text-hmi-text">No cached analysis for this run</p>
-              <p className="text-[10px] text-hmi-muted">Click the button below to perform an AI Copilot consultation for this historical run telemetry.</p>
+              <p className="text-xs font-semibold text-hmi-text">{t('noCachedAnalysis')}</p>
+              <p className="text-[10px] text-hmi-muted">{t('noCachedAnalysisSub')}</p>
             </div>
           )}
         </div>

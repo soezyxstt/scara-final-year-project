@@ -2,6 +2,7 @@
 
 import type { Run } from '@/lib/db/schema'
 import { cn } from '@/lib/utils'
+import { useTranslations, useLocale } from 'next-intl'
 
 interface RunData {
   run: Run
@@ -17,15 +18,20 @@ function MetricRow({ label, runs, field, unit = '', decimals = 3 }: {
   unit?: string
   decimals?: number
 }) {
+  const t = useTranslations('DashboardMetricsTab')
+  const locale = useLocale()
   return (
     <tr className="border-b border-hmi-grid/50 hover:bg-hmi-grid/20 transition-colors">
       <td className="py-1.5 px-3 text-[11px] text-hmi-muted font-medium">{label}</td>
       {runs.map(({ run, color }) => {
         const val = run[field]
         const display = typeof val === 'number'
-          ? `${val.toFixed(decimals)}${unit}`
+          ? `${val.toLocaleString(locale === 'id' ? 'id-ID' : 'en-US', {
+              minimumFractionDigits: decimals,
+              maximumFractionDigits: decimals
+            })}${unit}`
           : typeof val === 'boolean'
-            ? (val ? 'yes' : 'no')
+            ? (val ? t('yes') : t('no'))
             : val ?? '—'
         return (
           <td key={run.id} className="py-1.5 px-3 text-[11px] text-hmi-text font-mono text-right">
@@ -54,8 +60,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export function MetricsTab({ runs }: Props) {
+  const t = useTranslations('DashboardMetricsTab')
+
   if (runs.length === 0) {
-    return <div className="p-8 text-center text-xs text-hmi-muted">Select one or more runs from the sidebar.</div>
+    return <div className="p-8 text-center text-xs text-hmi-muted">{t('selectRunsMessage')}</div>
   }
 
   return (
@@ -64,7 +72,7 @@ export function MetricsTab({ runs }: Props) {
         <thead>
           <tr className="border-b border-hmi-grid">
             <th className="py-2 px-3 text-left text-[10px] font-bold text-hmi-muted uppercase tracking-wider w-40">
-              Metric
+              {t('metric')}
             </th>
             {runs.map(({ run, color }) => (
               <th key={run.id} className="py-2 px-3 text-right text-[11px] font-semibold min-w-[140px]">
@@ -77,29 +85,29 @@ export function MetricsTab({ runs }: Props) {
           </tr>
         </thead>
         <tbody>
-          <Section title="Run Info">
-            <MetricRow label="Elapsed time" runs={runs} field="elapsedTime" unit=" s" decimals={3} />
-            <MetricRow label="Sample count" runs={runs} field="sampleCount" decimals={0} />
-            <MetricRow label="Start X" runs={runs} field="x0" unit=" mm" decimals={1} />
-            <MetricRow label="Start Y" runs={runs} field="y0" unit=" mm" decimals={1} />
-            <MetricRow label="Target X" runs={runs} field="xf" unit=" mm" decimals={1} />
-            <MetricRow label="Target Y" runs={runs} field="yf" unit=" mm" decimals={1} />
+          <Section title={t('sections.runInfo')}>
+            <MetricRow label={t('labels.elapsedTime')} runs={runs} field="elapsedTime" unit=" s" decimals={3} />
+            <MetricRow label={t('labels.sampleCount')} runs={runs} field="sampleCount" decimals={0} />
+            <MetricRow label={t('labels.startX')} runs={runs} field="x0" unit=" mm" decimals={1} />
+            <MetricRow label={t('labels.startY')} runs={runs} field="y0" unit=" mm" decimals={1} />
+            <MetricRow label={t('labels.targetX')} runs={runs} field="xf" unit=" mm" decimals={1} />
+            <MetricRow label={t('labels.targetY')} runs={runs} field="yf" unit=" mm" decimals={1} />
           </Section>
 
-          <Section title="Tracking Accuracy">
-            <MetricRow label="Accuracy Index (AI)" runs={runs} field="accuracyIdx" decimals={4} />
-            <MetricRow label="Max CTE (ε_max)" runs={runs} field="maxErr" unit=" mm" decimals={3} />
-            <MetricRow label="Mean CTE (MCTE)" runs={runs} field="mcte" unit=" mm" decimals={3} />
-            <MetricRow label="Mean ATE (MATE)" runs={runs} field="mate" unit=" mm" decimals={3} />
-            <MetricRow label="RMS ATE" runs={runs} field="rmsAte" unit=" mm" decimals={3} />
-            <MetricRow label="Final error (ε_f)" runs={runs} field="finalErr" unit=" mm" decimals={3} />
-            <MetricRow label="Error ratio (R_ε)" runs={runs} field="errorRatio" decimals={4} />
+          <Section title={t('sections.trackingAccuracy')}>
+            <MetricRow label={t('labels.accuracyIdx')} runs={runs} field="accuracyIdx" decimals={4} />
+            <MetricRow label={t('labels.maxErr')} runs={runs} field="maxErr" unit=" mm" decimals={3} />
+            <MetricRow label={t('labels.mcte')} runs={runs} field="mcte" unit=" mm" decimals={3} />
+            <MetricRow label={t('labels.mate')} runs={runs} field="mate" unit=" mm" decimals={3} />
+            <MetricRow label={t('labels.rmsAte')} runs={runs} field="rmsAte" unit=" mm" decimals={3} />
+            <MetricRow label={t('labels.finalErr')} runs={runs} field="finalErr" unit=" mm" decimals={3} />
+            <MetricRow label={t('labels.errorRatio')} runs={runs} field="errorRatio" decimals={4} />
           </Section>
 
-          <Section title="Control Performance">
-            <MetricRow label="Peak PWM" runs={runs} field="pwmMax" decimals={1} />
-            <MetricRow label="Ctrl variance (σ²)" runs={runs} field="ctrlVariance" decimals={4} />
-            <MetricRow label="Jitter (|ΔPWM|)" runs={runs} field="jitter" decimals={4} />
+          <Section title={t('sections.controlPerformance')}>
+            <MetricRow label={t('labels.pwmMax')} runs={runs} field="pwmMax" decimals={1} />
+            <MetricRow label={t('labels.ctrlVariance')} runs={runs} field="ctrlVariance" decimals={4} />
+            <MetricRow label={t('labels.jitter')} runs={runs} field="jitter" decimals={4} />
           </Section>
         </tbody>
       </table>
@@ -118,7 +126,7 @@ export function MetricsTab({ runs }: Props) {
 
               {gains && (
                 <div className="px-3 py-2 border-b border-hmi-grid/50">
-                  <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider mb-1.5">PID Gains</p>
+                  <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider mb-1.5">{t('pidGains')}</p>
                   <div className="grid grid-cols-3 gap-x-3 gap-y-0.5 text-[10px] font-mono">
                     {Object.entries(gains).map(([k, v]) => (
                       <div key={k} className="flex items-center justify-between gap-1">
@@ -132,14 +140,14 @@ export function MetricsTab({ runs }: Props) {
 
               {params && (
                 <div className="px-3 py-2">
-                  <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider mb-1.5">Key Parameters</p>
+                  <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider mb-1.5">{t('keyParameters')}</p>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] font-mono">
                     {(['vmax', 'amax', 'cfreq', 'u1max', 'fzt', 'pwmDb', 'td1r', 'td2r', 'dben', 'dbrel'] as string[]).map(k => (
                       params[k] !== undefined && (
                         <div key={k} className="flex items-center justify-between gap-1">
                           <span className="text-hmi-muted">{k}</span>
                           <span className="text-hmi-text">
-                            {typeof params[k] === 'boolean' ? (params[k] ? 'on' : 'off') : typeof params[k] === 'number' ? params[k].toFixed(3) : String(params[k])}
+                            {typeof params[k] === 'boolean' ? (params[k] ? t('on') : t('off')) : typeof params[k] === 'number' ? params[k].toFixed(3) : String(params[k])}
                           </span>
                         </div>
                       )

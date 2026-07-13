@@ -11,6 +11,7 @@ import { Tooltip as UiTooltip } from '@/components/ui/tooltip'
 import { Maximize2, Minimize2, ZoomIn, ZoomOut, Hand, RefreshCw, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useTranslations, useLocale } from 'next-intl'
 import { downloadSingleGraph } from '@/lib/capture-utils'
 import { computeCTEList, computeATEList } from '@/lib/cte-utils'
 // sections only used for the focused/fullscreen AdvancedAnalyzer – raw charts now inline
@@ -119,6 +120,7 @@ export function ChartContainer({
 }
 
 export function PIDChart() {
+  const t = useTranslations('ChartPanel')
   const { state } = useHMISlow()
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const data = useMemo(() => {
@@ -144,7 +146,7 @@ export function PIDChart() {
       series={series}
       yLabel="Output"
       isEmpty={data.length === 0}
-      msg="No PID telemetry — run a move to capture data"
+      msg={t('msgNoPid')}
       hiddenSeries={hidden}
       onLegendClick={(key) => setHidden(prev => ({ ...prev, [key]: !prev[key] }))}
     />
@@ -152,6 +154,7 @@ export function PIDChart() {
 }
 
 export function J1CtrlChart() {
+  const t = useTranslations('ChartPanel')
   const { state } = useHMISlow()
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const u1max = state.params?.u1max ?? 1
@@ -259,7 +262,7 @@ export function J1CtrlChart() {
       series={series}
       yLabel="Fraction of max"
       isEmpty={data.length === 0}
-      msg="No J1 control telemetry — run a move to capture data (requires updated firmware)"
+      msg={t('msgNoJ1Ctrl')}
       hiddenSeries={hidden}
       onLegendClick={(key) => setHidden(prev => ({ ...prev, [key]: !prev[key] }))}
     />
@@ -267,6 +270,7 @@ export function J1CtrlChart() {
 }
 
 export function J2VelChart() {
+  const t = useTranslations('ChartPanel')
   const { state } = useHMISlow()
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const kp2 = state.gains?.kp2 ?? 0
@@ -306,22 +310,30 @@ export function J2VelChart() {
       series={series}
       yLabel="Velocity (rad/s)"
       isEmpty={data.length === 0}
-      msg="No J2 velocity telemetry — run a move to capture data"
+      msg={t('msgNoJ2Vel')}
       hiddenSeries={hidden}
       onLegendClick={(key) => setHidden(prev => ({ ...prev, [key]: !prev[key] }))}
     />
   )
 }
 
-// Self-contained metrics panel — reads from context, always visible.
 // Exported so monitor-tab can place it in the bottom 30% split.
 export function MetricsPanel() {
+  const t = useTranslations('ChartPanel')
+  const locale = useLocale()
   const { state } = useHMISlow()
   // Show stats whenever we're not actively recording — persists through disconnect/refresh
   const stats = state.recordingState !== 'REC' ? state.stats : null
   const frozenD = state.frozenD
 
   const frozenT = state.frozenT
+
+  const formatFloat = (val: number, decimals: number = 3) => {
+    return val.toLocaleString(locale === 'id' ? 'id-ID' : 'en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    })
+  }
 
   const computed = useMemo(() => {
     if (!frozenD || frozenD.length === 0) return null
@@ -361,29 +373,29 @@ export function MetricsPanel() {
 
   const fmt = (v: number | undefined, digits = 2, unit?: string) =>
     v !== undefined
-      ? <>{v.toFixed(digits)}{unit && <span className="text-[10px] font-sans font-normal text-slate-500"> {unit}</span>}</>
+      ? <>{formatFloat(v, digits)}{unit && <span className="text-[10px] font-sans font-normal text-slate-500"> {unit}</span>}</>
       : dash
 
   const rows: { label: React.ReactNode; value: React.ReactNode; tooltip: string }[] = [
     {
-      label: 'AI',
-      value: <span className="text-hmi-ideal">{stats?.accuracy_idx !== undefined ? `${(stats.accuracy_idx * 100).toFixed(2)}%` : dash}</span>,
-      tooltip: 'Accuracy Index (AI): 1 − MCTE/D. 100% = perfect path tracking.',
+      label: t('runMetrics.aiLabel'),
+      value: <span className="text-hmi-ideal">{stats?.accuracy_idx !== undefined ? `${formatFloat(stats.accuracy_idx * 100, 2)}%` : dash}</span>,
+      tooltip: t('runMetrics.aiTooltip'),
     },
     {
       label: <span>ε<sub>max</sub></span>,
       value: <span className="text-hmi-text-error">{fmt(stats?.max_err, 2, 'mm')}</span>,
-      tooltip: 'Maximum Cross Tracking Error (ε_max): worst lateral deviation in the run.',
+      tooltip: t('runMetrics.epsMaxTooltip'),
     },
     {
-      label: 'MCTE',
+      label: t('runMetrics.mcteLabel'),
       value: <span className="text-hmi-ideal">{fmt(stats?.MCTE ?? stats?.mean_err, 2, 'mm')}</span>,
-      tooltip: 'Mean CTE (MCTE): path-integrated lateral area divided by path length.',
+      tooltip: t('runMetrics.mcteTooltip'),
     },
     {
-      label: 'RMS ATE',
+      label: t('runMetrics.rmsAteLabel'),
       value: <span className="text-hmi-text-warning">{fmt(stats?.RMS_ATE, 2, 'mm')}</span>,
-      tooltip: 'RMS Along-Track Error: quadratic average of lead/lag without sign cancellation.',
+      tooltip: t('runMetrics.rmsAteTooltip'),
     },
     {
       label: <span>R<sub>ε</sub></span>,
@@ -396,49 +408,48 @@ export function MetricsPanel() {
         )}>
           {stats?.error_ratio !== undefined
             ? stats.error_ratio >= 0.5
-              ? `${(stats.error_ratio * 100).toFixed(0)}% Delay`
-              : `${((1 - stats.error_ratio) * 100).toFixed(0)}% Shape`
+              ? t('runMetrics.reValueDelay', { val: formatFloat(stats.error_ratio * 100, 0) })
+              : t('runMetrics.reValueShape', { val: formatFloat((1 - stats.error_ratio) * 100, 0) })
             : '-'}
         </span>
       ),
-      tooltip: 'Error Bias (R_ε): >50% Delay → raise Kp/Ki/Kff; >50% Shape → tune Kd or check mechanics.',
+      tooltip: t('runMetrics.reTooltip'),
     },
     {
       label: <span>ε<sub>f</sub></span>,
       value: <span className="text-hmi-text-neutral">{fmt(stats?.final_err, 2, 'mm')}</span>,
-      tooltip: 'Final CTE (ε_f): cross-track error at the end of the trajectory.',
+      tooltip: t('runMetrics.epsFinalTooltip'),
     },
     {
       label: <span>T<sub>el</sub></span>,
-      value: <span className="text-hmi-text-neutral">{stats?.elapsed_time !== undefined ? `${stats.elapsed_time.toFixed(3)} s` : dash}</span>,
-      tooltip: 'Elapsed time (T_el): total duration of the last trajectory run.',
+      value: <span className="text-hmi-text-neutral">{stats?.elapsed_time !== undefined ? `${formatFloat(stats.elapsed_time, 3)} s` : dash}</span>,
+      tooltip: t('runMetrics.telTooltip'),
     },
     {
-      label: 'RMSE J1',
+      label: t('runMetrics.rmseJ1Label'),
       value: <span className="text-hmi-text-purple">{fmt(computed?.rmseJ1, 3, '°')}</span>,
-      tooltip: 'Joint 1 tracking RMSE (°): root-mean-square of θ1 position error over the run.',
+      tooltip: t('runMetrics.rmseJ1Tooltip'),
     },
     {
-      label: 'RMSE J2',
+      label: t('runMetrics.rmseJ2Label'),
       value: <span className="text-hmi-text-purple">{fmt(computed?.rmseJ2, 3, '°')}</span>,
-      tooltip: 'Joint 2 tracking RMSE (°): root-mean-square of θ2 position error over the run.',
+      tooltip: t('runMetrics.rmseJ2Tooltip'),
     },
     {
-      label: 'RMSE EEF',
+      label: t('runMetrics.rmseEefLabel'),
       value: <span className="text-hmi-text-purple">{fmt(computed?.rmseEEF, 3, 'mm')}</span>,
-      tooltip: 'End-effector RMSE (mm): root-mean-square of Cartesian EEF position error over the run.',
+      tooltip: t('runMetrics.rmseEefTooltip'),
     },
     {
-      label: 'Ctrl Var',
+      label: t('runMetrics.ctrlVarLabel'),
       value: <span className="text-hmi-text-success">{fmt(computed?.varPwm, 1)}</span>,
-      tooltip: 'Control Effort Variance (PWM σ²): higher values indicate more active correction. Very high values may indicate oscillation.',
+      tooltip: t('runMetrics.ctrlVarTooltip'),
     },
     {
-      label: 'Jitter',
+      label: t('runMetrics.jitterLabel'),
       value: <span className="text-hmi-text-violet">{fmt(computed?.jitter, 2)}</span>,
-      tooltip: 'Actuator Jitter Proxy (mean |ΔPWM| per step): indicator of chattering. Lower is smoother.',
+      tooltip: t('runMetrics.jitterTooltip'),
     },
-
   ]
 
   const handleDownloadMetrics = async () => {
@@ -453,10 +464,10 @@ export function MetricsPanel() {
     <div className="h-full w-full bg-hmi-panel border border-hmi-grid rounded-lg flex flex-col overflow-hidden">
       <div className="px-3 py-1.5 border-b border-hmi-grid shrink-0 flex items-center gap-2">
         <span className="text-[11px] font-bold text-hmi-text-secondary uppercase tracking-wider select-none">
-          Run Metrics
+          {t('runMetrics.title')}
         </span>
         {!stats && (
-          <span className="text-[10px] text-hmi-muted italic">— waiting for move data</span>
+          <span className="text-[10px] text-hmi-muted italic">— {t('runMetrics.waitingForMoveData')}</span>
         )}
         <Button
           variant="outline"
@@ -464,7 +475,7 @@ export function MetricsPanel() {
           onClick={handleDownloadMetrics}
           disabled={!stats && (!computed)}
           className="ml-auto h-5 px-1.5 text-[10px] border-hmi-grid text-hmi-text-secondary bg-hmi-btn hover:bg-hmi-btn-hover hover:text-hmi-text"
-          title="Download Run Metrics"
+          title={t('runMetrics.downloadTitle')}
         >
           <Download className="h-3 w-3" />
         </Button>
@@ -527,6 +538,7 @@ export function EEFErrChart({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('ChartPanel')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const data = useMemo(() => {
     const sampled = downsample(tBuf, 500)
@@ -550,7 +562,7 @@ export function EEFErrChart({
       yLabel="‖e‖ (mm)"
       yDomain={[0, maxY]}
       isEmpty={data.length === 0}
-      msg="No end-effector error telemetry — run a move to capture data"
+      msg={t('msgNoEefErr')}
       width={width}
       height={height}
       hiddenSeries={hidden}
@@ -570,6 +582,7 @@ export function CTEChart({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('ChartPanel')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const data = useMemo(() => {
     const ctes = computeCTEList(tBuf)
@@ -595,7 +608,7 @@ export function CTEChart({
       yLabel="CTE (mm)"
       yDomain={[0, maxY]}
       isEmpty={data.length === 0}
-      msg="No CTE telemetry — run a move to capture data"
+      msg={t('msgNoCte')}
       width={width}
       height={height}
       hiddenSeries={hidden}
@@ -615,6 +628,7 @@ export function ATEChart({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('ChartPanel')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const data = useMemo(() => {
     const ates = computeATEList(tBuf)
@@ -641,7 +655,7 @@ export function ATEChart({
       yLabel="ATE (mm)"
       yDomain={[minY, maxY]}
       isEmpty={data.length === 0}
-      msg="No ATE telemetry — run a move to capture data"
+      msg={t('msgNoAte')}
       width={width}
       height={height}
       referenceLines={[{ y: 0, stroke: 'var(--color-hmi-grid)', strokeDasharray: '4 2', strokeOpacity: 1.0 }]}
@@ -660,6 +674,7 @@ export function EEFVelocityChart({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('ChartPanel')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const data = useMemo(() => {
     const base = computeEEFVelocityJacobian(dBuf)
@@ -686,7 +701,7 @@ export function EEFVelocityChart({
       series={series}
       yLabel="v (mm/s)"
       isEmpty={data.length === 0}
-      msg="No end-effector velocity telemetry — run a move to capture data"
+      msg={t('msgNoEefVel')}
       width={width}
       height={height}
       hiddenSeries={hidden}
@@ -705,6 +720,7 @@ export function PWMChart({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('ChartPanel')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const firstT = dBuf[0]?.t ?? 0
   const data = useMemo(() => {
@@ -723,7 +739,7 @@ export function PWMChart({
       yLabel="PWM"
       yDomain={[-255, 255]}
       isEmpty={data.length === 0}
-      msg="No PWM telemetry — run a move to capture data"
+      msg={t('msgNoPwm')}
       width={width}
       height={height}
       referenceLines={[{ y: 0, stroke: 'var(--color-hmi-grid)', strokeDasharray: '4 2', strokeOpacity: 1.0 }]}
@@ -742,6 +758,7 @@ export function PositionChart({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('ChartPanel')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   let useDegrees = false
   if (typeof window !== 'undefined') {
@@ -775,7 +792,7 @@ export function PositionChart({
       series={series}
       yLabel={useDegrees ? 'θ (°)' : 'θ (rad)'}
       isEmpty={data.length === 0}
-      msg="No position telemetry — run a move to capture data"
+      msg={t('msgNoPos')}
       width={width}
       height={height}
       hiddenSeries={hidden}
@@ -793,6 +810,7 @@ export function VelocityChart({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('ChartPanel')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   let useDegrees = false
   if (typeof window !== 'undefined') {
@@ -826,7 +844,7 @@ export function VelocityChart({
       series={series}
       yLabel={useDegrees ? 'θ̇ (°/s)' : 'θ̇ (rad/s)'}
       isEmpty={data.length === 0}
-      msg="No velocity telemetry — run a move to capture data"
+      msg={t('msgNoVel')}
       width={width}
       height={height}
       hiddenSeries={hidden}
@@ -846,6 +864,7 @@ export function J1EncoderVelocityChart({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('ChartPanel')
   const { state } = useHMISlow()
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const r2d = 180 / Math.PI
@@ -908,7 +927,7 @@ export function J1EncoderVelocityChart({
       series={series}
       yLabel={useDegrees ? 'Velocity (°/s)' : 'Velocity (rad/s)'}
       isEmpty={data.length === 0}
-      msg="No velocity telemetry — run a move to capture data"
+      msg={t('msgNoVel')}
       width={width}
       height={height}
       hiddenSeries={hidden}
@@ -1500,6 +1519,7 @@ function AdvancedAnalyzer({
   params: any
   gains: any
 }) {
+  const t = useTranslations('ChartPanel')
   const [activeTool, setActiveTool] = useState<'zoom' | 'cursor' | 'pan'>('zoom')
   const [zoomLeft, setZoomLeft] = useState<number | 'dataMin'>('dataMin')
   const [zoomRight, setZoomRight] = useState<number | 'dataMax'>('dataMax')
@@ -1741,7 +1761,7 @@ function AdvancedAnalyzer({
       stroke: "#2196F3",
       strokeDasharray: "3 3",
       strokeOpacity: 1.0,
-      label: { value: 'Caliper A', fill: '#2196F3', position: 'top' as const, fontSize: 10, fontWeight: 'bold' }
+      label: { value: t('caliperA'), fill: '#2196F3', position: 'top' as const, fontSize: 10, fontWeight: 'bold' }
     })
   }
   if (cursorB !== null) {
@@ -1750,7 +1770,7 @@ function AdvancedAnalyzer({
       stroke: "#FF9800",
       strokeDasharray: "3 3",
       strokeOpacity: 1.0,
-      label: { value: 'Caliper B', fill: '#FF9800', position: 'top' as const, fontSize: 10, fontWeight: 'bold' }
+      label: { value: t('caliperB'), fill: '#FF9800', position: 'top' as const, fontSize: 10, fontWeight: 'bold' }
     })
   }
 
@@ -1770,7 +1790,7 @@ function AdvancedAnalyzer({
         
         {/* Interaction Tool Selector */}
         <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded border border-hmi-grid">
-          <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5 mr-1">Tool:</span>
+          <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5 mr-1">{t('toolLabel')}</span>
           <Button
             type="button"
             variant={activeTool === 'zoom' ? 'default' : 'ghost'}
@@ -1779,7 +1799,7 @@ function AdvancedAnalyzer({
             onClick={() => setActiveTool('zoom')}
           >
             <ZoomIn className="h-3 w-3" />
-            Zoom
+            {t('zoomTool')}
           </Button>
           <Button
             type="button"
@@ -1788,7 +1808,7 @@ function AdvancedAnalyzer({
             className="h-6 px-2.5 text-xs rounded flex items-center gap-1 cursor-pointer"
             onClick={() => setActiveTool('cursor')}
           >
-            📐 Calipers
+            📐 {t('calipersTool')}
           </Button>
           <Button
             type="button"
@@ -1798,20 +1818,20 @@ function AdvancedAnalyzer({
             onClick={() => setActiveTool('pan')}
           >
             <Hand className="h-3 w-3" />
-            Pan
+            {t('panTool')}
           </Button>
         </div>
 
         {/* Quick Zoom Fit & Scale Buttons */}
         <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded border border-hmi-grid">
-          <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5 mr-1">Scaling:</span>
+          <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5 mr-1">{t('scalingLabel')}</span>
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="h-6 w-8 text-xs hover:bg-hmi-btn-hover cursor-pointer"
             onClick={() => zoomTimeAxis(0.8)}
-            title="Zoom In X (Time)"
+            title={t('zoomInX')}
           >
             X+
           </Button>
@@ -1821,7 +1841,7 @@ function AdvancedAnalyzer({
             size="sm"
             className="h-6 w-8 text-xs hover:bg-hmi-btn-hover cursor-pointer"
             onClick={() => zoomTimeAxis(1.25)}
-            title="Zoom Out X (Time)"
+            title={t('zoomOutX')}
           >
             X-
           </Button>
@@ -1831,7 +1851,7 @@ function AdvancedAnalyzer({
             size="sm"
             className="h-6 w-8 text-xs hover:bg-hmi-btn-hover cursor-pointer"
             onClick={() => setYZoomFactor(prev => prev * 0.8)}
-            title="Zoom In Y (Amplitude)"
+            title={t('zoomInY')}
           >
             Y+
           </Button>
@@ -1841,7 +1861,7 @@ function AdvancedAnalyzer({
             size="sm"
             className="h-6 w-8 text-xs hover:bg-hmi-btn-hover cursor-pointer"
             onClick={() => setYZoomFactor(prev => prev * 1.25)}
-            title="Zoom Out Y (Amplitude)"
+            title={t('zoomOutY')}
           >
             Y-
           </Button>
@@ -1854,14 +1874,14 @@ function AdvancedAnalyzer({
             onClick={handleDoubleClick}
           >
             <RefreshCw className="h-2.5 w-2.5" />
-            Reset Zoom
+            {t('resetZoom')}
           </Button>
         </div>
 
         {/* Caliper Configuration Mode */}
         {activeTool === 'cursor' && (
           <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded border border-hmi-grid animate-tooltip-left">
-            <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5">Caliper:</span>
+            <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5">{t('caliperLabel')}</span>
             <Button
               type="button"
               variant={activeCursor === 'A' ? 'default' : 'ghost'}
@@ -1874,7 +1894,7 @@ function AdvancedAnalyzer({
               )}
               onClick={() => setActiveCursor('A')}
             >
-              Set A
+              {t('setA')}
             </Button>
             <Button
               type="button"
@@ -1888,7 +1908,7 @@ function AdvancedAnalyzer({
               )}
               onClick={() => setActiveCursor('B')}
             >
-              Set B
+              {t('setB')}
             </Button>
             <div className="w-px h-4 bg-hmi-grid mx-1" />
             <Button
@@ -1902,7 +1922,7 @@ function AdvancedAnalyzer({
                 setActiveCursor('A')
               }}
             >
-              Clear
+              {t('clear')}
             </Button>
           </div>
         )}
@@ -1981,9 +2001,9 @@ function AdvancedAnalyzer({
           {/* Caliper delta and amplitude measurements */}
           <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
             <h3 className="text-xs font-bold text-hmi-text-secondary uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5 flex justify-between items-center">
-              Caliper Measurements
+              {t('caliperMeasurements')}
               {activeTool !== 'cursor' && (
-                <span className="text-[9px] text-hmi-muted normal-case font-normal">Enable Calipers to place</span>
+                <span className="text-[9px] text-hmi-muted normal-case font-normal">{t('enableCalipersToPlace')}</span>
               )}
             </h3>
             {caliperPoints.ptA || caliperPoints.ptB ? (
@@ -1992,13 +2012,13 @@ function AdvancedAnalyzer({
                 {/* Caliper Time values */}
                 <div className="grid grid-cols-2 gap-x-2 gap-y-1 bg-hmi-bg/40 p-2 rounded border border-hmi-grid/30">
                   <div>
-                    <span className="text-[10px] text-hmi-muted font-sans block">Time (A):</span>
+                    <span className="text-[10px] text-hmi-muted font-sans block">{t('timeA')}</span>
                     <span className="text-hmi-j1 font-medium">
                       {caliperPoints.ptA ? `${caliperPoints.ptA.t.toFixed(4)} s` : '--'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-hmi-muted font-sans block">Time (B):</span>
+                    <span className="text-[10px] text-hmi-muted font-sans block">{t('timeB')}</span>
                     <span className="text-hmi-j2 font-medium">
                       {caliperPoints.ptB ? `${caliperPoints.ptB.t.toFixed(4)} s` : '--'}
                     </span>
@@ -2006,14 +2026,14 @@ function AdvancedAnalyzer({
                   {caliperPoints.ptA && caliperPoints.ptB && (
                     <div className="col-span-2 border-t border-hmi-grid/30 pt-1.5 mt-1 flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] text-hmi-muted font-sans block">Delta Time (Δt):</span>
+                        <span className="text-[10px] text-hmi-muted font-sans block">{t('deltaTime')}</span>
                         <span className="text-hmi-text-success font-medium text-xs">
                           {Math.abs(caliperPoints.ptB.t - caliperPoints.ptA.t).toFixed(4)} s
                         </span>
                       </div>
                       {Math.abs(caliperPoints.ptB.t - caliperPoints.ptA.t) > 0 && (
                         <div className="text-right">
-                          <span className="text-[10px] text-hmi-muted font-sans block">Frequency (1/Δt):</span>
+                          <span className="text-[10px] text-hmi-muted font-sans block">{t('frequency')}</span>
                           <span className="text-hmi-text-purple font-semibold text-xs">
                             {(1 / Math.abs(caliperPoints.ptB.t - caliperPoints.ptA.t)).toFixed(2)} Hz
                           </span>
@@ -2066,7 +2086,7 @@ function AdvancedAnalyzer({
               </div>
             ) : (
               <p className="text-[11px] text-hmi-muted font-sans italic leading-relaxed">
-                Select Calipers tool and click at two distinct times along the horizontal axis to measure settling oscillations or overshoot ratios.
+                {t('calipersInstructions')}
               </p>
             )}
           </div>
@@ -2075,9 +2095,9 @@ function AdvancedAnalyzer({
           {caliperPoints.ptA && caliperPoints.ptB && caliperDiagnostics && (
             <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
               <h3 className="text-xs font-bold text-hmi-ideal uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
-                {activeTab === 'pos' || activeTab === 'vel' ? '📐 Control Systems Analysis' :
-                 activeTab === 'cte' || activeTab === 'ate' ? '📐 Tracking Performance' :
-                 '📐 Actuator Dynamics'}
+                {activeTab === 'pos' || activeTab === 'vel' ? t('controlSystemsAnalysis') :
+                 activeTab === 'cte' || activeTab === 'ate' ? t('trackingPerformance') :
+                 t('actuatorDynamics')}
               </h3>
               <div className="flex flex-col gap-3 font-mono text-[11px]">
                 {/* POSITION/VELOCITY SPECIFIC UI */}
@@ -2096,61 +2116,61 @@ function AdvancedAnalyzer({
                         {m.stepDetected ? (
                           <div className="grid grid-cols-2 gap-y-1.5 gap-x-2">
                             <div className="col-span-2 text-[9px] text-emerald-400 font-sans font-semibold">
-                              ✓ Target Step Response ({m.stepChange > 0 ? '+' : ''}{m.stepChange.toFixed(2)}{m.unit})
+                              {t('targetStepResponse', { change: (m.stepChange > 0 ? '+' : '') + m.stepChange.toFixed(2) + m.unit })}
                             </div>
                             <div>
-                              <span className="text-[9px] text-hmi-muted font-sans block">Rise Time (Tr):</span>
+                              <span className="text-[9px] text-hmi-muted font-sans block">{t('riseTime')}</span>
                               <span className="text-hmi-text font-medium">{m.riseTime.toFixed(4)} s</span>
                             </div>
                             <div>
-                              <span className="text-[9px] text-hmi-muted font-sans block">Settling (2%):</span>
+                              <span className="text-[9px] text-hmi-muted font-sans block">{t('settlingTime2')}</span>
                               <span className="text-hmi-text font-medium">{m.settlingTime2.toFixed(4)} s</span>
                             </div>
                             <div>
-                              <span className="text-[9px] text-hmi-muted font-sans block">Max Overshoot:</span>
+                              <span className="text-[9px] text-hmi-muted font-sans block">{t('maxOvershoot')}</span>
                               <span className={cn("font-semibold", m.overshootPct > 5 ? "text-hmi-text-warning" : "text-hmi-text-success")}>
                                 {m.overshootPct.toFixed(2)}% ({m.overshootVal.toFixed(2)}{m.unit})
                               </span>
                             </div>
                             <div>
-                              <span className="text-[9px] text-hmi-muted font-sans block">Peak Time (Tp):</span>
+                              <span className="text-[9px] text-hmi-muted font-sans block">{t('peakTime')}</span>
                               <span className="text-hmi-text font-medium">{m.peakTime.toFixed(4)} s</span>
                             </div>
                             {m.zeta !== undefined && (
                               <div>
-                                <span className="text-[9px] text-hmi-muted font-sans block">Damping (ζ):</span>
+                                <span className="text-[9px] text-hmi-muted font-sans block">{t('damping')}</span>
                                 <span className="text-hmi-text-success font-medium">{m.zeta.toFixed(3)}</span>
                               </div>
                             )}
                             {m.fn !== undefined && (
                               <div>
-                                <span className="text-[9px] text-hmi-muted font-sans block">Nat Freq (fn):</span>
+                                <span className="text-[9px] text-hmi-muted font-sans block">{t('natFreq')}</span>
                                 <span className="text-hmi-text-purple font-semibold">{m.fn.toFixed(2)} Hz</span>
                               </div>
                             )}
                             <div className="col-span-2 border-t border-hmi-grid/10 pt-1 mt-0.5">
-                              <span className="text-[9px] text-hmi-muted font-sans block">Steady Error (ess):</span>
+                              <span className="text-[9px] text-hmi-muted font-sans block">{t('steadyError')}</span>
                               <span className="text-hmi-text font-medium text-xs">{m.steadyStateError.toFixed(5)}{m.unit}</span>
                             </div>
                           </div>
                         ) : (
                           <div className="grid grid-cols-2 gap-y-1.5 gap-x-2">
                             <div className="col-span-2 text-[9px] text-hmi-muted font-sans italic">
-                              No target step transition
+                              {t('noTargetStep')}
                             </div>
                             <div>
-                              <span className="text-[9px] text-hmi-muted font-sans block">Steady Error (ess):</span>
+                              <span className="text-[9px] text-hmi-muted font-sans block">{t('steadyError')}</span>
                               <span className="text-hmi-text font-medium">{m.steadyStateError.toFixed(5)}{m.unit}</span>
                             </div>
                             {m.oscillationFreq !== undefined && (
                               <>
                                 <div>
-                                  <span className="text-[9px] text-hmi-muted font-sans block">Oscillation Freq:</span>
+                                  <span className="text-[9px] text-hmi-muted font-sans block">{t('oscillationFreq')}</span>
                                   <span className="text-hmi-text-purple font-semibold">{m.oscillationFreq.toFixed(2)} Hz</span>
                                 </div>
                                 {m.zeta !== undefined && (
                                   <div>
-                                    <span className="text-[9px] text-hmi-muted font-sans block">Est. Damping (ζ):</span>
+                                    <span className="text-[9px] text-hmi-muted font-sans block">{t('estDamping')}</span>
                                     <span className="text-hmi-text-success font-medium">{m.zeta.toFixed(3)}</span>
                                   </div>
                                 )}
@@ -2176,23 +2196,23 @@ function AdvancedAnalyzer({
                       </span>
                       <div className="grid grid-cols-2 gap-y-1.5 gap-x-2">
                         <div>
-                          <span className="text-[9px] text-hmi-muted font-sans block">Max Abs Error:</span>
+                          <span className="text-[9px] text-hmi-muted font-sans block">{t('maxAbsError')}</span>
                           <span className="text-hmi-text-error font-medium">{m.maxError.toFixed(4)} mm</span>
                         </div>
                         <div>
-                          <span className="text-[9px] text-hmi-muted font-sans block">RMSE value:</span>
+                          <span className="text-[9px] text-hmi-muted font-sans block">{t('rmseValue')}</span>
                           <span className="text-hmi-text font-medium">{m.rmse.toFixed(4)} mm</span>
                         </div>
                         <div>
-                          <span className="text-[9px] text-hmi-muted font-sans block">Mean Abs Error:</span>
+                          <span className="text-[9px] text-hmi-muted font-sans block">{t('meanAbsError')}</span>
                           <span className="text-hmi-text font-medium">{m.mae.toFixed(4)} mm</span>
                         </div>
                         <div>
-                          <span className="text-[9px] text-hmi-muted font-sans block">IAE (∫|e| dt):</span>
+                          <span className="text-[9px] text-hmi-muted font-sans block">{t('iae')}</span>
                           <span className="text-hmi-text font-medium">{m.iae.toFixed(4)} mm·s</span>
                         </div>
                         <div className="col-span-2 border-t border-hmi-grid/10 pt-1 mt-0.5">
-                          <span className="text-[9px] text-hmi-muted font-sans block">ITAE (∫t|e| dt):</span>
+                          <span className="text-[9px] text-hmi-muted font-sans block">{t('itae')}</span>
                           <span className="text-hmi-text-purple font-semibold text-xs">{m.itae.toFixed(4)} mm·s²</span>
                         </div>
                       </div>
@@ -2215,25 +2235,25 @@ function AdvancedAnalyzer({
                         </span>
                         <div className="grid grid-cols-2 gap-y-1 gap-x-2">
                           <div>
-                            <span className="text-[9px] text-hmi-muted font-sans block">Peak-to-Peak:</span>
+                            <span className="text-[9px] text-hmi-muted font-sans block">{t('peakToPeak')}</span>
                             <span className="text-hmi-text font-medium">{m.p2p.toFixed(3)}</span>
                           </div>
                           <div>
-                            <span className="text-[9px] text-hmi-muted font-sans block">Variance:</span>
+                            <span className="text-[9px] text-hmi-muted font-sans block">{t('variance')}</span>
                             <span className="text-hmi-text font-medium">{m.variance.toFixed(5)}</span>
                           </div>
                           <div>
-                            <span className="text-[9px] text-hmi-muted font-sans block">Sat. Rate:</span>
+                            <span className="text-[9px] text-hmi-muted font-sans block">{t('satRate')}</span>
                             <span className={cn("font-medium", m.saturationRate > 5 ? "text-hmi-text-error" : "text-hmi-text-secondary")}>
                               {m.saturationRate.toFixed(1)}%
                             </span>
                           </div>
                           <div>
-                            <span className="text-[9px] text-hmi-muted font-sans block">Switch Freq:</span>
+                            <span className="text-[9px] text-hmi-muted font-sans block">{t('switchFreq')}</span>
                             <span className="text-hmi-text font-medium">{m.switchingFreq.toFixed(2)} Hz</span>
                           </div>
                           <div className="col-span-2 border-t border-hmi-grid/10 pt-1 mt-0.5">
-                            <span className="text-[9px] text-hmi-muted font-sans block">Chattering Index (TV):</span>
+                            <span className="text-[9px] text-hmi-muted font-sans block">{t('chatteringIndex')}</span>
                             <span className="text-hmi-text-purple font-semibold text-xs">{m.chatteringIndex.toFixed(3)} unit/s</span>
                           </div>
                         </div>
@@ -2248,7 +2268,7 @@ function AdvancedAnalyzer({
           {/* Regional Window Statistics Dashboard */}
           <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
             <h3 className="text-xs font-bold text-hmi-text-secondary uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
-              Visible Window Stats
+              {t('visibleWindowStats')}
             </h3>
             <div className="flex flex-col gap-2 font-mono text-[11px]">
               {series.map(s => {
@@ -2263,19 +2283,19 @@ function AdvancedAnalyzer({
                     </span>
                     <div className="grid grid-cols-2 gap-y-1.5 gap-x-2">
                       <div>
-                        <span className="text-[9px] text-hmi-muted font-sans block">Peak-to-Peak:</span>
+                        <span className="text-[9px] text-hmi-muted font-sans block">{t('peakToPeak')}</span>
                         <span className="text-hmi-text font-medium">{stats.p2p.toFixed(3)}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-hmi-muted font-sans block">Mean (Average):</span>
+                        <span className="text-[9px] text-hmi-muted font-sans block">{t('meanAverage')}</span>
                         <span className="text-hmi-text font-medium">{stats.mean.toFixed(3)}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-hmi-muted font-sans block">RMS value:</span>
+                        <span className="text-[9px] text-hmi-muted font-sans block">{t('rmsValue')}</span>
                         <span className="text-hmi-text font-medium">{stats.rms.toFixed(3)}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-hmi-muted font-sans block">Std Dev (σ):</span>
+                        <span className="text-[9px] text-hmi-muted font-sans block">{t('stdDev')}</span>
                         <span className="text-hmi-text font-medium">{stats.std.toFixed(3)}</span>
                       </div>
                     </div>
@@ -2301,6 +2321,7 @@ const TAB_LABELS: Record<string, string> = {
 }
 
 export function ChartPanel() {
+  const t = useTranslations('ChartPanel')
   const { state } = useHMI()
   const [isFocused, setIsFocused] = useState(false)
   const [angularUnit, setAngularUnit] = useState('radians')
@@ -2410,26 +2431,28 @@ export function ChartPanel() {
   useEffect(() => {
     const handleDownload = (e: Event) => {
       if (isFocused) {
-        const nameMap: Record<string, string> = {
-          cte: 'Cross Tracking Error Chart',
-          ate: 'Along Tracking Error Chart',
-          pos: 'Joint Position Chart',
-          vel: 'Joint Velocity Chart',
+        const isIndo = t('pos') === 'Posisi'
+        const suffix = isIndo ? '' : ' Chart'
+        const prefix = isIndo ? 'Grafik ' : ''
+        const getChartName = (tab: string) => {
+          const baseName = tab === 'cte' ? t('cte') : tab === 'ate' ? t('ate') : tab === 'pos' ? t('pos') : tab === 'vel' ? t('vel') : 'Telemetry'
+          return prefix + baseName + suffix
         }
-        const chartKey = activeTab
+        const chartName = getChartName(activeTab)
+
         toast.promise(
-          downloadSingleGraph(chartKey, nameMap[activeTab] || 'Telemetry Chart', state),
+          downloadSingleGraph(activeTab, chartName, state),
           {
-            loading: `Exporting ${nameMap[activeTab] || 'Telemetry Chart'}...`,
-            success: `${nameMap[activeTab] || 'Telemetry Chart'} downloaded successfully!`,
-            error: (err) => `Export failed: ${err.message || err}`,
+            loading: t('exportingChart', { name: chartName }),
+            success: t('exportSuccess', { name: chartName }),
+            error: (err) => t('exportFailed', { message: err.message || err }),
           }
         )
       }
     }
     window.addEventListener('hmi_download_graph', handleDownload)
     return () => window.removeEventListener('hmi_download_graph', handleDownload)
-  }, [isFocused, activeTab, state])
+  }, [isFocused, activeTab, state, t])
 
 
 
@@ -2446,9 +2469,9 @@ export function ChartPanel() {
       {isFocused && (
         <div className="flex items-center justify-between mb-2 border-b border-hmi-grid pb-2 shrink-0">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-hmi-text">Telemetry Analyzer Console</h2>
+            <h2 className="text-lg font-bold text-hmi-text">{t('telemetryAnalyzerConsole')}</h2>
             <Badge className="bg-hmi-bg border border-hmi-grid text-hmi-text-secondary">
-              {state.recordingState === 'REC' ? '🔴 Live stream' : '⏸ Sliced Run'}
+              {state.recordingState === 'REC' ? `🔴 ${t('liveStream')}` : `⏸ ${t('slicedRun')}`}
             </Badge>
           </div>
           
@@ -2468,7 +2491,7 @@ export function ChartPanel() {
                   )}
                   onClick={() => setActiveTab(tab)}
                 >
-                  {TAB_LABELS[tab]}
+                  {t(tab)}
                 </Button>
               ))}
             </div>
@@ -2483,7 +2506,7 @@ export function ChartPanel() {
               }}
             >
               <Minimize2 className="h-4 w-4" />
-              Exit Focus
+              {t('exitFocus')}
             </Button>
           </div>
         </div>
@@ -2500,12 +2523,12 @@ export function ChartPanel() {
                   value={tab}
                   className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text px-3 cursor-pointer"
                 >
-                  {TAB_LABELS[tab]}
+                  {t(tab)}
                 </TabsTrigger>
               ))}
             </div>
             <div className="flex items-center gap-1.5 ml-auto">
-              <UiTooltip content={isFocused ? "Collapse: Restores the panel to normal size." : "Expand: Maximizes the telemetry charts."} align="center">
+              <UiTooltip content={isFocused ? t('collapseDesc') : t('expandDesc')} align="center">
                 <Button 
                   variant="outline" 
                   size="sm" 

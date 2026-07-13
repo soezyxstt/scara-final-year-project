@@ -20,6 +20,8 @@ import { SerialMonitorButton, SerialTerminalSheet } from './serial-terminal'
 import { RunButton } from './run-button'
 import { CommandPaletteTrigger } from './command-palette'
 import { ThemeToggle } from './theme-toggle'
+import { LocaleToggle } from './locale-toggle'
+import { useTranslations } from 'next-intl'
 
 
 type TopTab = 'monitor' | 'analysis' | 'rest' | 'readme'
@@ -49,6 +51,9 @@ function TabLink({
 }
 
 function HMIShell() {
+  const t = useTranslations('Header')
+  const tCommon = useTranslations('Common')
+
   const searchParams = useSearchParams()
   const router = useRouter()
   const tabParam = searchParams.get('tab')
@@ -94,37 +99,38 @@ function HMIShell() {
       {/* ── Header bar ── */}
       <header className="sticky top-0 z-50 bg-hmi-panel border-b border-hmi-grid px-4 h-12 flex items-center gap-4 shrink-0">
         <span className="text-sm font-bold text-hmi-text shrink-0 tracking-wide uppercase">
-          SCARA HMI
+          {t('title')}
         </span>
 
         {/* Sub-tabs for current page */}
         <nav className="flex h-12 shrink-0 border-l border-hmi-grid/50 pl-4 ml-2">
-          <TabLink label="Monitor" active={tab === 'monitor'} href="/?tab=monitor" />
-          <TabLink label="Analysis" active={tab === 'analysis'} href="/?tab=analysis" />
-          <TabLink label="Step & Noise" active={tab === 'rest'} href="/?tab=rest" />
-          <TabLink label="README" active={tab === 'readme'} href="/?tab=readme" />
+          <TabLink label={t('monitor')} active={tab === 'monitor'} href="/?tab=monitor" />
+          <TabLink label={t('analysis')} active={tab === 'analysis'} href="/?tab=analysis" />
+          <TabLink label={t('stepAndNoise')} active={tab === 'rest'} href="/?tab=rest" />
+          <TabLink label={t('readme')} active={tab === 'readme'} href="/?tab=readme" />
         </nav>
 
         <div className="flex items-center gap-2 ml-auto">
+          <LocaleToggle />
           <ThemeToggle />
           <CommandPaletteTrigger />
           <ModeBadge />
-          <Tooltip content="Network Status: Indicates if the web page is currently connected to the network." align="right">
+          <Tooltip content={t('networkStatusTooltip')} align="right">
             <Badge className={cn("cursor-help font-bold", online ? 'bg-hmi-ok text-white' : 'bg-hmi-off text-hmi-muted')}>
               {online ? '●' : '○'}
             </Badge>
           </Tooltip>
 
           {serialStatus === 'connected' ? (
-            <Tooltip content="Disconnect: Closes the serial communication channel." align="right">
+            <Tooltip content={t('disconnectTooltip')} align="right">
               <Button id="hmi-connect-button" variant="outline" size="sm" onClick={() => serial.disconnect()}>
-                Disconnect
+                {tCommon('disconnect')}
               </Button>
             </Tooltip>
           ) : (
-            <Tooltip content="Connect: Opens the serial communication channel using the Web Serial API." align="right">
+            <Tooltip content={t('connectTooltip')} align="right">
               <Button id="hmi-connect-button" variant="outline" size="sm" onClick={() => serial.connect()}>
-                Connect
+                {tCommon('connect')}
               </Button>
             </Tooltip>
           )}
@@ -139,15 +145,15 @@ function HMIShell() {
           />
 
           {estopped ? (
-            <Tooltip content="RESUME: Clears the E-STOP state and re-enables motor outputs." align="right">
+            <Tooltip content={t('resumeTooltip')} align="right">
               <Button id="hmi-estop-button" variant="resume" size="sm" className="animate-pulse" onClick={() => serial.sendCommand('resume')}>
-                🔄 RESUME
+                🔄 {tCommon('resume')}
               </Button>
             </Tooltip>
           ) : (
-            <Tooltip content="EMERGENCY STOP: Instantly halts all trajectory movements and cuts power to the joint motors." align="right">
+            <Tooltip content={t('stopTooltip')} align="right">
               <Button id="hmi-estop-button" variant="estop" size="sm" onClick={() => serial.sendCommand('estop')}>
-                🛑 Stop
+                🛑 {tCommon('stop')}
               </Button>
             </Tooltip>
           )}

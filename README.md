@@ -102,15 +102,12 @@ The web interface is split into public and protected (Google OAuth required) rou
 | **`/test`** | `TEST` | 33 runtime parameter editor, raw unfiltered sensor ADC visualizer, and params tuner. (Public) |
 | **`/pcb`** | — | Interactive ESP32 Controller PCB layout, schematic, and CAD viewer. (Public) |
 | **`/login`** | — | NextAuth Google sign-in portal. (Public) |
-| **`/hasil-eksperimen`**| — | Comparative data analytics table for completed sequences. (Public) |
 | **`/dashboard`** | — | Saved Runs History: overlay multiple trajectories, compare metrics, velocity, PID, feedforward, and AI Copilot analysis. (Protected) |
-| **`/eksperimen`** | `TEST` | Automation Suite: execute pre-coded EXP-1 to EXP-6 scripts. (Protected) |
-
 ---
 
 ## 4. Environment & Database Configuration
 
-To unlock historical run visualization, authentication, and automated experiments, configure the database and auth client.
+To unlock historical run visualization and authentication, configure the database and auth client.
 
 ### Step 1: Set Up Environment Variables
 Create a file named `.env` in the root workspace directory:
@@ -128,7 +125,7 @@ AUTH_URL="http://localhost:3000"
 ```
 
 ### Step 2: Sync Schema using Drizzle
-The DB tables are declared in `hmi/lib/db/schema.ts` and `experiment.ts`. Push the schemas to Turso:
+The DB tables are declared in `hmi/lib/db/schema.ts`. Push the schemas to Turso:
 ```bash
 cd hmi
 npm install
@@ -148,7 +145,7 @@ The HMI dashboard is hosted live at **[tugasakhir.adihnursyam.com](https://tugas
    ```
 3. Open [http://localhost:3000](http://localhost:3000) or the hosted live link using **Google Chrome** or **Microsoft Edge**.
 4. Connect the robot using the **Connect** button in the header (Baud: **921600**).
-5. Open the user menu (user avatar) to authenticate and access `/dashboard` or `/eksperimen`.
+5. Open the user menu (user avatar) to authenticate and access `/dashboard`.
 
 ### Firmware Compilation & Upload
 1. Ensure VS Code and the **PlatformIO IDE** extension are installed.

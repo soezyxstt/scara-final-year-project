@@ -18,10 +18,7 @@ The HMI application features a route-dependent architecture where the expected f
 | `/test` | `TEST` | Monitor, Analysis (+ Raw Signal overlay), Rest Analysis, Parameter Tuner | Public |
 | `/pcb` | — | Interactive Controller PCB details, schematics, and 3D viewer | Public |
 | `/login` | — | Google OAuth Portal | Public |
-| `/hasil-eksperimen` | — | Automated Comparative Analytics Spreadsheet | Public |
 | `/dashboard` | — | History comparison workspace | Google OAuth Protected |
-| `/eksperimen` | `TEST` | Automated experimentation controls & cooldown monitor | Google OAuth Protected |
-
 ---
 
 ## 2. Exhaustive Feature Specifications
@@ -64,7 +61,7 @@ Offers an interactive interface for hardware diagnostics and schematic lookup:
 - **Component Breakdowns**: Displays interactive lookup lists of all hardware components (MCU, drivers, connectors) mapping designators to technical specs and purposes.
 - **GPIO Assignment Map**: Integrates the firmware pinout assignments mapping ESP32 IO pins to hardware functions (stepper controls, DC PWM, encoder signals) directly.
 
-### E. Automated Experiments (/eksperimen)
+### E. Automated Experiments (/eksperimen) [DEPRECATED]
 Runs automated sequences to evaluate specific control mechanisms.
 - **EXP-1 (TD Filter)**: 8 runs (4 for Condition A `tden,1`, 4 for Condition B `tden,0`).
 - **EXP-2 (Inertia Compensation)**: 8 runs (`ffi,1.0` vs `ffi,0.0`).
@@ -83,7 +80,7 @@ To protect the GM25-370 DC motor from thermal strain and prevent browser single-
 4. When `S` (move completed) is received, the run metrics are calculated and written to database.
 5. The sequencer triggers a **5-second Cooldown Phase**, locking commands to allow motor windings to cool before starting the next run.
 
-### F. Results Page (/hasil-eksperimen)
+### F. Results Page (/hasil-eksperimen) [DEPRECATED]
 A public analytics dashboard presenting historical automated experiment run results:
 - **Comparative Spreadsheet**: Renders a spreadsheet list of completed experiment runs with details including:
   - **Run ID**: Unique identifier for the recorded sequence.

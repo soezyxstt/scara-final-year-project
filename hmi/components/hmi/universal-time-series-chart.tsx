@@ -15,6 +15,7 @@ import {
   ReferenceArea,
 } from 'recharts'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 // Styling configurations matching the Zinc/Slate theme
 const GRID_COLOR = 'rgba(255, 255, 255, 0.05)'
@@ -106,7 +107,7 @@ export function ChartContainer({
   children: React.ReactNode
 }) {
   const cleanedMsg = msg
-    ? msg.replace(/\s*[-—]\s*run a move to capture data/gi, "").replace(/\s*run a move to capture data/gi, "").trim()
+    ? msg.replace(/\s*[-—]\s*(run a move to capture data|jalankan gerakan untuk mengambil data)/gi, "").replace(/\s*(run a move to capture data|jalankan gerakan untuk mengambil data)/gi, "").trim()
     : msg
 
   return (
@@ -150,6 +151,7 @@ export default function UniversalTimeSeriesChart({
   onLegendClick,
   yAxisTickFormatter,
 }: UniversalTimeSeriesChartProps) {
+  const t = useTranslations('UniversalTimeSeriesChart')
   const gradId = useId().replace(/\W/g, '')
   const [internalHidden, setInternalHidden] = useState<Record<string, boolean>>({})
 
@@ -168,7 +170,7 @@ export default function UniversalTimeSeriesChart({
   const chartMargin = { top: 12, right: secondaryYAxis ? 14 : 12, left: 10, bottom: 20 }
 
   const xLabelProps = yLabel ? {
-    value: 'Time (seconds)',
+    value: t('timeLabel'),
     position: 'insideBottom' as const,
     offset: -6,
     fill: 'var(--color-hmi-text-secondary)',

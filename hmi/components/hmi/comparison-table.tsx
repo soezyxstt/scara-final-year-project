@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { useHMISlow } from '@/lib/hmi-context'
 import { computeCTEList } from '@/lib/cte-utils'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -10,20 +11,21 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 const PAGE_SIZE = 50
 
 export function ComparisonTable() {
+  const t = useTranslations('ComparisonTable')
   const { state } = useHMISlow()
   const [page, setPage] = useState(0)
 
-  const { frozenD: d, frozenT: t } = state
+  const { frozenD: d, frozenT: tData } = state
 
   const ctes = useMemo(() => {
-    return computeCTEList(t)
-  }, [t])
+    return computeCTEList(tData)
+  }, [tData])
 
   if (d.length === 0) {
     return (
       <Card>
-        <CardHeader><CardTitle>Ideal vs Actual</CardTitle></CardHeader>
-        <CardContent><p className="text-xs text-hmi-muted">No data — complete a move first.</p></CardContent>
+        <CardHeader><CardTitle>{t('title')}</CardTitle></CardHeader>
+        <CardContent><p className="text-xs text-hmi-muted">{t('noData')}</p></CardContent>
       </Card>
     )
   }
@@ -31,7 +33,7 @@ export function ComparisonTable() {
   const rows = useMemo(() => {
     const r2d = 180 / Math.PI
     return d.map((s, i) => {
-      const tp = t[i]
+      const tp = tData[i]
       const eef = tp ? Math.sqrt((tp.xi - tp.xa) ** 2 + (tp.yi - tp.ya) ** 2) : 0
       const cte = ctes[i] ?? 0
       return {
@@ -56,7 +58,7 @@ export function ComparisonTable() {
         cte: cte.toFixed(3),
       }
     })
-  }, [d, t, ctes])
+  }, [d, tData, ctes])
 
   const totalPages = Math.ceil(rows.length / PAGE_SIZE)
   const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -77,33 +79,33 @@ export function ComparisonTable() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Ideal vs Actual ({rows.length} samples)</CardTitle>
-          <Button variant="outline" size="sm" onClick={downloadCSV}>Export CSV</Button>
+          <CardTitle>{t('titleWithSamples', { count: rows.length })}</CardTitle>
+          <Button variant="outline" size="sm" onClick={downloadCSV}>{t('exportCsv')}</Button>
         </div>
       </CardHeader>
       <CardContent className="p-0">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Sample</TableHead>
-              <TableHead>t (s)</TableHead>
-              <TableHead>θ1_d (°)</TableHead>
-              <TableHead>θ1 (°)</TableHead>
-              <TableHead>e1 (°)</TableHead>
-              <TableHead>θ2_d (°)</TableHead>
-              <TableHead>θ2 (°)</TableHead>
-              <TableHead>e2 (°)</TableHead>
-              <TableHead>v1 (°/s)</TableHead>
-              <TableHead>v2 (°/s)</TableHead>
-              <TableHead>v1d (°/s)</TableHead>
-              <TableHead>v2d (°/s)</TableHead>
-              <TableHead>pwm1</TableHead>
-              <TableHead>θ1_raw (°)</TableHead>
-              <TableHead>θ2_raw (°)</TableHead>
-              <TableHead>v1_enc (°/s)</TableHead>
-              <TableHead>enc_count</TableHead>
-              <TableHead>EEF err (mm)</TableHead>
-              <TableHead>CTE (mm)</TableHead>
+              <TableHead>{t('headers.sample')}</TableHead>
+              <TableHead>{t('headers.t')}</TableHead>
+              <TableHead>{t('headers.th1d')}</TableHead>
+              <TableHead>{t('headers.th1')}</TableHead>
+              <TableHead>{t('headers.e1')}</TableHead>
+              <TableHead>{t('headers.th2d')}</TableHead>
+              <TableHead>{t('headers.th2')}</TableHead>
+              <TableHead>{t('headers.e2')}</TableHead>
+              <TableHead>{t('headers.v1')}</TableHead>
+              <TableHead>{t('headers.v2')}</TableHead>
+              <TableHead>{t('headers.v1d')}</TableHead>
+              <TableHead>{t('headers.v2d')}</TableHead>
+              <TableHead>{t('headers.pwm1')}</TableHead>
+              <TableHead>{t('headers.th1raw')}</TableHead>
+              <TableHead>{t('headers.th2raw')}</TableHead>
+              <TableHead>{t('headers.v1enc')}</TableHead>
+              <TableHead>{t('headers.encCount')}</TableHead>
+              <TableHead>{t('headers.eef')}</TableHead>
+              <TableHead>{t('headers.cte')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -134,14 +136,14 @@ export function ComparisonTable() {
         </Table>
         <div className="flex items-center justify-between px-3 py-2 border-t border-hmi-grid">
           <span className="text-xs text-hmi-muted">
-            Page {page + 1} / {totalPages}
+            {t('pageInfo', { page: page + 1, total: totalPages })}
           </span>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-              Prev
+              {t('prev')}
             </Button>
             <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
-              Next
+              {t('next')}
             </Button>
           </div>
         </div>

@@ -11,27 +11,29 @@ import { checkStraightLineTrajectory, getCurrentPosition, calculateIntermediateP
 import { L_INNER, L_OUTER } from './xy-trace'
 import { usePathname } from 'next/navigation'
 import { toast } from 'sonner'
+import { useTranslations } from 'next-intl'
 
 function StatusLED({ status }: { status: 'clean' | 'dirty' | 'waiting' | 'timeout' }) {
+  const t = useTranslations('ControlPanel')
   let ledClass = ''
   let statusTooltipText = ''
 
   switch (status) {
     case 'clean':
       ledClass = 'bg-emerald-500 shadow-[0_0_6px_#10B981]'
-      statusTooltipText = 'Synced with hardware'
+      statusTooltipText = t('statusSynced')
       break
     case 'dirty':
       ledClass = 'bg-amber-500 shadow-[0_0_6px_#F59E0B]'
-      statusTooltipText = 'Modified: unsaved changes'
+      statusTooltipText = t('statusModified')
       break
     case 'waiting':
       ledClass = 'bg-blue-500 animate-pulse shadow-[0_0_6px_#3B82F6]'
-      statusTooltipText = 'Applying changes to hardware...'
+      statusTooltipText = t('statusApplying')
       break
     case 'timeout':
       ledClass = 'bg-red-500 shadow-[0_0_6px_#EF4444]'
-      statusTooltipText = 'No response / Timeout'
+      statusTooltipText = t('statusTimeout')
       break
   }
 
@@ -216,6 +218,8 @@ function GainField({
 }
 
 export function ControlPanel() {
+  const t = useTranslations('ControlPanel')
+  const tCommon = useTranslations('Common')
   const { state, serial, dispatch } = useHMISlow()
   const pathname = usePathname()
   const { currentMove, bootPose, gains } = state
@@ -489,7 +493,7 @@ export function ControlPanel() {
     if (!isNaN(x) && !isNaN(y)) {
       const r2 = x * x + y * y
       if (r2 < L_INNER * L_INNER || r2 > L_OUTER * L_OUTER || !isAngleValid(x, y)) {
-        alert(`Move Target Rejected: Target (${x}, ${y}) is outside the reachable workspace (${L_INNER} to ${L_OUTER} mm, -30 to 210 deg).`)
+        alert(t('moveTargetRejected', { x: x.toFixed(1), y: y.toFixed(1), inner: L_INNER, outer: L_OUTER }))
         return
       }
 
@@ -498,7 +502,7 @@ export function ControlPanel() {
       
       const isAutoRoute = !safety.isValid && safety.reason === 'inner_violation'
       if (!safety.isValid && !isAutoRoute) {
-        alert(`Move Target Rejected: Trajectory path is unsafe or goes out of bounds.`)
+        alert(t('trajectoryUnsafe'))
         return
       }
 
@@ -811,24 +815,24 @@ export function ControlPanel() {
         ? 'text-hmi-j1 font-semibold animate-pulse'
         : ''
 
-  const kpTooltip = "Proportional Gain: Determines responsiveness to current position error. Higher values speed up response but can cause overshoot."
-  const kiTooltip = "Integral Gain: Accumulates positioning error over time to eliminate steady-state offset and keep accuracy high."
-  const ki2Tooltip = "Stepper J2 only requires P+D control to correct the residual CTC trajectory tracking error. Integral gain is disabled to prevent stepper saturation/integration windup."
-  const kdTooltip = "Derivative Gain: Predicts future error by reacting to rate of change, damping oscillations and stabilizing motion."
-  const ffInertiaTooltip = "FF Inertia Blend: Coefficient for Computed Torque Control Inertia feedforward term (0.0 to 1.0)."
-  const ffCoriolisTooltip = "FF Coriolis Blend: Coefficient for Computed Torque Control Coriolis/Centrifugal feedforward term (0.0 to 1.0)."
-  const ffGravityTooltip = "FF Gravity Blend: Coefficient for Computed Torque Control Gravity feedforward term (0.0 to 1.0)."
+  const kpTooltip = t('kpTooltip')
+  const kiTooltip = t('kiTooltip')
+  const ki2Tooltip = t('ki2Tooltip')
+  const kdTooltip = t('kdTooltip')
+  const ffInertiaTooltip = t('ffInertiaTooltip')
+  const ffCoriolisTooltip = t('ffCoriolisTooltip')
+  const ffGravityTooltip = t('ffGravityTooltip')
 
   return (
     <div id="hmi-control-panel" className="border-t border-hmi-grid bg-hmi-panel px-3 py-1.5 flex flex-nowrap items-end gap-2 shrink-0 overflow-x-auto">
       {/* Move target Form — Send button moved to navbar Run button */}
       <form onSubmit={e => e.preventDefault()}>
         <fieldset className="flex items-end gap-1.5 border-l-2 border-r-2 border-hmi-grid/40 px-2 py-1 rounded-md">
-          <legend className="text-[10px] font-bold text-hmi-muted px-1.5">Move target</legend>
+          <legend className="text-[10px] font-bold text-hmi-muted px-1.5">{t('moveTarget')}</legend>
           
           <div className="flex flex-col gap-0.5 min-w-[80px]">
             <div className="flex items-center justify-between gap-1">
-              <Tooltip content="Target X coordinate of the end-effector (mm)">
+              <Tooltip content={t('tooltipX')}>
                 <label className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
                   Xf
                 </label>
@@ -853,7 +857,7 @@ export function ControlPanel() {
 
           <div className="flex flex-col gap-0.5 min-w-[80px]">
             <div className="flex items-center justify-between gap-1">
-              <Tooltip content="Target Y coordinate of the end-effector (mm)">
+              <Tooltip content={t('tooltipY')}>
                 <label className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
                   Yf
                 </label>
@@ -894,7 +898,7 @@ export function ControlPanel() {
               j1Status === 'success' ? "bg-hmi-ok hover:bg-hmi-ok text-white" : ""
             )}
           >
-            {j1Status === 'sending' ? 'Send...' : j1Status === 'success' ? 'Sent ✓' : 'Apply'}
+            {j1Status === 'sending' ? tCommon('sending') : j1Status === 'success' ? tCommon('sent') : tCommon('apply')}
           </Button>
         </fieldset>
       </form>
@@ -914,7 +918,7 @@ export function ControlPanel() {
               j2Status === 'success' ? "bg-hmi-ok hover:bg-hmi-ok text-white" : ""
             )}
           >
-            {j2Status === 'sending' ? 'Send...' : j2Status === 'success' ? 'Sent ✓' : 'Apply'}
+            {j2Status === 'sending' ? tCommon('sending') : j2Status === 'success' ? tCommon('sent') : tCommon('apply')}
           </Button>
         </fieldset>
       </form>
@@ -1004,7 +1008,7 @@ export function ControlPanel() {
               ffStatus === 'success' ? "bg-hmi-ok hover:bg-hmi-ok text-white" : ""
             )}
           >
-            {ffStatus === 'sending' ? 'Send...' : ffStatus === 'success' ? 'Sent ✓' : 'Apply'}
+            {ffStatus === 'sending' ? tCommon('sending') : ffStatus === 'success' ? tCommon('sent') : tCommon('apply')}
           </Button>
         </fieldset>
       </form>
@@ -1013,7 +1017,7 @@ export function ControlPanel() {
       {pathname !== '/' && (
         <div className="flex flex-col gap-0.5 border-l-2 border-r-2 border-hmi-grid/40 px-2.5 py-1 rounded-md h-[46px] justify-end min-w-[106px]">
           <div className="flex items-center justify-between gap-1 w-full">
-            <Tooltip content="Microstep: Subdivides motor steps into smaller increments for smoother movements, lower noise, and higher precision.">
+            <Tooltip content={t('microstepTooltip')}>
               <label className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
                 Microstep
               </label>

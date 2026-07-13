@@ -3,12 +3,14 @@
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { useTranslations } from 'next-intl'
 
 interface Props {
   callbackUrl: string
 }
 
 export function LoginContent({ callbackUrl }: Props) {
+  const t = useTranslations('Login')
   const [loading, setLoading] = useState(false)
 
   async function handleSignIn() {
@@ -37,16 +39,16 @@ export function LoginContent({ callbackUrl }: Props) {
               <path d="M12 3V21M3 8.5L21 15.5M21 8.5L3 15.5" stroke="#2196F3" strokeOpacity={0.4} />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-hmi-text tracking-wide">SCARA HMI</h1>
-          <p className="text-xs text-hmi-muted tracking-widest uppercase">Research Dashboard</p>
+          <h1 className="text-xl font-bold text-hmi-text tracking-wide">{t('title')}</h1>
+          <p className="text-xs text-hmi-muted tracking-widest uppercase">{t('subtitle')}</p>
         </div>
 
         {/* Login card */}
         <div className="w-full bg-hmi-panel border border-hmi-grid rounded-xl p-6 flex flex-col gap-5">
           <div className="flex flex-col gap-1">
-            <h2 className="text-sm font-semibold text-hmi-text">Sign in to continue</h2>
+            <h2 className="text-sm font-semibold text-hmi-text">{t('cardTitle')}</h2>
             <p className="text-xs text-hmi-muted leading-relaxed">
-              Authentication is required to save experiment runs to the database and access the research dashboard.
+              {t('cardDescription')}
             </p>
           </div>
 
@@ -76,11 +78,11 @@ export function LoginContent({ callbackUrl }: Props) {
                 fill="#EA4335"
               />
             </svg>
-            {loading ? 'Redirecting…' : 'Sign in with Google'}
+            {loading ? t('googleButtonLoading') : t('googleButtonText')}
           </Button>
 
           <p className="text-[11px] text-hmi-muted/70 text-center leading-relaxed">
-            Only authorized Google accounts can save experiment data. The HMI itself works without sign-in.
+            {t('footerDisclaimer')}
           </p>
         </div>
 
@@ -89,7 +91,7 @@ export function LoginContent({ callbackUrl }: Props) {
           href="/"
           className="text-xs text-hmi-muted hover:text-hmi-text transition-colors"
         >
-          ← Back to HMI without signing in
+          {t('backLink')}
         </a>
       </div>
     </div>

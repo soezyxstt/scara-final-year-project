@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
 import { ThemeToggle } from '@/components/hmi/theme-toggle'
+import { LocaleToggle } from '@/components/hmi/locale-toggle'
+import { useTranslations } from 'next-intl'
 
 type TabId = 'trajectory' | 'velocity' | 'pid' | 'feedforward' | 'metrics' | 'advanced' | 'groupCompare'
 
@@ -41,6 +43,7 @@ interface Props {
 }
 
 export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
+  const t = useTranslations('Dashboard')
   const [runs, setRuns] = useState<Run[]>(initialRuns)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [loadedData, setLoadedData] = useState<Record<string, LoadedRun>>({})
@@ -122,8 +125,8 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
               </svg>
             </div>
             <div>
-              <p className="text-[11px] font-bold text-hmi-text">SCARA HMI</p>
-              <p className="text-[10px] text-hmi-muted">Dashboard</p>
+              <p className="text-[11px] font-bold text-hmi-text">{t('title')}</p>
+              <p className="text-[10px] text-hmi-muted">{t('subtitle')}</p>
             </div>
           </div>
         </div>
@@ -146,13 +149,13 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
               href="/"
               className="flex-1 text-center text-[10px] py-1 rounded border border-hmi-grid text-hmi-muted hover:text-hmi-text hover:border-hmi-grid/80 transition-colors"
             >
-              ← HMI
+              ← {t('backToHmi')}
             </a>
             <button
               className="flex-1 text-[10px] py-1 rounded border border-hmi-grid text-hmi-muted hover:text-red-400 hover:border-red-400/50 transition-colors"
               onClick={() => signOut({ callbackUrl: '/login' })}
             >
-              Sign out
+              {t('signOut')}
             </button>
           </div>
         </div>
@@ -163,9 +166,9 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
         {/* Header */}
         <header className="sticky top-0 z-40 bg-hmi-panel border-b border-hmi-grid px-4 h-12 flex items-center gap-4 shrink-0">
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-sm font-bold text-hmi-text uppercase tracking-wide">Dashboard</span>
+            <span className="text-sm font-bold text-hmi-text uppercase tracking-wide">{t('subtitle')}</span>
             {isLoading && (
-              <span className="text-[10px] text-hmi-muted animate-pulse">loading…</span>
+              <span className="text-[10px] text-hmi-muted animate-pulse">{t('loading')}</span>
             )}
           </div>
 
@@ -173,21 +176,22 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
 
           {/* Tab nav */}
           <div className="ml-auto flex items-center gap-4 h-full">
+            <LocaleToggle />
             <ThemeToggle />
             <CommandPaletteTrigger />
             <nav className="flex h-12">
-              {TABS.map(t => (
+              {TABS.map(tTab => (
                 <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
+                  key={tTab.id}
+                  onClick={() => setTab(tTab.id)}
                   className={cn(
                     'h-12 px-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap',
-                    tab === t.id
+                    tab === tTab.id
                       ? 'border-hmi-ideal text-hmi-text'
                       : 'border-transparent text-hmi-muted hover:text-hmi-text'
                   )}
                 >
-                  {t.label}
+                  {t(tTab.id)}
                 </button>
               ))}
             </nav>

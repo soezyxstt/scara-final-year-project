@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend,
 } from 'recharts'
@@ -66,6 +67,7 @@ export function FFTSection({
   height?: number
   defaultSignal?: FFTSignal
 }) {
+  const t = useTranslations('AdvancedAnalysis')
   const { state } = useHMISlow()
   const [isFocused, setIsFocused] = useState(false)
   const [sig, setSig] = useState<FFTSignal>(defaultSignal ?? 'eef')
@@ -96,7 +98,7 @@ export function FFTSection({
         axisLine={AL} 
         tickLine={false}
         label={{ 
-          value: 'freq bin', 
+          value: t('freqBin'), 
           position: 'insideBottom', 
           offset: -2, 
           fill: 'var(--color-hmi-text-secondary)', 
@@ -110,10 +112,10 @@ export function FFTSection({
         axisLine={AL} 
         tickLine={false}
         label={{ 
-          value: 'magnitude', 
+          value: t('magnitude'), 
           angle: -90, 
           position: 'insideLeft', 
-          offset: 8,
+          offset: 8, 
           fill: 'var(--color-hmi-text-secondary)', 
           fontSize: 9,
           fontFamily: 'var(--font-geist-sans), sans-serif',
@@ -155,9 +157,9 @@ export function FFTSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
-              Frequency Content (FFT)
+              {t('fftTitle')}
             </CardTitle>
-            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">{t('pressEsc')}</span>}
           </div>
           <div className="flex items-center gap-2">
             <Select value={sig} onValueChange={(v: string) => setSig(v as FFTSignal)}>
@@ -165,7 +167,7 @@ export function FFTSection({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="eef">EEF error</SelectItem>
+                <SelectItem value="eef">{t('fftSignal.eef')}</SelectItem>
                 <SelectItem value="th1">θ1</SelectItem>
                 <SelectItem value="th2">θ2</SelectItem>
               </SelectContent>
@@ -182,7 +184,7 @@ export function FFTSection({
                 }}
               >
                 <Minimize2 className="h-4 w-4" />
-                Exit Focus
+                {t('exitFocus')}
               </Button>
             )}
           </div>
@@ -197,7 +199,7 @@ export function FFTSection({
             e.stopPropagation()
             setIsFocused(true)
           }}
-          title="Focus Graph"
+          title={t('focusGraph')}
         >
           <Maximize2 className="h-4 w-4" />
         </button>
@@ -205,10 +207,9 @@ export function FFTSection({
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
         <p className="text-[11px] text-hmi-muted mb-2 font-medium shrink-0">
-          Peaks above ~10 Hz are typically potentiometer noise, not structural dynamics.
-          (X axis is frequency bin — scale by tick rate when known.)
+          {t('fftNote')}
         </p>
-        <ChartContainer isEmpty={state.frozenD.length === 0} msg="No telemetry — run a move to capture data">
+        <ChartContainer isEmpty={state.frozenD.length === 0} msg={t('noTelemetry')}>
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
@@ -227,6 +228,7 @@ export function ControlEffortSection({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('AdvancedAnalysis')
   const { state } = useHMISlow()
   const gradId = useId().replace(/\W/g, '')
   const [isFocused, setIsFocused] = useState(false)
@@ -268,7 +270,7 @@ export function ControlEffortSection({
         axisLine={AL} 
         tickLine={false}
         label={{ 
-          value: 'cumulative', 
+          value: t('controlEffortCumulative'), 
           angle: -90, 
           position: 'insideLeft', 
           offset: 8,
@@ -313,9 +315,9 @@ export function ControlEffortSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
-              Control Effort Proxy (∫|PWM| dt)
+              {t('controlEffortTitle')}
             </CardTitle>
-            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">{t('pressEsc')}</span>}
           </div>
           {isFocused && (
             <Button 
@@ -328,7 +330,7 @@ export function ControlEffortSection({
               }}
             >
               <Minimize2 className="h-4 w-4" />
-              Exit Focus
+              {t('exitFocus')}
             </Button>
           )}
         </div>
@@ -342,14 +344,14 @@ export function ControlEffortSection({
             e.stopPropagation()
             setIsFocused(true)
           }}
-          title="Focus Graph"
+          title={t('focusGraph')}
         >
           <Maximize2 className="h-4 w-4" />
         </button>
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        <ChartContainer isEmpty={data.length === 0} msg="No control effort telemetry — run a move to capture data">
+        <ChartContainer isEmpty={data.length === 0} msg={t('controlEffortEmpty')}>
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
@@ -375,6 +377,7 @@ export function CTCTorqueSection({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('AdvancedAnalysis')
   const { state } = useHMISlow()
   const [isFocused, setIsFocused] = useState(false)
 
@@ -406,8 +409,8 @@ export function CTCTorqueSection({
   const chart = (
     <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
-      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Torque (N·m)', angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: t('timeSec'), position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: t('ctcTorqueUnit'), angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
       <Legend verticalAlign="top" height={32} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '4px' }} />
       {/* Joint 1 Group */}
@@ -442,9 +445,9 @@ export function CTCTorqueSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
-              CTC Feedforward Torques
+              {t('ctcTorqueTitle')}
             </CardTitle>
-            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">{t('pressEsc')}</span>}
           </div>
           {isFocused && (
             <Button 
@@ -457,7 +460,7 @@ export function CTCTorqueSection({
               }}
             >
               <Minimize2 className="h-4 w-4" />
-              Exit Focus
+              {t('exitFocus')}
             </Button>
           )}
         </div>
@@ -470,14 +473,14 @@ export function CTCTorqueSection({
             e.stopPropagation()
             setIsFocused(true)
           }}
-          title="Focus Graph"
+          title={t('focusGraph')}
         >
           <Maximize2 className="h-4 w-4" />
         </button>
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        <ChartContainer isEmpty={chartData.length === 0} msg="No CTC torque logging — run a move to capture data">
+        <ChartContainer isEmpty={chartData.length === 0} msg={t('ctcTorqueEmpty')}>
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
@@ -497,6 +500,7 @@ export function ControlInternalSection({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('AdvancedAnalysis')
   const { state } = useHMISlow()
   const [isFocused, setIsFocused] = useState(false)
 
@@ -524,12 +528,12 @@ export function ControlInternalSection({
   const chart = (
     <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
-      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Control effort', angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: t('timeSec'), position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: t('j1InternalEffort'), angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
       <Legend verticalAlign="top" height={20} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '2px' }} />
-      <Line type="linear" dataKey="u1_total" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total PID Effort" />
-      <Line type="linear" dataKey="ff1_contrib" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="FF Contribution" />
+      <Line type="linear" dataKey="u1_total" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.75} dot={false} isAnimationActive={false} name={t('totalPidEffort')} />
+      <Line type="linear" dataKey="ff1_contrib" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name={t('ffContribution')} />
     </LineChart>
   )
 
@@ -554,9 +558,9 @@ export function ControlInternalSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
-              J1 Internal Control Signals
+              {t('j1InternalTitle')}
             </CardTitle>
-            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">{t('pressEsc')}</span>}
           </div>
           {isFocused && (
             <Button 
@@ -569,7 +573,7 @@ export function ControlInternalSection({
               }}
             >
               <Minimize2 className="h-4 w-4" />
-              Exit Focus
+              {t('exitFocus')}
             </Button>
           )}
         </div>
@@ -582,14 +586,14 @@ export function ControlInternalSection({
             e.stopPropagation()
             setIsFocused(true)
           }}
-          title="Focus Graph"
+          title={t('focusGraph')}
         >
           <Maximize2 className="h-4 w-4" />
         </button>
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        <ChartContainer isEmpty={chartData.length === 0} msg="No internal control logging — run a move to capture data">
+        <ChartContainer isEmpty={chartData.length === 0} msg={t('ctcTorqueEmpty')}>
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
@@ -609,6 +613,7 @@ export function StepperVelocitySection({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('AdvancedAnalysis')
   const { state } = useHMISlow()
   const [isFocused, setIsFocused] = useState(false)
 
@@ -660,15 +665,15 @@ export function StepperVelocitySection({
   const chart = (
     <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
-      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Velocity (rad/s)', angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: t('timeSec'), position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: t('j2StepperVelocity'), angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
       <Legend verticalAlign="top" height={20} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '2px' }} />
-      <Line type="linear" dataKey="omega2_raw" stroke="var(--color-hmi-j2)" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Total omega2 Command" />
-      <Line type="linear" dataKey="p_out" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 P Out" />
-      <Line type="linear" dataKey="d_out" stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5} dot={false} isAnimationActive={false} name="J2 D Out" />
-      <Line type="linear" dataKey="integral2" stroke="var(--color-hmi-error)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="J2 I Out" />
-      <Line type="linear" dataKey="delta_omega_ff" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name="J2 FF Contribution" />
+      <Line type="linear" dataKey="omega2_raw" stroke="var(--color-hmi-j2)" strokeWidth={1.75} dot={false} isAnimationActive={false} name={t('totalOmega2Command')} />
+      <Line type="linear" dataKey="p_out" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} isAnimationActive={false} name={t('j2POut')} />
+      <Line type="linear" dataKey="d_out" stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5} dot={false} isAnimationActive={false} name={t('j2DOut')} />
+      <Line type="linear" dataKey="integral2" stroke="var(--color-hmi-error)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name={t('j2IOut')} />
+      <Line type="linear" dataKey="delta_omega_ff" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} name={t('j2FfContribution')} />
     </LineChart>
   )
 
@@ -693,9 +698,9 @@ export function StepperVelocitySection({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
-              J2 Stepper Velocity Commands
+              {t('j2StepperTitle')}
             </CardTitle>
-            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">{t('pressEsc')}</span>}
           </div>
           {isFocused && (
             <Button 
@@ -708,7 +713,7 @@ export function StepperVelocitySection({
               }}
             >
               <Minimize2 className="h-4 w-4" />
-              Exit Focus
+              {t('exitFocus')}
             </Button>
           )}
         </div>
@@ -721,14 +726,14 @@ export function StepperVelocitySection({
             e.stopPropagation()
             setIsFocused(true)
           }}
-          title="Focus Graph"
+          title={t('focusGraph')}
         >
           <Maximize2 className="h-4 w-4" />
         </button>
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        <ChartContainer isEmpty={chartData.length === 0} msg="No stepper command logging — run a move to capture data">
+        <ChartContainer isEmpty={chartData.length === 0} msg={t('ctcTorqueEmpty')}>
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
@@ -748,6 +753,7 @@ export function PIDBreakdownSection({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('AdvancedAnalysis')
   const { state } = useHMISlow()
   const [isFocused, setIsFocused] = useState(false)
 
@@ -776,13 +782,13 @@ export function PIDBreakdownSection({
   const chart = (
     <LineChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 4 }} width={width} height={height}>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
-      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Output Effort', angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: t('timeSec'), position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: t('j1PidOutputEffort'), angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(4) : v} />
       <Legend verticalAlign="top" height={20} wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-geist-sans), sans-serif', fontWeight: 600, paddingBottom: '2px' }} />
-      <Line type="linear" dataKey="p1_out" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} name="P Out" isAnimationActive={false} />
-      <Line type="linear" dataKey="i1_out" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.5} dot={false} name="I Out" isAnimationActive={false} />
-      <Line type="linear" dataKey="d1_out" stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5} dot={false} name="D Out" isAnimationActive={false} />
+      <Line type="linear" dataKey="p1_out" stroke="var(--color-hmi-j1)" strokeWidth={1.5} dot={false} name={t('pOut')} isAnimationActive={false} />
+      <Line type="linear" dataKey="i1_out" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.5} dot={false} name={t('iOut')} isAnimationActive={false} />
+      <Line type="linear" dataKey="d1_out" stroke="var(--color-hmi-pwm-neg)" strokeWidth={1.5} dot={false} name={t('dOut')} isAnimationActive={false} />
     </LineChart>
   )
 
@@ -807,9 +813,9 @@ export function PIDBreakdownSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
-              J1 PID Control Effort Breakdown
+              {t('j1PidTitle')}
             </CardTitle>
-            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">{t('pressEsc')}</span>}
           </div>
           {isFocused && (
             <Button 
@@ -822,7 +828,7 @@ export function PIDBreakdownSection({
               }}
             >
               <Minimize2 className="h-4 w-4" />
-              Exit Focus
+              {t('exitFocus')}
             </Button>
           )}
         </div>
@@ -835,14 +841,14 @@ export function PIDBreakdownSection({
             e.stopPropagation()
             setIsFocused(true)
           }}
-          title="Focus Graph"
+          title={t('focusGraph')}
         >
           <Maximize2 className="h-4 w-4" />
         </button>
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        <ChartContainer isEmpty={chartData.length === 0} msg="No PID telemetry — run a move to capture data">
+        <ChartContainer isEmpty={chartData.length === 0} msg={t('j1PidEmpty')}>
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}
@@ -862,6 +868,7 @@ export function LoopDurationSection({
   width?: number
   height?: number
 }) {
+  const t = useTranslations('AdvancedAnalysis')
   const { state } = useHMISlow()
   const gradId = useId().replace(/\W/g, '')
   const [isFocused, setIsFocused] = useState(false)
@@ -895,10 +902,10 @@ export function LoopDurationSection({
         </linearGradient>
       </defs>
       <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Time (s)', position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
-      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: 'Duration (µs)', angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <XAxis dataKey="t" tick={AT} axisLine={AL} tickLine={false} label={{ value: t('timeSec'), position: 'insideBottom', offset: -2, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
+      <YAxis tick={AT} axisLine={AL} tickLine={false} label={{ value: t('esp32LoopDuration'), angle: -90, position: 'insideLeft', offset: 8, fill: 'var(--color-hmi-text-secondary)', fontSize: 9, fontWeight: 600 }} />
       <Tooltip contentStyle={TS} formatter={(v) => typeof v === 'number' ? v.toFixed(1) : v} />
-      <Area type="monotone" dataKey="loop_duration_us" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} fillOpacity={1} fill={`url(#${gradId}-colorLoop)`} name="Loop Duration (µs)" isAnimationActive={false} />
+      <Area type="monotone" dataKey="loop_duration_us" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} fillOpacity={1} fill={`url(#${gradId}-colorLoop)`} name={t('loopDurationName')} isAnimationActive={false} />
     </AreaChart>
   )
 
@@ -923,9 +930,9 @@ export function LoopDurationSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CardTitle className={cn("text-hmi-text", isFocused ? "text-lg font-bold" : "text-sm font-semibold")}>
-              Microcontroller Loop Execution Time
+              {t('esp32LoopTitle')}
             </CardTitle>
-            {isFocused && <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>}
+            {isFocused && <span className="text-xs text-hmi-muted font-normal">{t('pressEsc')}</span>}
           </div>
           {isFocused && (
             <Button 
@@ -938,7 +945,7 @@ export function LoopDurationSection({
               }}
             >
               <Minimize2 className="h-4 w-4" />
-              Exit Focus
+              {t('exitFocus')}
             </Button>
           )}
         </div>
@@ -951,14 +958,14 @@ export function LoopDurationSection({
             e.stopPropagation()
             setIsFocused(true)
           }}
-          title="Focus Graph"
+          title={t('focusGraph')}
         >
           <Maximize2 className="h-4 w-4" />
         </button>
       )}
 
       <CardContent className={cn("p-3 pt-0", isFocused && "flex-1 min-h-0 p-0 flex flex-col")}>
-        <ChartContainer isEmpty={chartData.length === 0} msg="No loop duration telemetry — run a move to capture data">
+        <ChartContainer isEmpty={chartData.length === 0} msg={t('esp32LoopEmpty')}>
           <div className={cn(isFocused ? "flex-1 min-h-0 w-full" : "w-full")} style={!isFocused ? { height: height ?? 240 } : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               {chart}

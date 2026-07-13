@@ -5,6 +5,7 @@ import { ChartCard } from './chart-card'
 import type { Sample, TrajectoryPoint } from '@/lib/db/schema'
 import { computeCTEList, computeATEList } from '@/lib/cte-utils'
 import type { TPoint } from '@/lib/hmi-types'
+import { useTranslations } from 'next-intl'
 
 interface RunData {
   runId: string
@@ -17,6 +18,8 @@ interface RunData {
 interface Props { runs: RunData[] }
 
 export function PidTab({ runs }: Props) {
+  const t = useTranslations('DashboardPidTab')
+
   const pidDatasets = useMemo(() =>
     runs.map(r => {
       const t0 = r.samples[0]?.t ?? 0
@@ -100,7 +103,7 @@ export function PidTab({ runs }: Props) {
   return (
     <div className="flex flex-col gap-4 p-4">
       <ChartCard
-        title="PID Output Breakdown — P, I, D (J1)"
+        title={t('pidBreakdownTitle')}
         datasets={pidDatasets}
         series={[
           { dataKey: 'p1_out', color: '#2196F3', label: 'P₁' },
@@ -111,21 +114,21 @@ export function PidTab({ runs }: Props) {
       />
 
       <ChartCard
-        title="Cross-Track Error — CTE (mm)"
+        title={t('cteTitle')}
         datasets={cteDatasets}
         series={[{ dataKey: 'cte', color: '#FF9800', label: 'CTE' }]}
         xKey="t" xLabel="ms" yLabel="mm" height={200} type="area"
       />
 
       <ChartCard
-        title="Along-Track Error — ATE (mm)"
+        title={t('ateTitle')}
         datasets={ateDatasets}
         series={[{ dataKey: 'ate', color: '#E91E63', label: 'ATE' }]}
         xKey="t" xLabel="ms" yLabel="mm" height={200} type="area"
       />
 
       <ChartCard
-        title="Joint Position Error (rad)"
+        title={t('jointErrorTitle')}
         datasets={errorDatasets}
         series={[
           { dataKey: 'e1', color: '#2196F3', label: 'e₁' },
@@ -135,7 +138,7 @@ export function PidTab({ runs }: Props) {
       />
 
       <ChartCard
-        title="Control Loop Duration (µs)"
+        title={t('loopDurationTitle')}
         datasets={loopDatasets}
         series={[{ dataKey: 'loop_us', color: '#00BCD4', label: 'loop µs' }]}
         xKey="t" xLabel="ms" yLabel="µs" height={180}
@@ -145,5 +148,6 @@ export function PidTab({ runs }: Props) {
 }
 
 function Empty() {
-  return <div className="p-8 text-center text-xs text-hmi-muted">Select one or more runs from the sidebar.</div>
+  const t = useTranslations('DashboardPidTab')
+  return <div className="p-8 text-center text-xs text-hmi-muted">{t('selectRunsMessage')}</div>
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -14,6 +15,7 @@ interface SerialTerminalSheetProps {
 }
 
 export function SerialTerminalSheet({ open, onClose }: SerialTerminalSheetProps) {
+  const t = useTranslations('SerialTerminal')
   const [height, setHeight] = useState(260)
   const [dragging, setDragging] = useState(false)
   const startY = useRef(0)
@@ -68,7 +70,7 @@ export function SerialTerminalSheet({ open, onClose }: SerialTerminalSheetProps)
             ? "cursor-row-resize bg-hmi-ideal/20"
             : "cursor-row-resize bg-hmi-elevated/70 hover:bg-hmi-ideal/10 transition-colors"
         )}
-        title="Drag to resize"
+        title={t('dragResize')}
       >
         <div className={cn(
           "w-10 h-0.5 rounded-full transition-colors",
@@ -94,11 +96,10 @@ interface SerialMonitorButtonProps {
 }
 
 export function SerialMonitorButton({ open, onToggle, serialConnected, id }: SerialMonitorButtonProps) {
+  const t = useTranslations('SerialTerminal')
   return (
     <Tooltip
-      content={open
-        ? 'Serial Monitor: Click to close the terminal panel. (ESC also closes it.)'
-        : 'Serial Monitor: Opens a live serial log panel at the bottom of the screen.'}
+      content={open ? t('tooltipClose') : t('tooltipOpen')}
       align="right"
     >
       <Button
@@ -129,7 +130,7 @@ export function SerialMonitorButton({ open, onToggle, serialConnected, id }: Ser
           <path d="M5.5 13.5h5" />
           <path d="M8 11v2.5" />
         </svg>
-        Serial
+        {t('serialBtn')}
         {serialConnected && (
           <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-hmi-ok" />
         )}

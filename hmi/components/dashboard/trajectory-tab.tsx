@@ -3,8 +3,8 @@
 import { useMemo } from 'react'
 import { ChartCard } from './chart-card'
 import type { Sample, TrajectoryPoint } from '@/lib/db/schema'
-
 import { DashboardXYTrace } from './dashboard-xy-trace'
+import { useTranslations } from 'next-intl'
 
 interface RunData {
   runId: string
@@ -19,6 +19,8 @@ interface Props {
 }
 
 export function TrajectoryTab({ runs }: Props) {
+  const t = useTranslations('DashboardTrajectoryTab')
+
   // Build XY scatter data (unused but kept/aligned in case of future usage)
   const xyDatasets = useMemo(() =>
     runs.map(r => {
@@ -94,13 +96,13 @@ export function TrajectoryTab({ runs }: Props) {
 
       {/* XY Cartesian path */}
       <ChartCard
-        title="XY Trajectory — Actual vs Ideal"
+        title={t('xyTrajectoryTitle')}
         datasets={xyActual}
         series={[
-          { dataKey: 'xa', color: '#EF5350', label: 'Actual X' },
-          { dataKey: 'ya', color: '#FF9800', label: 'Actual Y' },
-          { dataKey: 'xi', color: '#2196F3', label: 'Ideal X', dashed: true },
-          { dataKey: 'yi', color: '#42A5F5', label: 'Ideal Y', dashed: true },
+          { dataKey: 'xa', color: '#EF5350', label: t('actualX') },
+          { dataKey: 'ya', color: '#FF9800', label: t('actualY') },
+          { dataKey: 'xi', color: '#2196F3', label: t('idealX'), dashed: true },
+          { dataKey: 'yi', color: '#42A5F5', label: t('idealY'), dashed: true },
         ]}
         xKey="t"
         xLabel="ms"
@@ -110,13 +112,13 @@ export function TrajectoryTab({ runs }: Props) {
 
       {/* Joint positions */}
       <ChartCard
-        title="Joint Position — θ₁ & θ₂ (rad)"
+        title={t('jointPositionTitle')}
         datasets={posDatasets}
         series={[
-          { dataKey: 'th1', color: '#2196F3', label: 'θ₁ actual' },
-          { dataKey: 'th1d', color: '#1565C0', label: 'θ₁ desired', dashed: true },
-          { dataKey: 'th2', color: '#FF9800', label: 'θ₂ actual' },
-          { dataKey: 'th2d', color: '#E65100', label: 'θ₂ desired', dashed: true },
+          { dataKey: 'th1', color: '#2196F3', label: t('th1Actual') },
+          { dataKey: 'th1d', color: '#1565C0', label: t('th1Desired'), dashed: true },
+          { dataKey: 'th2', color: '#FF9800', label: t('th2Actual') },
+          { dataKey: 'th2d', color: '#E65100', label: t('th2Desired'), dashed: true },
         ]}
         xKey="t"
         xLabel="ms"
@@ -126,7 +128,7 @@ export function TrajectoryTab({ runs }: Props) {
 
       {/* Joint errors */}
       <ChartCard
-        title="Joint Position Error — e₁ & e₂ (rad)"
+        title={t('jointErrorTitle')}
         datasets={errDatasets}
         series={[
           { dataKey: 'e1', color: '#2196F3', label: 'e₁ = θ₁d − θ₁' },
@@ -142,9 +144,10 @@ export function TrajectoryTab({ runs }: Props) {
 }
 
 function Empty() {
+  const t = useTranslations('DashboardTrajectoryTab')
   return (
     <div className="p-8 text-center text-xs text-hmi-muted">
-      Select one or more runs from the sidebar to view charts.
+      {t('selectRunsMessage')}
     </div>
   )
 }

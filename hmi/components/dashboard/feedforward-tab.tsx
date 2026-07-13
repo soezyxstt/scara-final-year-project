@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { ChartCard } from './chart-card'
 import type { Sample, TrajectoryPoint } from '@/lib/db/schema'
+import { useTranslations } from 'next-intl'
 
 interface RunData {
   runId: string
@@ -15,6 +16,7 @@ interface RunData {
 interface Props { runs: RunData[] }
 
 export function FeedforwardTab({ runs }: Props) {
+  const t = useTranslations('DashboardFeedforwardTab')
   // J1 feedforward torque components
   const j1FfDatasets = useMemo(() =>
     runs.map(r => {
@@ -76,12 +78,12 @@ export function FeedforwardTab({ runs }: Props) {
       }
     }), [runs])
 
-  if (runs.length === 0) return <Empty />
+  if (runs.length === 0) return <Empty msg={t('selectRunsMessage')} />
 
   return (
     <div className="flex flex-col gap-4 p-4">
       <ChartCard
-        title="J1 CTC Feedforward — Inertia, Coriolis, Gravity"
+        title={t('j1CtcTitle')}
         datasets={j1FfDatasets}
         series={[
           { dataKey: 'inertia1', color: '#2196F3', label: 'Inertia₁' },
@@ -93,7 +95,7 @@ export function FeedforwardTab({ runs }: Props) {
       />
 
       <ChartCard
-        title="J2 CTC Feedforward — Inertia, Coriolis, Gravity"
+        title={t('j2CtcTitle')}
         datasets={j2FfDatasets}
         series={[
           { dataKey: 'inertia2', color: '#9C27B0', label: 'Inertia₂' },
@@ -104,7 +106,7 @@ export function FeedforwardTab({ runs }: Props) {
       />
 
       <ChartCard
-        title="FF vs PID Contribution (J1)"
+        title={t('ffVsPidTitle')}
         datasets={contribDatasets}
         series={[
           { dataKey: 'ff1Contrib', color: '#2196F3', label: 'FF₁ contrib' },
@@ -115,7 +117,7 @@ export function FeedforwardTab({ runs }: Props) {
       />
 
       <ChartCard
-        title="Integrator State & ω₂ Raw"
+        title={t('integratorStateTitle')}
         datasets={integralDatasets}
         series={[
           { dataKey: 'integral1', color: '#2196F3', label: 'Integral₁' },
@@ -128,6 +130,6 @@ export function FeedforwardTab({ runs }: Props) {
   )
 }
 
-function Empty() {
-  return <div className="p-8 text-center text-xs text-hmi-muted">Select one or more runs from the sidebar.</div>
+function Empty({ msg }: { msg: string }) {
+  return <div className="p-8 text-center text-xs text-hmi-muted">{msg}</div>
 }

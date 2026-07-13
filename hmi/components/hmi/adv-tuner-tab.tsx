@@ -9,28 +9,30 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { Sliders, RefreshCw, Activity, ArrowRight, Play, Square } from 'lucide-react'
 import { usePathname } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 
 // --- Status Indicator LED ---
 function StatusLED({ status }: { status: 'clean' | 'dirty' | 'waiting' | 'timeout' }) {
+  const t = useTranslations('ControlPanel')
   let ledClass = ''
   let statusTooltipText = ''
 
   switch (status) {
     case 'clean':
       ledClass = 'bg-emerald-500 shadow-[0_0_6px_#10B981]'
-      statusTooltipText = 'Synced with hardware'
+      statusTooltipText = t('statusSynced')
       break
     case 'dirty':
       ledClass = 'bg-amber-500 shadow-[0_0_6px_#F59E0B]'
-      statusTooltipText = 'Modified: unsaved changes'
+      statusTooltipText = t('statusModified')
       break
     case 'waiting':
       ledClass = 'bg-blue-500 animate-pulse shadow-[0_0_6px_#3B82F6]'
-      statusTooltipText = 'Applying changes to hardware...'
+      statusTooltipText = t('statusApplying')
       break
     case 'timeout':
       ledClass = 'bg-red-500 shadow-[0_0_6px_#EF4444]'
-      statusTooltipText = 'No response / Timeout'
+      statusTooltipText = t('statusTimeout')
       break
   }
 
@@ -65,6 +67,7 @@ function ParamField({
   onSend: (cmd: string, val: string) => Promise<void>
   disabled?: boolean
 }) {
+  const t = useTranslations('Common')
   const [localValue, setLocalValue] = useState('')
   const [isFocused, setIsFocused] = useState(false)
   const [status, setStatus] = useState<'clean' | 'dirty' | 'waiting' | 'timeout'>('clean')
@@ -234,7 +237,7 @@ function ParamField({
               : "bg-hmi-btn text-hmi-text-secondary hover:bg-hmi-btn-hover"
           )}
         >
-          Apply
+          {t('apply')}
         </Button>
       </div>
     </form>
@@ -254,6 +257,7 @@ function ToggleField({
   onToggle: () => Promise<void>
   disabled?: boolean
 }) {
+  const t = useTranslations('Common')
   const [isPending, setIsPending] = useState(false)
 
   const handleToggle = async () => {
@@ -295,7 +299,7 @@ function ToggleField({
               : "bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-semibold"
           )}
         >
-          {isPending ? '...' : value ? 'Disable' : 'Enable'}
+          {isPending ? '...' : value ? t('disable') : t('enable')}
         </Button>
       </div>
     </div>
@@ -304,6 +308,7 @@ function ToggleField({
 
 // --- Main Advanced Tuner Tab ---
 export function AdvTunerTab() {
+  const t = useTranslations('AdvTuner')
   const { state, serial } = useHMISlow()
   const { params, queueStatus, serialStatus } = state
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -344,15 +349,15 @@ export function AdvTunerTab() {
         <div className="flex items-center gap-3">
           <Sliders className="h-5 w-5 text-hmi-ideal" />
           <div>
-            <h2 className="text-sm font-bold text-hmi-text">Advanced Controller Parameters</h2>
-            <p className="text-xs text-hmi-muted">Tune trajectory kinematics limits, deadbands, alphas, and hold modes directly on the ESP32.</p>
+            <h2 className="text-sm font-bold text-hmi-text">{t('title')}</h2>
+            <p className="text-xs text-hmi-muted">{t('subtitle')}</p>
           </div>
         </div>
         
         <div className="flex items-center gap-3">
           {serialStatus !== 'connected' && (
             <span className="text-xs text-amber-500 font-medium bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg">
-              ⚠ Disconnected: Connect serial port to sync and tune parameters.
+              {t('disconnected')}
             </span>
           )}
           <Button
@@ -363,7 +368,7 @@ export function AdvTunerTab() {
             className="gap-2 bg-hmi-btn border-hmi-grid text-hmi-text h-9 font-semibold hover:bg-hmi-btn-hover"
           >
             <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
-            {isRefreshing ? 'Syncing...' : 'Sync Parameters'}
+            {isRefreshing ? t('syncing') : t('syncParameters')}
           </Button>
         </div>
       </div>
@@ -373,7 +378,7 @@ export function AdvTunerTab() {
         <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 px-4 py-3 rounded-lg text-amber-400 text-xs">
           <span className="text-sm">⚠️</span>
           <div>
-            <span className="font-bold">Displaying offline defaults.</span> Parameters are not yet synchronized with the hardware. Connect serial and click Sync to fetch current parameters.
+            {t('offlineWarning')}
           </div>
         </div>
       )}
@@ -386,15 +391,15 @@ export function AdvTunerTab() {
             <CardHeader className="border-b border-hmi-grid/35 py-3">
               <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-hmi-ideal shrink-0" />
-                Motion limits
+                {t('motionLimits')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 flex flex-col gap-3">
               <ParamField
-                label="Cartesian Max Vel (vmax)"
+                label={t('vmaxLabel')}
                 name="vmax"
                 hwValue={currentParams.vmax}
-                tooltip="Maximum Cartesian line velocity in m/s (clamped in trajectory planner)."
+                tooltip={t('vmaxTooltip')}
                 cmd="vmax"
                 min={0}
                 step={0.001}
@@ -402,10 +407,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="Cartesian Max Accel (amax)"
+                label={t('amaxLabel')}
                 name="amax"
                 hwValue={currentParams.amax}
-                tooltip="Maximum Cartesian acceleration in m/s²."
+                tooltip={t('amaxTooltip')}
                 cmd="amax"
                 min={0}
                 step={0.001}
@@ -413,10 +418,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="Joint Acceleration limit"
+                label={t('ddthLabel')}
                 name="ddth"
                 hwValue={currentParams.ddth}
-                tooltip="Maximum clamping limit for joint acceleration in rad/s² for system safety."
+                tooltip={t('ddthTooltip')}
                 cmd="ddth"
                 min={0}
                 step={0.001}
@@ -430,15 +435,15 @@ export function AdvTunerTab() {
             <CardHeader className="border-b border-hmi-grid/35 py-3">
               <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-purple-500 shrink-0" />
-                Control Loop Settings
+                {t('controlLoop')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 flex flex-col gap-3">
               <ParamField
-                label="Control Loop Freq (cfreq)"
+                label={t('cfreqLabel')}
                 name="cfreq"
                 hwValue={currentParams.cfreq}
-                tooltip="Execution frequency of the controller loop on ESP32 in Hz."
+                tooltip={t('cfreqTooltip')}
                 cmd="cfreq"
                 min={1}
                 step={1}
@@ -446,10 +451,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="J1 Integrator Decay"
+                label={t('idecayLabel')}
                 name="idecay"
                 hwValue={currentParams.idecay}
-                tooltip="Decay coefficient (0.0 to 1.0) applied to the Joint 1 integrator term to prevent integral windup."
+                tooltip={t('idecayTooltip')}
                 cmd="idecay"
                 min={0}
                 max={1}
@@ -458,10 +463,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="J1 Output Limit (u1max)"
+                label={t('u1maxLabel')}
                 name="u1max"
                 hwValue={currentParams.u1max}
-                tooltip="Maximum clamped output value for Joint 1 controller output torque (PWM / Saturation Limit)."
+                tooltip={t('u1maxTooltip')}
                 cmd="u1max"
                 min={0}
                 step={0.001}
@@ -469,10 +474,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="KV Velocity FF (kv1)"
+                label={t('kv1Label')}
                 name="kv1"
                 hwValue={currentParams.kvVel}
-                tooltip="Velocity feedforward gain (fraction per rad/s). Applies vff = kv1 * desired_velocity (dTheta1_d)."
+                tooltip={t('kv1Tooltip')}
                 cmd="kv1"
                 min={-1}
                 max={1}
@@ -481,10 +486,10 @@ export function AdvTunerTab() {
                 disabled={!isTestPage || serialStatus !== 'connected'}
               />
               <ParamField
-                label="VFF Max Fraction (vffmax)"
+                label={t('vffmaxLabel')}
                 name="vffmax"
                 hwValue={currentParams.vffMaxFrac}
-                tooltip="Maximum absolute fraction for velocity feedforward (fraction of U1_MAX)."
+                tooltip={t('vffmaxTooltip')}
                 cmd="vffmax"
                 min={0}
                 max={1}
@@ -493,10 +498,10 @@ export function AdvTunerTab() {
                 disabled={!isTestPage || serialStatus !== 'connected'}
               />
               <ParamField
-                label="VFF Delta Max (vffdv)"
+                label={t('vffdvLabel')}
                 name="vffdv"
                 hwValue={currentParams.vffDvMax}
-                tooltip="Maximum per-tick change for vff (fraction of U1_MAX)."
+                tooltip={t('vffdvTooltip')}
                 cmd="vffdv"
                 min={0}
                 max={1}
@@ -505,10 +510,10 @@ export function AdvTunerTab() {
                 disabled={!isTestPage || serialStatus !== 'connected'}
               />
               <ParamField
-                label="J1 Nominal FF Torque"
+                label={t('taunomLabel')}
                 name="taunom"
                 hwValue={currentParams.taunom}
-                tooltip="Normalization parameter for feedforward scaling on Joint 1 Computed Torque Control."
+                tooltip={t('taunomTooltip')}
                 cmd="taunom"
                 min={0}
                 step={0.001}
@@ -516,10 +521,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="J2 Nominal FF Inertia"
+                label={t('m22refLabel')}
                 name="m22ref"
                 hwValue={currentParams.m22ref}
-                tooltip="Normalization parameter for inertia feedforward scaling on Joint 2 Computed Torque Control."
+                tooltip={t('m22refTooltip')}
                 cmd="m22ref"
                 min={0}
                 step={0.001}
@@ -536,18 +541,18 @@ export function AdvTunerTab() {
             <CardHeader className="border-b border-hmi-grid/35 py-3">
               <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0" />
-                Tracking Differentiator (TD)
+                {t('tdTitle')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 flex flex-col gap-3">
               <div className="text-[10px] text-hmi-muted px-1.5 py-1 bg-hmi-bg/40 border border-hmi-grid/20 rounded font-sans leading-relaxed">
-                TD replaces the IIR filter. <strong>r</strong> = bandwidth (rad/s) — larger is more responsive but noisier. <strong>h</strong> = step size = 3×DT (read-only, determined by firmware).
+                {t.rich('tdDesc', { strong: (chunks) => <strong>{chunks}</strong> })}
               </div>
               <ParamField
-                label="TD1 Bandwidth (r) — Joint 1"
+                label={t('td1rLabel')}
                 name="td1r"
                 hwValue={currentParams.td1r}
-                tooltip="Bandwidth parameter r for Joint 1 Tracking Differentiator (rad/s). Larger = more responsive, smaller = smoother."
+                tooltip={t('td1rTooltip')}
                 cmd="td1r"
                 min={0}
                 step={1}
@@ -555,10 +560,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="TD2 Bandwidth (r) — Joint 2"
+                label={t('td2rLabel')}
                 name="td2r"
                 hwValue={currentParams.td2r}
-                tooltip="Bandwidth parameter r for Joint 2 Tracking Differentiator (rad/s)."
+                tooltip={t('td2rTooltip')}
                 cmd="td2r"
                 min={0}
                 step={1}
@@ -568,9 +573,9 @@ export function AdvTunerTab() {
               {/* TD1_H is read-only: h = 3×DT, set by firmware based on cfreq */}
               <div className="flex items-center justify-between gap-3 p-2 bg-hmi-panel/30 rounded-lg border border-hmi-grid/20">
                 <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                  <Tooltip content="Step size h = 3×DT. Read-only — automatically calculated by firmware based on loop frequency (cfreq). Cannot be modified directly.">
+                  <Tooltip content={t('tdStepTooltip')}>
                     <label className="text-xs font-semibold text-hmi-muted/60 truncate cursor-help border-b border-dotted border-hmi-muted/20 w-fit">
-                      TD Step Size (h) — read-only
+                      {t('tdStepLabel')}
                     </label>
                   </Tooltip>
                   <span className="text-[10px] text-hmi-muted font-mono select-none">h = 3 × (1/cfreq)</span>
@@ -587,15 +592,15 @@ export function AdvTunerTab() {
             <CardHeader className="border-b border-hmi-grid/35 py-3">
               <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-hmi-actual shrink-0" />
-                PWM Deadband Compensation
+                {t('pwmTitle')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 flex flex-col gap-3">
               <ParamField
-                label="PWM Deadband Offset (db)"
+                label={t('pwmDbLabel')}
                 name="pwm_db"
                 hwValue={currentParams.pwmDb}
-                tooltip="Friction deadband threshold (PWM units 0-254) below which motor won't rotate."
+                tooltip={t('pwmDbTooltip')}
                 cmd="db"
                 min={0}
                 max={254}
@@ -604,10 +609,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="Error Deadzone (errdz)"
+                label={t('errdzLabel')}
                 name="errdz"
                 hwValue={currentParams.errDz}
-                tooltip="Error below this threshold (rad) is treated as zero — prevents pot noise from feeding the integrator and triggering micro-corrections the motor cannot execute through the deadband."
+                tooltip={t('errdzTooltip')}
                 cmd="errdz"
                 min={0.001}
                 max={0.05}
@@ -616,10 +621,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="Integrator Freeze Threshold (ifreeze)"
+                label={t('ifreezeLabel')}
                 name="ifreeze"
                 hwValue={currentParams.integralFreezeThresh}
-                tooltip="When |e1| is below this (rad) and motor is active, the integrator decays instead of accumulating. Prevents I-term from winding up through the deadband on its own and triggering a kick → overshoot → jitter cycle near setpoint."
+                tooltip={t('ifreezeTooltip')}
                 cmd="ifreeze"
                 min={0.001}
                 max={0.1}
@@ -628,10 +633,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="Frac Zero Threshold (fzt)"
+                label={t('fztLabel')}
                 name="fzt"
                 hwValue={currentParams.fzt}
-                tooltip="Fractional zero threshold: control effort below this fraction of U1_MAX is treated as zero → PWM output = 0. Prevents motor chatter from noise-floor signals."
+                tooltip={t('fztTooltip')}
                 cmd="fzt"
                 min={0}
                 max={0.5}
@@ -640,10 +645,10 @@ export function AdvTunerTab() {
                 disabled={!isTestPage || serialStatus !== 'connected'}
               />
               <ParamField
-                label="Frac Kickstart (pct of fzt)"
+                label={t('fztkLabel')}
                 name="fztk"
                 hwValue={currentParams.fztKickPct}
-                tooltip="Kickstart fractional threshold expressed as a fraction of `fzt` (e.g., 0.10 = 10%). Applied while trajectory acceleration if enabled."
+                tooltip={t('fztkTooltip')}
                 cmd="fztk"
                 min={0.01}
                 max={1}
@@ -652,25 +657,25 @@ export function AdvTunerTab() {
                 disabled={!isTestPage || serialStatus !== 'connected'}
               />
               <ToggleField
-                label="Enable Kickstart Reduction (kspen)"
+                label={t('kspenLabel')}
                 value={currentParams.kickstartEnabled ?? false}
-                tooltip="Toggle reduced fractional threshold during trajectory acceleration."
+                tooltip={t('kspenTooltip')}
                 onToggle={async () => { await handleSendParam('kspen', currentParams.kickstartEnabled ? '0' : '1') }}
                 disabled={!isTestPage || serialStatus !== 'connected'}
               />
 
               <ToggleField
-                label="Enable DB Moving Scale (dbmen)"
+                label={t('dbmenLabel')}
                 value={currentParams.dbMovingEnabled ?? false}
-                tooltip="When enabled, PWM deadband amplitude is scaled while moving (dbEngageScale)."
+                tooltip={t('dbmenTooltip')}
                 onToggle={async () => { await handleSendParam('dbmen', currentParams.dbMovingEnabled ? '0' : '1') }}
                 disabled={!isTestPage || serialStatus !== 'connected'}
               />
               <ParamField
-                label="Deadband Engage Scale (dbens)"
+                label={t('dbensLabel')}
                 name="dbens"
                 hwValue={currentParams.dbEngageScale}
-                tooltip="Scale applied to the computed PWM deadband during movement (0.1 - 1.0)."
+                tooltip={t('dbensTooltip')}
                 cmd="dbens"
                 min={0.1}
                 max={1}
@@ -688,15 +693,15 @@ export function AdvTunerTab() {
             <CardHeader className="border-b border-hmi-grid/35 py-3">
               <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-                J1 Hold Mode Constants
+                {t('j1HoldTitle')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 flex flex-col gap-3">
               <ParamField
-                label="Entry Limit (dben)"
+                label={t('dbenLabel')}
                 name="dben"
                 hwValue={currentParams.dben}
-                tooltip="Position error threshold (radians) below which Joint 1 enters Hold Mode."
+                tooltip={t('dbenTooltip')}
                 cmd="dben"
                 min={0}
                 step={0.001}
@@ -704,10 +709,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="Release Limit (dbrel)"
+                label={t('dbrelLabel')}
                 name="dbrel"
                 hwValue={currentParams.dbrel}
-                tooltip="Position error threshold (radians) above which Joint 1 exits/releases Hold Mode."
+                tooltip={t('dbrelTooltip')}
                 cmd="dbrel"
                 min={0}
                 step={0.001}
@@ -715,10 +720,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="Velocity Limit (dbvel)"
+                label={t('dbvelLabel')}
                 name="dbvel"
                 hwValue={currentParams.dbvel}
-                tooltip="Joint velocity threshold (rad/s) below which Joint 1 enters Hold Mode."
+                tooltip={t('dbvelTooltip')}
                 cmd="dbvel"
                 min={0}
                 step={0.001}
@@ -726,10 +731,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="Hold Mode Kp Scale"
+                label={t('hskpLabel')}
                 name="hskp"
                 hwValue={currentParams.hskp}
-                tooltip="Proportional gain (Kp) multiplier scaling factor applied in Hold Mode."
+                tooltip={t('hskpTooltip')}
                 cmd="hskp"
                 min={0}
                 step={0.001}
@@ -737,10 +742,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="Hold Mode Kd Scale"
+                label={t('hskdLabel')}
                 name="hskd"
                 hwValue={currentParams.hskd}
-                tooltip="Derivative gain (Kd) multiplier scaling factor applied in Hold Mode."
+                tooltip={t('hskdTooltip')}
                 cmd="hskd"
                 min={0}
                 step={0.001}
@@ -754,15 +759,15 @@ export function AdvTunerTab() {
             <CardHeader className="border-b border-hmi-grid/35 py-3">
               <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                J2 Hold Mode Constants
+                {t('j2HoldTitle')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 flex flex-col gap-3">
               <ParamField
-                label="Entry Limit (db2en)"
+                label={t('db2enLabel')}
                 name="db2en"
                 hwValue={currentParams.db2en}
-                tooltip="Position error threshold (radians) below which Joint 2 stepper enters Hold Mode (disables pulses)."
+                tooltip={t('db2enTooltip')}
                 cmd="db2en"
                 min={0}
                 step={0.001}
@@ -770,10 +775,10 @@ export function AdvTunerTab() {
                 disabled={serialStatus !== 'connected'}
               />
               <ParamField
-                label="Release Limit (db2rel)"
+                label={t('db2relLabel')}
                 name="db2rel"
                 hwValue={currentParams.db2rel}
-                tooltip="Position error threshold (radians) above which Joint 2 stepper exits Hold Mode (reactivates control)."
+                tooltip={t('db2relTooltip')}
                 cmd="db2rel"
                 min={0}
                 step={0.001}
@@ -788,21 +793,21 @@ export function AdvTunerTab() {
             <CardHeader className="border-b border-hmi-grid/35 py-3">
               <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <Activity className="h-3.5 w-3.5 text-hmi-start animate-pulse" />
-                Trajectory Queue Status
+                {t('queueTitle')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 flex flex-col gap-4 font-sans">
               
               {/* Status Badge */}
               <div className="flex items-center justify-between border-b border-hmi-grid/40 pb-3">
-                <span className="text-xs text-hmi-text-secondary font-semibold">Active State:</span>
+                <span className="text-xs text-hmi-text-secondary font-semibold">{t('activeState')}</span>
                 {queueStatus?.pendingStatus === 1 ? (
                   <span className="text-xs font-bold text-hmi-start bg-hmi-start/10 border border-hmi-start/20 px-2 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
-                    <Play className="h-2.5 w-2.5 fill-current" /> Move Queued
+                    <Play className="h-2.5 w-2.5 fill-current" /> {t('moveQueued')}
                   </span>
                 ) : (
                   <span className="text-xs font-bold text-hmi-muted bg-hmi-btn border border-hmi-grid px-2 py-0.5 rounded-full flex items-center gap-1.5">
-                    <Square className="h-2 w-2 fill-current" /> Empty / Ready
+                    <Square className="h-2 w-2 fill-current" /> {t('emptyReady')}
                   </span>
                 )}
               </div>
@@ -810,13 +815,13 @@ export function AdvTunerTab() {
               {/* Queue coordinates */}
               <div className="grid grid-cols-2 gap-3 font-mono text-xs">
                 <div className="p-3 bg-hmi-panel/50 rounded border border-hmi-grid/25 text-center">
-                  <span className="text-[10px] text-hmi-muted font-sans block mb-1">Pending Target X</span>
+                  <span className="text-[10px] text-hmi-muted font-sans block mb-1">{t('pendingTargetX')}</span>
                   <span className="text-hmi-text text-sm font-semibold">
                     {queueStatus?.pendingStatus === 1 ? `${queueStatus.pendingX.toFixed(1)} mm` : '--'}
                   </span>
                 </div>
                 <div className="p-3 bg-hmi-panel/50 rounded border border-hmi-grid/25 text-center">
-                  <span className="text-[10px] text-hmi-muted font-sans block mb-1">Pending Target Y</span>
+                  <span className="text-[10px] text-hmi-muted font-sans block mb-1">{t('pendingTargetY')}</span>
                   <span className="text-hmi-text text-sm font-semibold">
                     {queueStatus?.pendingStatus === 1 ? `${queueStatus.pendingY.toFixed(1)} mm` : '--'}
                   </span>
@@ -825,7 +830,7 @@ export function AdvTunerTab() {
 
               {queueStatus?.pendingStatus === 1 && (
                 <div className="flex justify-center items-center gap-1 text-[11px] text-hmi-muted bg-hmi-bg/45 p-2 rounded border border-hmi-grid/10">
-                  Next trajectory starts automatically once current settles.
+                  {t('queueNote')}
                 </div>
               )}
             </CardContent>
@@ -836,47 +841,46 @@ export function AdvTunerTab() {
             <CardHeader className="border-b border-hmi-grid/35 py-3">
               <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
-                TEST Mode Parameters
+                {t('testParams')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 flex flex-col gap-3">
               <ParamField
-                label="Alpha Tilt Angle (atilt)"
+                label={t('atiltLabel')}
                 name="alpha_tilt"
                 hwValue={currentParams.alphaTiltDeg}
-                tooltip="Tilt angle in degrees."
+                tooltip={t('atiltTooltip')}
                 cmd="atilt"
                 step={0.001}
                 onSend={handleSendParam}
                 disabled={!isTestPage || serialStatus !== 'connected'}
               />
               <ToggleField
-                label="TD Filter (tden)"
+                label={t('tdenLabel')}
                 value={currentParams.tdEnabled}
-                tooltip="Toggle Tracking Differentiator filter execution."
+                tooltip={t('tdenTooltip')}
                 onToggle={async () => {
                   await handleSendParam('tden', currentParams.tdEnabled ? '0' : '1')
                 }}
                 disabled={!isTestPage || serialStatus !== 'connected'}
               />
               <ToggleField
-                label="Trapezoid Profile (trapen)"
+                label={t('trapenLabel')}
                 value={currentParams.trapEnabled}
-                tooltip="Toggle Trapezoid trajectory velocity profiling."
+                tooltip={t('trapenTooltip')}
                 onToggle={async () => {
                   await handleSendParam('trapen', currentParams.trapEnabled ? '0' : '1')
                 }}
                 disabled={!isTestPage || serialStatus !== 'connected'}
               />
               <ParamField
-                label="Ki2 Gate Rad (ki2g)"
+                label={t('ki2gLabel')}
                 name="ki2_gate"
                 hwValue={currentParams.ki2GateRad}
-                tooltip="Activation gate for Joint 2 integral action (radians)."
+                tooltip={t('ki2gTooltip')}
                 cmd="ki2g"
                 step={0.001}
                 onSend={handleSendParam}
-                disabled={!isTestPage || serialStatus !== 'connected'}
               />
             </CardContent>
           </Card>

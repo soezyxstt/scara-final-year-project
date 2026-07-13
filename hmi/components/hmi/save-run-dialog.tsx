@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function SaveRunDialog({ open, onConfirm, onCancel }: Props) {
+  const t = useTranslations('SaveRunDialog')
   const [name, setName] = useState(getDefaultName())
 
   // Refresh default name each time dialog opens
@@ -51,15 +53,15 @@ export function SaveRunDialog({ open, onConfirm, onCancel }: Props) {
           )}
         >
           <Dialog.Title className="text-sm font-bold text-hmi-text mb-1">
-            Run &amp; Save to Database
+            {t('title')}
           </Dialog.Title>
           <Dialog.Description className="text-xs text-hmi-muted mb-4">
-            Enter a name for this run. It will be saved after the move completes.
+            {t('desc')}
           </Dialog.Description>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-hmi-muted">Run name</label>
+              <label className="text-[11px] font-semibold text-hmi-muted">{t('label')}</label>
               <Input
                 value={name}
                 onChange={e => setName(e.target.value)}
@@ -68,7 +70,7 @@ export function SaveRunDialog({ open, onConfirm, onCancel }: Props) {
                 autoFocus
               />
               {!name.trim() && (
-                <p className="text-[11px] text-red-400">Name cannot be empty</p>
+                <p className="text-[11px] text-red-400">{t('errorEmpty')}</p>
               )}
             </div>
 
@@ -80,7 +82,7 @@ export function SaveRunDialog({ open, onConfirm, onCancel }: Props) {
                 onClick={onCancel}
                 className="text-xs h-7"
               >
-                Cancel
+                {t('cancel')}
               </Button>
               <Button
                 type="submit"
@@ -88,7 +90,7 @@ export function SaveRunDialog({ open, onConfirm, onCancel }: Props) {
                 disabled={!name.trim()}
                 className="text-xs h-7 bg-hmi-ideal hover:bg-hmi-ideal-dark text-white border-0"
               >
-                Start Run
+                {t('start')}
               </Button>
             </div>
           </form>

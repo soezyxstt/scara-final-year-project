@@ -4,6 +4,7 @@ import React, { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { useHMI } from '@/lib/hmi-context'
+import { useTranslations } from 'next-intl'
 import {
   Sheet,
   SheetContent,
@@ -50,6 +51,7 @@ import {
   type HMIHotkeyAction,
 } from '@/lib/keybindings-store'
 export function CaptureMenu() {
+  const t = useTranslations('CaptureMenu')
   const { state } = useHMI()
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -137,19 +139,19 @@ export function CaptureMenu() {
       saveKeybindings(updated)
       setRebindingAction(null)
 
-      const boundLabel = keybindings.find(b => b.action === targetAction)?.label ?? 'Action'
-      setSuccessMsg(`Rebound "${boundLabel}" to "${targetKey === ' ' ? 'Space' : targetKey}"`)
+      const transLabel = t(`keybindings.${targetAction}`)
+      setSuccessMsg(t('reboundSuccess', { label: transLabel, key: targetKey === ' ' ? t('spaceKey') : targetKey }))
       setTimeout(() => setSuccessMsg(null), 1500)
     }
 
     window.addEventListener('keydown', handleRebindKeyDown, true)
     return () => window.removeEventListener('keydown', handleRebindKeyDown, true)
-  }, [rebindingAction, keybindings])
+  }, [rebindingAction, keybindings, t])
 
   const handleResetKeybindings = () => {
     const defaults = resetKeybindings()
     setKeybindings(defaults)
-    setSuccessMsg('Keybindings reset to defaults')
+    setSuccessMsg(t('keybindingsReset'))
     setTimeout(() => setSuccessMsg(null), 1500)
   }
 
@@ -160,7 +162,7 @@ export function CaptureMenu() {
     localStorage.setItem('hmi_angular_unit', unit)
     window.dispatchEvent(new Event('hmi_config_updated'))
     
-    setSuccessMsg(`Charts switched to ${unit === 'degrees' ? 'Degrees' : 'Radians'}`)
+    setSuccessMsg(t('unitSwitched', { unit: unit === 'degrees' ? t('degrees') : t('radians') }))
     setTimeout(() => setSuccessMsg(null), 1500)
   }
 
@@ -194,14 +196,14 @@ export function CaptureMenu() {
   // Capture single graph
   const handleCaptureSingle = async (type: string, name: string) => {
     try {
-      setExportState(`Capturing ${name}...`)
+      setExportState(t('capturingSingle', { name }))
       await downloadSingleGraph(type, name, state)
       setExportState(null)
-      setSuccessMsg('Download initiated!')
+      setSuccessMsg(t('downloadInitiated'))
       setTimeout(() => setSuccessMsg(null), 1500)
     } catch (err: any) {
       console.error(err)
-      alert(`Export failed: ${err.message || err}`)
+      alert(t('exportFailed', { message: err.message || err }))
       setExportState(null)
     }
   }
@@ -219,11 +221,11 @@ export function CaptureMenu() {
     try {
       await downloadAllGraphs(state, includeCSV, (msg) => setExportState(msg), customName)
       setExportState(null)
-      setSuccessMsg('Zip download initiated!')
+      setSuccessMsg(t('zipInitiated'))
       setTimeout(() => setSuccessMsg(null), 1500)
     } catch (err: any) {
       console.error(err)
-      alert(`Zip packaging failed: ${err.message || err}`)
+      alert(t('zipFailed', { message: err.message || err }))
       setExportState(null)
     }
   }
@@ -237,7 +239,7 @@ export function CaptureMenu() {
           variant="outline"
           size="sm"
           className="h-8 w-8 p-0 border-hmi-grid bg-hmi-btn hover:bg-hmi-btn-hover text-hmi-text-secondary hover:text-hmi-text flex items-center justify-center"
-          title="Menu"
+          title={t('hmiControlPanel')}
         >
           <Menu className="h-4 w-4" />
         </Button>
@@ -247,10 +249,10 @@ export function CaptureMenu() {
         <SheetHeader>
           <SheetTitle className="text-xl font-bold tracking-tight text-hmi-text flex items-center gap-2">
             <span className="w-1.5 h-5 rounded-full bg-hmi-ideal" />
-            HMI Control Panel
+            {t('hmiControlPanel')}
           </SheetTitle>
           <SheetDescription className="text-hmi-text-secondary">
-            Configure angular units, manage workspace overlays, and customize diagnostic exporters.
+            {t('panelDesc')}
           </SheetDescription>
         </SheetHeader>
 
@@ -281,11 +283,11 @@ export function CaptureMenu() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary uppercase tracking-wider">
               <Compass className="h-4 w-4 text-indigo-400" />
-              Help & Onboarding
+              {t('helpOnboarding')}
             </div>
             <div className="bg-hmi-elevated/40 border border-hmi-grid p-3.5 rounded-lg flex flex-col gap-2">
               <p className="text-[10px] text-hmi-text-secondary leading-normal">
-                Need help navigating the SCARA workspace? Replay the step-by-step interactive onboarding tour.
+                {t('helpOnboardingDesc')}
               </p>
               <Button
                 variant="outline"
@@ -299,7 +301,7 @@ export function CaptureMenu() {
                 }}
                 className="w-full h-8 text-xs font-semibold border-indigo-500/30 text-indigo-300 hover:text-white hover:bg-indigo-500/15 transition-all mt-1"
               >
-                Start Onboarding Tour
+                {t('startOnboarding')}
               </Button>
             </div>
           </div>
@@ -308,13 +310,13 @@ export function CaptureMenu() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary uppercase tracking-wider">
               <SlidersHorizontal className="h-4 w-4 text-hmi-muted" />
-              Dashboard Preferences
+              {t('dashboardPreferences')}
             </div>
 
             <div className="bg-hmi-elevated/40 border border-hmi-grid p-3.5 rounded-lg flex flex-col gap-4">
               {/* Radians vs Degrees Toggle */}
               <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wider">Angular Display Units</span>
+                <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wider">{t('angularDisplayUnits')}</span>
                 <div className="grid grid-cols-2 gap-1.5 bg-hmi-bg p-1 rounded-md border border-hmi-grid">
                   <button
                     onClick={() => handleUnitToggle('radians')}
@@ -325,7 +327,7 @@ export function CaptureMenu() {
                         : "text-hmi-muted hover:text-hmi-text"
                     )}
                   >
-                    Radians (rad)
+                    {t('radiansUnit')}
                   </button>
                   <button
                     onClick={() => handleUnitToggle('degrees')}
@@ -336,18 +338,18 @@ export function CaptureMenu() {
                         : "text-hmi-muted hover:text-hmi-text"
                     )}
                   >
-                    Degrees (°)
+                    {t('degreesUnit')}
                   </button>
                 </div>
                 <span className="text-[9px] text-hmi-muted leading-normal">
-                  Sets the angular position and velocity unit mappings across both Chart dashboards.
+                  {t('unitDesc')}
                 </span>
               </div>
 
               {/* Ghost Trail Opacity Slider */}
               <div className="flex flex-col gap-1.5 border-t border-hmi-grid pt-3">
                 <div className="flex items-center justify-between text-xs text-hmi-text font-medium">
-                  <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wider">Ghost Trail Opacity</span>
+                  <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wider">{t('ghostTrailOpacity')}</span>
                   <span className="font-mono text-hmi-ideal font-semibold">{ghostOpacity}%</span>
                 </div>
                 <input
@@ -360,7 +362,7 @@ export function CaptureMenu() {
                   className="w-full h-1.5 bg-hmi-bg rounded-lg appearance-none cursor-pointer accent-hmi-ideal border border-hmi-grid"
                 />
                 <span className="text-[9px] text-hmi-muted leading-normal">
-                  Adjusts the canvas transparency for previous run trajectory overlays.
+                  {t('ghostDesc')}
                 </span>
               </div>
             </div>
@@ -370,14 +372,14 @@ export function CaptureMenu() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary uppercase tracking-wider">
               <FolderArchive className="h-4 w-4 text-hmi-text-secondary" />
-              Diagnostics & Captures
+              {t('diagnosticsCaptures')}
             </div>
 
             {!hasData && (
               <div className="bg-hmi-elevated/40 border border-hmi-grid p-4 rounded-lg flex gap-3 text-xs leading-relaxed text-hmi-muted">
                 <Info className="h-4 w-4 text-hmi-dimmed shrink-0 mt-0.5" />
                 <p>
-                  No trajectory data is loaded. Run a coordinate move command on the dashboard first to unlock diagnostics packaging.
+                  {t('noTrajectoryData')}
                 </p>
               </div>
             )}
@@ -389,41 +391,41 @@ export function CaptureMenu() {
                   <button className="w-full flex items-center justify-between p-3 text-sm font-semibold hover:bg-hmi-btn-hover/60 transition-colors text-hmi-text cursor-pointer">
                     <div className="flex items-center gap-2">
                       <ImageIcon className="h-4 w-4 text-hmi-ideal" />
-                      <span>Capture Specific Graph</span>
+                      <span>{t('captureSpecificGraph')}</span>
                     </div>
                     <ChevronDown className={cn("h-4 w-4 text-hmi-muted transition-transform duration-200", isGraphsOpen && "transform rotate-180")} />
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="border-t border-hmi-grid bg-hmi-bg/25 p-2 flex flex-col gap-1">
                   {[
-                    { id: 'xy', label: 'XY Workspace Trace' },
-                    { id: 'cte', label: 'CTE Cross-Track Error' },
-                    { id: 'ate', label: 'ATE Along-Track Error' },
-                    { id: 'eef', label: 'End-Effector Error Chart' },
-                    { id: 'eef-vel', label: 'End-Effector Velocity Chart' },
-                    { id: 'pwm', label: 'PWM Command Chart' },
-                    { id: 'pos', label: 'Joint Position Chart' },
-                    { id: 'vel', label: 'Joint Velocity Chart' },
-                    { id: 'phase', label: 'Phase Portrait' },
-                    { id: 'fft-eef', label: 'FFT: EEF Error' },
-                    { id: 'fft-th1', label: 'FFT: Joint 1' },
-                    { id: 'fft-th2', label: 'FFT: Joint 2' },
-                    { id: 'effort', label: 'Control Effort Proxy' },
-                    { id: 'ctc', label: 'CTC Feedforward Torques' },
-                    { id: 'internal', label: 'J1 Internal Control Signals' },
-                    { id: 'stepper', label: 'J2 Stepper Velocity Commands' },
-                    { id: 'pid-breakdown', label: 'J1 PID Control Effort Breakdown' },
-                    { id: 'loop', label: 'Microcontroller Loop Execution Time' },
-                    { id: 'params', label: 'System Parameters Report' },
-                    { id: 'metrics', label: 'Run Metrics Report' },
+                    { id: 'xy' },
+                    { id: 'cte' },
+                    { id: 'ate' },
+                    { id: 'eef' },
+                    { id: 'eef-vel' },
+                    { id: 'pwm' },
+                    { id: 'pos' },
+                    { id: 'vel' },
+                    { id: 'phase' },
+                    { id: 'fft-eef' },
+                    { id: 'fft-th1' },
+                    { id: 'fft-th2' },
+                    { id: 'effort' },
+                    { id: 'ctc' },
+                    { id: 'internal' },
+                    { id: 'stepper' },
+                    { id: 'pid-breakdown' },
+                    { id: 'loop' },
+                    { id: 'params' },
+                    { id: 'metrics' },
                   ].map((graph) => (
                     <button
                       key={graph.id}
-                      onClick={() => handleCaptureSingle(graph.id, graph.label)}
+                      onClick={() => handleCaptureSingle(graph.id, t(`graphs.${graph.id}`))}
                       disabled={exportState !== null}
                       className="w-full flex items-center justify-between text-left text-xs px-3 py-2 rounded hover:bg-hmi-btn-hover text-hmi-text-secondary hover:text-hmi-text transition-colors cursor-pointer"
                     >
-                      <span>{graph.label}</span>
+                      <span>{t(`graphs.${graph.id}`)}</span>
                       <Download className="h-3.5 w-3.5 opacity-60 hover:opacity-100" />
                     </button>
                   ))}
@@ -439,8 +441,8 @@ export function CaptureMenu() {
               >
                 <FolderArchive className="h-4.5 w-4.5 text-amber-500" />
                 <div className="text-left flex flex-col">
-                  <span className="text-xs leading-none">Capture All Graphs</span>
-                  <span className="text-[9px] text-hmi-muted font-normal">Bundles 20 images into ZIP archive</span>
+                  <span className="text-xs leading-none">{t('captureAllGraphs')}</span>
+                  <span className="text-[9px] text-hmi-muted font-normal">{t('captureAllDesc')}</span>
                 </div>
               </Button>
 
@@ -453,8 +455,8 @@ export function CaptureMenu() {
               >
                 <FileSpreadsheet className="h-4.5 w-4.5 text-emerald-500" />
                 <div className="text-left flex flex-col">
-                  <span className="text-xs leading-none">Capture All + Table CSV</span>
-                  <span className="text-[9px] text-hmi-muted font-normal">Bundles 20 images and raw spreadsheet CSV</span>
+                  <span className="text-xs leading-none">{t('captureAllCsv')}</span>
+                  <span className="text-[9px] text-hmi-muted font-normal">{t('captureAllCsvDesc')}</span>
                 </div>
               </Button>
             </div>
@@ -464,13 +466,13 @@ export function CaptureMenu() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary uppercase tracking-wider">
               <FileImage className="h-4 w-4 text-hmi-text-secondary" />
-              Exporter Preferences
+              {t('exporterPreferences')}
             </div>
 
             <div className="bg-hmi-elevated/40 border border-hmi-grid p-3.5 rounded-lg flex flex-col gap-3">
               {/* Image Export Format */}
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-hmi-muted uppercase tracking-wide">Image File Format</span>
+                <span className="text-[10px] font-bold text-hmi-muted uppercase tracking-wide">{t('imageFileFormat')}</span>
                 <div className="grid grid-cols-2 gap-1 bg-hmi-bg p-0.5 rounded border border-hmi-grid">
                   <button
                     onClick={() => handleFormatChange('image/png')}
@@ -481,7 +483,7 @@ export function CaptureMenu() {
                         : "text-hmi-muted hover:text-hmi-text-secondary"
                     )}
                   >
-                    PNG (Lossless)
+                    {t('pngLossless')}
                   </button>
                   <button
                     onClick={() => handleFormatChange('image/jpeg')}
@@ -492,19 +494,19 @@ export function CaptureMenu() {
                         : "text-hmi-muted hover:text-hmi-text-secondary"
                     )}
                   >
-                    JPEG (Compressed)
+                    {t('jpegCompressed')}
                   </button>
                 </div>
               </div>
 
               {/* Resolution Multiplier Scale */}
               <div className="flex flex-col gap-1 border-t border-hmi-grid pt-2.5">
-                <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wide">DPI Export Resolution</span>
+                <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wide">{t('dpiResolution')}</span>
                 <div className="grid grid-cols-3 gap-1 bg-hmi-bg p-0.5 rounded border border-hmi-grid">
                   {[
-                    { val: 1, label: '1x (Standard)' },
-                    { val: 2, label: '2x (Retina)' },
-                    { val: 3, label: '3x (Print DPI)' },
+                    { val: 1, label: t('dpiStandard') },
+                    { val: 2, label: t('dpiRetina') },
+                    { val: 3, label: t('dpiPrint') },
                   ].map((s) => (
                     <button
                       key={s.val}
@@ -524,7 +526,7 @@ export function CaptureMenu() {
 
               {/* Custom Filename Prefix */}
               <div className="flex flex-col gap-1 border-t border-hmi-grid pt-2.5">
-                <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wide">Filename Prefix</span>
+                <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wide">{t('filenamePrefix')}</span>
                 <Input
                   type="text"
                   value={filenamePrefix}
@@ -533,7 +535,7 @@ export function CaptureMenu() {
                   className="h-8 bg-hmi-bg border-hmi-grid text-xs text-hmi-text placeholder-hmi-dimmed font-mono outline-none focus-visible:ring-1 focus-visible:ring-hmi-ideal/40"
                 />
                 <span className="text-[8px] text-hmi-muted mt-0.5">
-                  Letters, numbers, dashes, and underscores only.
+                  {t('prefixDesc')}
                 </span>
               </div>
             </div>
@@ -543,7 +545,7 @@ export function CaptureMenu() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary uppercase tracking-wider">
               <Keyboard className="h-4 w-4 text-hmi-muted" />
-              Keyboard Shortcuts
+              {t('keyboardShortcuts')}
             </div>
 
             <div className="bg-hmi-elevated/40 border border-hmi-grid rounded-lg overflow-hidden flex flex-col">
@@ -552,7 +554,7 @@ export function CaptureMenu() {
                   <button className="w-full flex items-center justify-between p-3.5 text-sm font-semibold hover:bg-hmi-btn-hover/60 transition-colors text-hmi-text cursor-pointer">
                     <div className="flex items-center gap-2">
                       <SlidersHorizontal className="h-4 w-4 text-hmi-ideal" />
-                      <span>Customize Keybindings</span>
+                      <span>{t('customizeKeybindings')}</span>
                     </div>
                     <ChevronDown className={cn("h-4 w-4 text-hmi-muted transition-transform duration-200", isKeybindingsOpen && "transform rotate-180")} />
                   </button>
@@ -563,7 +565,7 @@ export function CaptureMenu() {
                       const isRebindingThis = rebindingAction === binding.action
                       return (
                         <div key={binding.action} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-hmi-grid/60 last:border-0">
-                          <span className="text-hmi-text-secondary font-medium">{binding.label}</span>
+                          <span className="text-hmi-text-secondary font-medium">{t(`keybindings.${binding.action}`)}</span>
                           <div className="flex items-center gap-2">
                             <kbd className={cn(
                               "px-2 py-0.5 rounded text-[10px] font-mono border font-bold transition-all shadow-sm min-w-[32px] text-center",
@@ -571,7 +573,7 @@ export function CaptureMenu() {
                                 ? "bg-amber-500/20 border-amber-400 text-amber-400 animate-pulse"
                                 : "bg-hmi-bg border-hmi-grid text-hmi-ideal"
                             )}>
-                              {isRebindingThis ? 'Press key...' : binding.key === ' ' ? 'Space' : binding.key}
+                              {isRebindingThis ? t('pressKey') : binding.key === ' ' ? t('spaceKey') : binding.key}
                             </kbd>
                             <button
                               onClick={() => setRebindingAction(binding.action)}
@@ -583,7 +585,7 @@ export function CaptureMenu() {
                                   : "bg-hmi-btn border-hmi-grid hover:bg-hmi-btn-hover text-hmi-text-secondary hover:text-hmi-text disabled:opacity-40 disabled:cursor-not-allowed"
                               )}
                             >
-                              Rebind
+                              {t('rebind')}
                             </button>
                           </div>
                         </div>
@@ -597,7 +599,7 @@ export function CaptureMenu() {
                       onClick={handleResetKeybindings}
                       className="w-full text-[11px] h-8 border-hmi-grid hover:bg-hmi-btn hover:text-hmi-text text-hmi-text-secondary"
                     >
-                      Reset to Defaults
+                      {t('resetToDefaults')}
                     </Button>
                   </div>
                 </CollapsibleContent>
@@ -609,7 +611,7 @@ export function CaptureMenu() {
 
         {/* Footer info */}
         <div className="border-t border-hmi-grid pt-3 text-[10px] text-hmi-muted font-mono text-center shrink-0">
-          SCARA Diagnostics Tool v1.0.0
+          {t('versionInfo')}
         </div>
       </SheetContent>
 
@@ -621,9 +623,9 @@ export function CaptureMenu() {
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setZipPrompt(null)} />
         <div className="relative z-10 bg-hmi-elevated border border-hmi-grid rounded-xl shadow-2xl p-6 w-80 flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <h2 className="text-sm font-bold text-hmi-text">Name your ZIP file</h2>
+            <h2 className="text-sm font-bold text-hmi-text">{t('nameZipFile')}</h2>
             <p className="text-[11px] text-hmi-text-secondary">
-              {zipPrompt.includeCSV ? 'Images + CSV' : 'Images only'} · 19 charts
+              {zipPrompt.includeCSV ? t('imagesCsv') : t('imagesOnly')} · {t('chartsCount')}
             </p>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -648,14 +650,14 @@ export function CaptureMenu() {
               onClick={() => handleExportZip(zipPrompt.includeCSV, zipCustomName)}
               className="flex-1 h-9 text-sm bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-semibold cursor-pointer"
             >
-              Download
+              {t('download')}
             </Button>
             <Button
               variant="outline"
               onClick={() => setZipPrompt(null)}
               className="h-9 px-4 text-sm border-hmi-grid text-hmi-text-secondary hover:text-hmi-text hover:bg-hmi-btn-hover cursor-pointer"
             >
-              Cancel
+              {t('cancel')}
             </Button>
           </div>
         </div>

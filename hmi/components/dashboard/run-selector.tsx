@@ -5,6 +5,7 @@ import type { Run } from '@/lib/db/schema'
 import { cn } from '@/lib/utils'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslations, useLocale } from 'next-intl'
 
 // Distinct colors for multi-run comparison
 export const RUN_COLORS = [
@@ -20,7 +21,16 @@ interface Props {
 }
 
 export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted }: Props) {
+  const t = useTranslations('DashboardRunSelector')
+  const locale = useLocale()
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const formatFloat = (val: number, decimals: number = 3) => {
+    return val.toLocaleString(locale === 'id' ? 'id-ID' : 'en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    })
+  }
 
   function toggleRun(id: string) {
     if (selectedIds.includes(id)) {
@@ -31,16 +41,16 @@ export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete run "${name}"? This cannot be undone.`)) return
+    if (!confirm(t('confirmDelete', { name }))) return
     setDeletingId(id)
     try {
       const res = await fetch(`/api/runs/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Delete failed')
       onRunDeleted(id)
       onSelectionChange(selectedIds.filter(s => s !== id))
-      toast.success(`Run "${name}" deleted.`)
+      toast.success(t('deleteSuccess', { name }))
     } catch {
-      toast.error('Failed to delete run.')
+      toast.error(t('deleteError'))
     } finally {
       setDeletingId(null)
     }
@@ -49,8 +59,10 @@ export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted
   if (runs.length === 0) {
     return (
       <div className="p-4 text-xs text-hmi-muted text-center">
-        No runs saved yet.<br />
-        Use <span className="text-hmi-ideal">Run + Save</span> in the HMI to save your first run.
+        {t('noRuns')}<br />
+        {t.rich('howToSave', {
+          saveButton: (chunks) => <span className="text-hmi-ideal">{t('saveButtonLabel')}</span>
+        })}
       </div>
     )
   }
@@ -58,7 +70,7 @@ export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted
   return (
     <div className="flex flex-col gap-0.5 overflow-y-auto">
       <div className="px-3 py-2 text-[10px] text-hmi-muted font-semibold uppercase tracking-wider border-b border-hmi-grid">
-        {runs.length} run{runs.length !== 1 ? 's' : ''} • select to compare
+        {t('runCount', { count: runs.length })}
       </div>
       {runs.map((run, idx) => {
         const isSelected = selectedIds.includes(run.id)
@@ -94,10 +106,10 @@ export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted
               <p className="text-[10px] text-hmi-muted">{dateStr} {timeStr}</p>
               <div className="flex items-center gap-2 mt-0.5 text-[10px] text-hmi-muted/70">
                 {run.elapsedTime != null && (
-                  <span>{run.elapsedTime.toFixed(2)}s</span>
+                  <span>{formatFloat(run.elapsedTime, 2)}s</span>
                 )}
                 {run.accuracyIdx != null && (
-                  <span>AI={( run.accuracyIdx * 100).toFixed(1)}%</span>
+                  <span>AI={formatFloat(run.accuracyIdx * 100, 1)}%</span>
                 )}
                 {run.sampleCount != null && (
                   <span>{run.sampleCount} pts</span>
@@ -111,7 +123,7 @@ export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted
                 deletingId === run.id && 'opacity-100 animate-pulse'
               )}
               onClick={e => { e.stopPropagation(); handleDelete(run.id, run.name) }}
-              title="Delete run"
+              title={t('deleteRun')}
             >
               <Trash2 className="w-3 h-3" />
             </button>

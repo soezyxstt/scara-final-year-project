@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useHMISlow } from '@/lib/hmi-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,7 @@ function tagBadge(line: string) {
 }
 
 export function SerialLog() {
+  const t = useTranslations('SerialLog')
   const { state, dispatch, serial } = useHMISlow()
   const endRef = useRef<HTMLDivElement>(null)
   const [isFocused, setIsFocused] = useState(false)
@@ -56,18 +58,16 @@ export function SerialLog() {
       <div className="flex items-center gap-1.5 px-2 py-1 border-b border-hmi-grid shrink-0 bg-hmi-elevated/60">
         {/* Terminal-style title */}
         <span className="text-[11px] font-bold text-hmi-text-secondary uppercase tracking-wider select-none mr-1">
-          Serial Monitor
+          {t('serialMonitor')}
         </span>
         {isFocused && (
-          <span className="text-[10px] text-hmi-muted font-normal">ESC to exit</span>
+          <span className="text-[10px] text-hmi-muted font-normal">{t('escExit')}</span>
         )}
 
         <div className="ml-auto flex items-center gap-1.5">
           {/* Filter toggle */}
           <Tooltip
-            content={filtered
-              ? 'Filtered: Hiding high-frequency telemetry packets (D/T/F/E/B). Click to show all.'
-              : 'Unfiltered: Showing all raw serial data. Click to hide telemetry noise.'}
+            content={filtered ? t('filteredDesc') : t('unfilteredDesc')}
             align="center"
           >
             <Button
@@ -81,11 +81,11 @@ export function SerialLog() {
                   : "text-amber-400 border-amber-500/40 hover:bg-amber-500/10"
               )}
             >
-              {filtered ? '⊘ Filtered' : '≡ Raw'}
+              {filtered ? '⊘ ' + t('filteredBtn') : '≡ ' + t('rawBtn')}
             </Button>
           </Tooltip>
 
-          <Tooltip content="Clear Log: Removes all entries from the serial terminal display." align="center">
+          <Tooltip content={t('clearLogDesc')} align="center">
             <Button
               variant="outline"
               size="sm"
@@ -93,11 +93,11 @@ export function SerialLog() {
               className="h-5 px-1.5 text-[10px] text-hmi-target border-hmi-target/30 hover:bg-hmi-target/10 hover:text-hmi-target"
             >
               <Trash2 className="h-3 w-3 mr-0.5" />
-              Clear
+              {t('clearBtn')}
             </Button>
           </Tooltip>
 
-          <Tooltip content="Clear Graph: Resets trajectory data buffers and clears all chart plots." align="center">
+          <Tooltip content={t('clearGraphDesc')} align="center">
             <Button
               variant="outline"
               size="sm"
@@ -105,11 +105,11 @@ export function SerialLog() {
               className="h-5 px-1.5 text-[10px] text-hmi-actual border-hmi-actual/30 hover:bg-hmi-actual/10 hover:text-hmi-actual"
             >
               <Trash2 className="h-3 w-3 mr-0.5" />
-              Clear Graph
+              {t('clearGraphBtn')}
             </Button>
           </Tooltip>
 
-          <Tooltip content={isFocused ? 'Collapse to panel.' : 'Expand to full screen.'} align="center">
+          <Tooltip content={isFocused ? t('collapseDesc') : t('expandDesc')} align="center">
             <Button
               variant="outline"
               size="sm"
@@ -126,7 +126,7 @@ export function SerialLog() {
       <div className="flex-1 overflow-y-auto px-2 py-1 font-mono text-xs">
         {visibleLines.length === 0 ? (
           <span className="text-hmi-muted italic text-[11px]">
-            {filtered ? 'No non-telemetry messages yet.' : 'No serial data received yet.'}
+            {filtered ? t('noNonTelemetry') : t('noSerialData')}
           </span>
         ) : (
           visibleLines.slice(-200).map((line, i) => (

@@ -8,6 +8,7 @@ import {
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { Maximize2, Minimize2 } from 'lucide-react'
+import { useTranslations, useLocale } from 'next-intl'
 
 export interface SeriesConfig {
   dataKey: string
@@ -62,6 +63,16 @@ export function ChartCard({
   title, datasets, series, xKey = 't', xLabel, yLabel,
   height = 240, type = 'line', className,
 }: ChartCardProps) {
+  const t = useTranslations('ChartCard')
+  const locale = useLocale()
+
+  const formatFloat = useCallback((val: number, decimals: number = 3) => {
+    return val.toLocaleString(locale === 'id' ? 'id-ID' : 'en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    })
+  }, [locale])
+
   const [showStats, setShowStats] = useState(false)
   const [caliper, setCaliper] = useState<[number | null, number | null]>([null, null])
   const [brushDomain, setBrushDomain] = useState<[number, number] | null>(null)
@@ -102,7 +113,7 @@ export function ChartCard({
   }, [])
 
   const caliperDelta = caliper[0] !== null && caliper[1] !== null
-    ? Math.abs(caliper[1] - caliper[0]).toFixed(1)
+    ? formatFloat(Math.abs(caliper[1] - caliper[0]), 1)
     : null
 
   // Build merged chart data for multi-run comparison
@@ -130,7 +141,7 @@ export function ChartCard({
   const chartData = datasets.length <= 1 ? primaryData : mergedData
 
   const formatX = (v: number) => {
-    if (v >= 1000) return `${(v / 1000).toFixed(1)}s`
+    if (v >= 1000) return `${formatFloat(v / 1000, 1)}s`
     return `${v}ms`
   }
 
@@ -161,7 +172,7 @@ export function ChartCard({
               className="text-[10px] text-hmi-muted hover:text-hmi-text"
               onClick={() => setCaliper([null, null])}
             >
-              ✕ caliper
+              ✕ {t('caliper')}
             </button>
           )}
           <button
@@ -173,12 +184,12 @@ export function ChartCard({
             )}
             onClick={() => setShowStats(v => !v)}
           >
-            σ stats
+            σ {t('stats')}
           </button>
           <button
             className="text-[10px] p-1 rounded border border-hmi-grid text-hmi-muted hover:text-hmi-text hover:bg-hmi-btn flex items-center justify-center h-6 w-6"
             onClick={() => setIsFocused(f => !f)}
-            title={isFocused ? "Collapse Chart" : "Expand Chart"}
+            title={isFocused ? t('collapseChart') : t('expandChart')}
           >
             {isFocused ? (
               <Minimize2 className="h-3.5 w-3.5" />
@@ -200,10 +211,10 @@ export function ChartCard({
               <div key={s.dataKey} className="flex flex-col gap-0.5">
                 <span className="text-[10px] font-semibold" style={{ color: s.color }}>{s.label}</span>
                 <div className="grid grid-cols-2 gap-x-2 text-[10px] text-hmi-muted font-mono">
-                  <span>min</span><span className="text-hmi-text">{st.min.toFixed(3)}</span>
-                  <span>max</span><span className="text-hmi-text">{st.max.toFixed(3)}</span>
-                  <span>μ</span><span className="text-hmi-text">{st.mean.toFixed(3)}</span>
-                  <span>σ</span><span className="text-hmi-text">{st.std.toFixed(3)}</span>
+                  <span>min</span><span className="text-hmi-text">{formatFloat(st.min, 3)}</span>
+                  <span>max</span><span className="text-hmi-text">{formatFloat(st.max, 3)}</span>
+                  <span>{t('mean')}</span><span className="text-hmi-text">{formatFloat(st.mean, 3)}</span>
+                  <span>{t('std')}</span><span className="text-hmi-text">{formatFloat(st.std, 3)}</span>
                 </div>
               </div>
             )
@@ -235,7 +246,7 @@ export function ChartCard({
               labelStyle={{ color: '#9A9A9A', fontSize: 10 }}
               itemStyle={{ fontSize: 10 }}
               labelFormatter={(v) => `t = ${formatX(Number(v))}`}
-              formatter={(val) => [typeof val === 'number' ? val.toFixed(4) : '—']}
+              formatter={(val) => [typeof val === 'number' ? formatFloat(val, 4) : '—']}
             />
             <Legend
               wrapperStyle={{ fontSize: 10, paddingTop: 4 }}
@@ -331,7 +342,7 @@ export function ChartCard({
 
       {caliper[0] !== null && (
         <div className="px-3 py-1 bg-hmi-bg/40 border-t border-hmi-grid text-[10px] text-hmi-muted">
-          Click chart to place caliper markers • {caliper[1] === null ? 'Click again for second marker' : `Δ = ${caliperDelta} ${xLabel ?? 'ms'}`}
+          {t('caliperInstruction')} • {caliper[1] === null ? t('caliperInstructionSecond') : t('caliperDelta', { delta: caliperDelta ?? '', unit: xLabel ?? 'ms' })}
         </div>
       )}
     </div>
