@@ -8,6 +8,13 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { saveRun } from '@/app/actions/experiment'
+import {
+  listPendingExperiments,
+  putPendingExperiment,
+  removePendingExperiment,
+  type PendingExperimentRun,
+} from '@/lib/experiment-outbox'
+import { EXPERIMENT_TOTAL_RUNS, getExperimentSlot, parseExperimentTPoint } from '@/lib/experiment-protocol'
 import { Play, Square, ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
@@ -23,11 +30,13 @@ type State =
   | 'settling'
   | 'saving'
   | 'cooldown'
+  | 'syncing'
   | 'complete'
 
 type CapturePhase = 'off' | 'hold' | 'move' | 'settle'
 
 interface RunResultCard {
+  runId: string
   attemptNumber: number
   successIndex: number
   direction: 'forward' | 'return'
@@ -36,7 +45,7 @@ interface RunResultCard {
   moveDuration: number
   sigmaHold: number | null
   eSs: number | null
-  status: 'ok' | 'retrying' | 'failed'
+  status: 'ok' | 'queued' | 'retrying' | 'failed'
 }
 
 interface PreflightCheck {
@@ -50,8 +59,9 @@ const EXPERIMENTS = [
   { id: 'EXP-3', name: 'Coriolis Comp', desc: 'Test Coriolis & Centrifugal force compensation contribution' },
   { id: 'EXP-4', name: 'Gravity Comp', desc: 'Test gravity force compensation at various tilt angles' },
   { id: 'EXP-5', name: 'Trap Profile', desc: 'Evaluate trapezoidal trajectory profile vs raw' },
-  { id: 'EXP-6', name: 'PID Variation', desc: 'Test performance with varying proportional, integral, and derivative gains' },
 ] as const
+
+type ExperimentId = typeof EXPERIMENTS[number]['id']
 
 // ─── Standard test path (Rancangan Eksperimen) ─────────────────────────────
 const P0 = { x: 140, y: 45 }   // mm
@@ -85,27 +95,19 @@ const MAX_RUN_RETRIES = 3          // per-slot retries before aborting sequence
 
 // ─── Shared Direction Helper ────────────────────────────────────────────────
 // successCount is 1-based (the upcoming run's target success index)
-// For EXP-4: 2 runs per condition (4 total), so indexInCond cycles 1-2
-// For EXP-6: single condition of 4 runs (sub/level fixed by UI), cycles 1-4
-// For standard: 4 runs per condition (8 total), cycle 1-4 then 1-4
-function computeIndexInCond(successCount: number, tab: string): number {
-  const condSize = tab === 'EXP-4' ? 2 : 4
-  return ((successCount - 1) % condSize) + 1
+// Every experiment condition has exactly four acquisitions: 2 forward and
+// 2 return. Slots alternate direction to avoid an unnecessary repositioning
+// move between acquisitions: F, B, F, B.
+function computeIsForward(successCount: number): boolean {
+  return getExperimentSlot(successCount).direction === 'forward'
 }
 
-// odd indexInCond → forward, even → return
-function computeIsForward(successCount: number, tab: string): boolean {
-  return computeIndexInCond(successCount, tab) % 2 === 1
+function computeIsConditionA(successCount: number): boolean {
+  return getExperimentSlot(successCount).condition === 'A'
 }
 
-function computeIsConditionA(successCount: number, tab: string): boolean {
-  if (tab === 'EXP-4') return successCount <= 2
-  if (tab === 'EXP-6') return true // EXP-6 conditions are set by user UI, not by run count
-  return successCount <= 4
-}
-
-function computeTotalRuns(tab: string): number {
-  return tab === 'EXP-4' ? 4 : (tab === 'EXP-6' ? 4 : 8)
+function computeTotalRuns(): number {
+  return EXPERIMENT_TOTAL_RUNS
 }
 
 // ─── OFAT baseline-lock commands per experiment ─────────────────────────────
@@ -115,9 +117,6 @@ function buildConditionCommands(
   tab: string,
   isConditionA: boolean,
   alpha: string,
-  sub6: '6A' | '6B' | '6C',
-  level6: string,
-  baseGains: { kp1: number; ki1: number; kd1: number },
 ): string[] {
   const cmds: string[] = []
   if (tab === 'EXP-1') {
@@ -141,14 +140,12 @@ function buildConditionCommands(
   } else if (tab === 'EXP-5') {
     cmds.push('tden,1', 'ffi,1.0', 'ffc,1.0', 'ffg,1.0')
     cmds.push(isConditionA ? 'trapen,1' : 'trapen,0')
-  } else if (tab === 'EXP-6') {
-    cmds.push('tden,1', 'trapen,1', 'ffi,1.0', 'ffc,1.0', 'ffg,1.0')
-    const scale = parseFloat(level6)
-    if (sub6 === '6A') cmds.push(`kp1,${(baseGains.kp1 * scale).toFixed(3)}`)
-    else if (sub6 === '6B') cmds.push(`ki1,${(baseGains.ki1 * scale).toFixed(3)}`)
-    else cmds.push(`kd1,${(baseGains.kd1 * scale).toFixed(3)}`)
   }
   return cmds
+}
+
+function generateRunId(): string {
+  return `RUN-${crypto.randomUUID()}`
 }
 
 export function ExperimentClient() {
@@ -159,14 +156,10 @@ export function ExperimentClient() {
   useHeartbeat(serialStatus === 'connected')
 
   // UI Selection State
-  const [activeTab, setActiveTab] = useState<'EXP-1' | 'EXP-2' | 'EXP-3' | 'EXP-4' | 'EXP-5' | 'EXP-6'>('EXP-1')
+  const [activeTab, setActiveTab] = useState<ExperimentId>('EXP-1')
 
   // EXP-4 specific state
   const [exp4Alpha, setExp4Alpha] = useState<'0' | '15' | '30' | '45'>('0')
-
-  // EXP-6 specific state
-  const [exp6Sub, setExp6Sub] = useState<'6A' | '6B' | '6C'>('6A')
-  const [exp6Level, setExp6Level] = useState<'0.5' | '1.0' | '1.5'>('0.5')
 
   // Automation State Machine
   const [state, setState] = useState<State>('idle')
@@ -210,36 +203,22 @@ export function ExperimentClient() {
     })
   }, [])
 
-  // In-memory offline queue state
-  const [offlineQueue, setOfflineQueue] = useState<any[]>([])
-  const offlineQueueRef = useRef<any[]>([])
+  // Durable browser outbox. Captured telemetry is written to IndexedDB before
+  // any network request, so a Turso outage or page reload cannot lose a run.
+  const [offlineQueue, setOfflineQueue] = useState<PendingExperimentRun[]>([])
+  const offlineQueueRef = useRef<PendingExperimentRun[]>([])
 
   useEffect(() => { offlineQueueRef.current = offlineQueue }, [offlineQueue])
 
-  // Sync offline queued runs to Turso when online
+  // Restore pending uploads from previous sessions.
   useEffect(() => {
-    const handleOnline = async () => {
-      const queue = [...offlineQueueRef.current]
-      if (queue.length === 0) return
-      addLog(`🔌 Online connection detected! Syncing ${queue.length} pending runs to database...`)
-      toast.info(`Syncing ${queue.length} offline runs to Turso...`)
-
-      const failedQueue: any[] = []
-      for (const item of queue) {
-        addLog(`Syncing run ${item.run.id}...`)
-        const res = await saveRun(item.run, item.metrics, item.samples, false)
-        if (res.ok) {
-          addLog(`✓ Run ${item.run.id} successfully synced.`)
-        } else {
-          addLog(`❌ Failed to sync run ${item.run.id}.`)
-          failedQueue.push(item)
-        }
-      }
-      setOfflineQueue(failedQueue)
-    }
-    window.addEventListener('online', handleOnline)
-    return () => window.removeEventListener('online', handleOnline)
-  }, [addLog])
+    listPendingExperiments()
+      .then(items => {
+        offlineQueueRef.current = items
+        setOfflineQueue(items)
+      })
+      .catch(err => console.error('Failed to restore experiment outbox:', err))
+  }, [])
 
   // ─── Refs for tracking mutable state across async handlers ───────────────
   const stateRef = useRef<State>('idle')
@@ -251,15 +230,17 @@ export function ExperimentClient() {
   const isProcessingRef = useRef(false)    // guard: prevents double processAndSaveRun
   const activeTabRef = useRef(activeTab)
   const exp4AlphaRef = useRef(exp4Alpha)
-  const exp6SubRef = useRef(exp6Sub)
-  const exp6LevelRef = useRef(exp6Level)
   const baseGainsRef = useRef<{ kp1: number; ki1: number; kd1: number } | null>(null)
   const cooldownTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const syncInProgressRef = useRef(false)
 
   // Live firmware state mirrored into refs (async handlers need fresh values)
   const currentModeRef = useRef(hmiState.currentMode)
   const estoppedRef = useRef(estopped)
   const gainsRef = useRef(gains)
+  const paramsRef = useRef(hmiState.params)
+  const gainsPacketVersionRef = useRef(0)
+  const paramsPacketVersionRef = useRef(0)
 
   // Telemetry buffer refs
   const accumulatedDRef = useRef<any[]>([])
@@ -287,11 +268,10 @@ export function ExperimentClient() {
   useEffect(() => { totalAttemptsRef.current = totalAttempts }, [totalAttempts])
   useEffect(() => { activeTabRef.current = activeTab }, [activeTab])
   useEffect(() => { exp4AlphaRef.current = exp4Alpha }, [exp4Alpha])
-  useEffect(() => { exp6SubRef.current = exp6Sub }, [exp6Sub])
-  useEffect(() => { exp6LevelRef.current = exp6Level }, [exp6Level])
   useEffect(() => { currentModeRef.current = hmiState.currentMode }, [hmiState.currentMode])
   useEffect(() => { estoppedRef.current = estopped }, [estopped])
   useEffect(() => { gainsRef.current = gains }, [gains])
+  useEffect(() => { paramsRef.current = hmiState.params }, [hmiState.params])
 
   // Scroll status logs to bottom
   const logsEndRef = useRef<HTMLDivElement>(null)
@@ -317,6 +297,66 @@ export function ExperimentClient() {
     stateRef.current = next
     setState(next)
   }, [clearWatchdog])
+
+  const syncOutbox = useCallback(async () => {
+    if (syncInProgressRef.current || !navigator.onLine) return
+    const queue = [...offlineQueueRef.current]
+    if (queue.length === 0) return
+
+    syncInProgressRef.current = true
+    addLog(`Syncing ${queue.length} durable pending run(s) to database...`)
+    const failed: PendingExperimentRun[] = []
+    const processedIds = new Set(queue.map(item => item.run.id))
+
+    try {
+      for (const item of queue) {
+        try {
+          const result = await saveRun(item.run, item.metrics, item.samples, false)
+          if (!result.ok || result.sampleCount !== item.samples.length) {
+            throw new Error(result.error ?? 'Database verification failed.')
+          }
+          await removePendingExperiment(item.run.id)
+          addLog(`✓ ${item.run.id}: ${result.sampleCount} samples verified in database.`)
+          setResults(prev => prev.map(card => card.runId === item.run.id ? { ...card, status: 'ok' } : card))
+        } catch (error) {
+          const updated = {
+            ...item,
+            attempts: item.attempts + 1,
+            lastError: error instanceof Error ? error.message : 'Database request failed.',
+          }
+          failed.push(updated)
+          try {
+            await putPendingExperiment(updated)
+          } catch (outboxError) {
+            console.error('Failed to update outbox retry metadata:', outboxError)
+          }
+          addLog(`Database sync deferred for ${item.run.id}: ${updated.lastError}`)
+        }
+      }
+    } finally {
+      const newlyQueued = offlineQueueRef.current.filter(item => !processedIds.has(item.run.id))
+      offlineQueueRef.current = [...failed, ...newlyQueued]
+      setOfflineQueue(offlineQueueRef.current)
+      syncInProgressRef.current = false
+
+      if (offlineQueueRef.current.length === 0 && successCountRef.current >= computeTotalRuns() && stateRef.current === 'syncing') {
+        transition('complete')
+        addLog('🎉 All 8 acquisitions and database verification completed successfully.')
+        toast.success('Experiment complete — every run is verified in the database.')
+      }
+    }
+  }, [addLog, transition])
+
+  useEffect(() => {
+    const handleOnline = () => { void syncOutbox() }
+    window.addEventListener('online', handleOnline)
+    const timer = window.setInterval(() => { void syncOutbox() }, 5000)
+    void syncOutbox()
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.clearInterval(timer)
+    }
+  }, [syncOutbox])
 
   // Poll a ref-backed condition until true or timeout
   const waitFor = (cond: () => boolean, timeoutMs: number, intervalMs = 100): Promise<boolean> =>
@@ -361,17 +401,6 @@ export function ExperimentClient() {
     return minDiff <= ALIGN_MAX_GAP_MS ? closest : null
   }
 
-  // Restore the baseline kp1/ki1/kd1 snapshot after an EXP-6 sequence
-  const restoreBaselineGains = useCallback(() => {
-    if (activeTabRef.current !== 'EXP-6') return
-    const bg = baseGainsRef.current
-    if (!bg) return
-    addLog(`Restoring baseline gains: kp1=${bg.kp1.toFixed(3)}, ki1=${bg.ki1.toFixed(3)}, kd1=${bg.kd1.toFixed(3)}`)
-    serial.sendCommand(`kp1,${bg.kp1.toFixed(3)}`).catch(() => {})
-    serial.sendCommand(`ki1,${bg.ki1.toFixed(3)}`).catch(() => {})
-    serial.sendCommand(`kd1,${bg.kd1.toFixed(3)}`).catch(() => {})
-  }, [serial, addLog])
-
   // Stop sequence and reset
   const stopSequence = useCallback((reason = 'Sequence stopped by user', sendEstop = true) => {
     clearAllTimers()
@@ -384,12 +413,11 @@ export function ExperimentClient() {
     runNeedRetryRef.current = false
     runFailureLatchRef.current = false
     if (sendEstop) serial.sendCommand('estop').catch(() => {})
-    restoreBaselineGains()
     stateRef.current = 'idle'
     setState('idle')
     addLog(`⚠️ ${reason}`)
     toast.warning(reason)
-  }, [serial, addLog, clearAllTimers, restoreBaselineGains])
+  }, [serial, addLog, clearAllTimers])
 
   // Abort = unrecoverable stop with a visible reason banner
   const abortSequence = useCallback((reason: string) => {
@@ -400,14 +428,14 @@ export function ExperimentClient() {
 
   // Watch serial status changes
   useEffect(() => {
-    if (serialStatus === 'disconnected' && stateRef.current !== 'idle' && stateRef.current !== 'complete') {
+    if (serialStatus === 'disconnected' && !['idle', 'syncing', 'complete'].includes(stateRef.current)) {
       stopSequence('Serial disconnected! Sequence aborted.', false)
     }
   }, [serialStatus, stopSequence])
 
   // Safety: abort if E-STOP engages mid-sequence (hardware button / other tab)
   useEffect(() => {
-    if (estopped && stateRef.current !== 'idle' && stateRef.current !== 'complete') {
+    if (estopped && !['idle', 'syncing', 'complete'].includes(stateRef.current)) {
       stopSequence('E-STOP detected! Sequence aborted.', false)
     }
   }, [estopped, stopSequence])
@@ -418,6 +446,47 @@ export function ExperimentClient() {
       throw new Error(`Target (${xMm}, ${yMm}) outside workspace (r ${WS_R_MIN}–${WS_R_MAX} mm, -30°–210°)`)
     }
     await serial.sendCommand(`move,${xMm},${yMm}`)
+  }, [serial])
+
+  const verifyConfiguration = useCallback(async (tab: ExperimentId, isConditionA: boolean, alpha: string) => {
+    const previousG = gainsPacketVersionRef.current
+    const previousK = paramsPacketVersionRef.current
+    await serial.sendCommand('getgains')
+    await serial.sendCommand('getparams')
+    const packetsReceived = await waitFor(
+      () => gainsPacketVersionRef.current > previousG && paramsPacketVersionRef.current > previousK,
+      2500,
+    )
+    if (!packetsReceived) return false
+
+    // Let the context-backed refs receive the just-observed G/K packets.
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const g = gainsRef.current
+    const p = paramsRef.current
+    if (!g || !p) return false
+
+    const near = (actual: number, expected: number) => Math.abs(actual - expected) <= 0.001
+    const expected = {
+      td: true,
+      trap: true,
+      ffi: 1,
+      ffc: 1,
+      ffg: 1,
+      alpha: tab === 'EXP-4' ? Number(alpha) : p.alphaTiltDeg,
+    }
+
+    if (tab === 'EXP-1') Object.assign(expected, { td: isConditionA, ffi: 0, ffc: 0, ffg: 0 })
+    if (tab === 'EXP-2') Object.assign(expected, { ffi: isConditionA ? 1 : 0, ffc: 0, ffg: 0 })
+    if (tab === 'EXP-3') Object.assign(expected, { ffi: 1, ffc: isConditionA ? 1 : 0, ffg: 0 })
+    if (tab === 'EXP-4') Object.assign(expected, { ffi: 1, ffc: 1, ffg: isConditionA ? 1 : 0 })
+    if (tab === 'EXP-5') Object.assign(expected, { trap: isConditionA, ffi: 1, ffc: 1, ffg: 1 })
+
+    return p.tdEnabled === expected.td
+      && p.trapEnabled === expected.trap
+      && near(g.ffInertia, expected.ffi)
+      && near(g.ffCoriolis, expected.ffc)
+      && near(g.ffGravity, expected.ffg)
+      && (tab !== 'EXP-4' || near(p.alphaTiltDeg, expected.alpha))
   }, [serial])
 
   // Forward declaration pattern: startCooldown/executeRunStep are mutually
@@ -436,8 +505,7 @@ export function ExperimentClient() {
         if (prev <= 1) {
           clearInterval(cooldownTimerRef.current!)
           cooldownTimerRef.current = null
-          const tab = activeTabRef.current
-          const totalRuns = computeTotalRuns(tab)
+          const totalRuns = computeTotalRuns()
 
           if (runNeedRetryRef.current) {
             // Retry: direction stays the same (successCount unchanged), just re-attempt
@@ -447,12 +515,15 @@ export function ExperimentClient() {
           } else {
             // Check if sequence is complete based on successCount
             if (successCountRef.current >= totalRuns) {
-              transition('complete')
-              addLog('🎉 Experiment sequence completed successfully!')
-              restoreBaselineGains()
+              const hasPendingUploads = offlineQueueRef.current.length > 0
+              transition(hasPendingUploads ? 'syncing' : 'complete')
+              addLog(hasPendingUploads
+                ? `All 8 acquisitions are durable; waiting for ${offlineQueueRef.current.length} database upload(s).`
+                : '🎉 All 8 acquisitions are verified in the database!')
+              if (hasPendingUploads) void syncOutbox()
 
               setResults(currentResults => {
-                const valid = currentResults.filter(r => r.status === 'ok' || r.status === 'retrying')
+                const valid = currentResults.filter(r => r.status !== 'failed')
                 if (valid.length > 0) {
                   const mates = valid.map(v => v.mate)
                   const mctes = valid.map(v => v.mcte)
@@ -479,9 +550,9 @@ export function ExperimentClient() {
         return prev - 1
       })
     }, 1000)
-  }, [addLog, transition, restoreBaselineGains])
+  }, [addLog, transition, syncOutbox])
 
-  // Handle run failure (telemetry loss, timeout, firmware ERR, DB failure).
+  // Handle physical acquisition failure (telemetry loss, timeout, firmware ERR).
   // Retries the same slot up to MAX_RUN_RETRIES, then aborts the sequence —
   // a slot is never silently skipped (data integrity).
   const handleRunFailure = useCallback((reason: string) => {
@@ -504,6 +575,7 @@ export function ExperimentClient() {
     } else {
       // Record failed card, then abort the whole sequence
       const cardResult: RunResultCard = {
+        runId: `FAILED-${totalAttemptsRef.current}`,
         attemptNumber: totalAttemptsRef.current,
         successIndex: successCountRef.current,
         direction: direction,
@@ -571,13 +643,10 @@ export function ExperimentClient() {
     const nextSuccessSlot = successCountRef.current + 1  // 1-based index of the run we want to capture
     const tab = activeTabRef.current
     const alpha = exp4AlphaRef.current
-    const sub6 = exp6SubRef.current
-    const level6 = exp6LevelRef.current
+    const totalRuns = computeTotalRuns()
 
-    const totalRuns = computeTotalRuns(tab)
-
-    const isForward = computeIsForward(nextSuccessSlot, tab)
-    const isConditionA = computeIsConditionA(nextSuccessSlot, tab)
+    const isForward = computeIsForward(nextSuccessSlot)
+    const isConditionA = computeIsConditionA(nextSuccessSlot)
     const runDir = isForward ? 'forward' : 'return'
     setDirection(runDir)
 
@@ -592,6 +661,7 @@ export function ExperimentClient() {
     accumulatedFRef.current = []
     accumulatedERef.current = []
     accumulatedTRef.current = []
+    lastSeenDTimeRef.current = 0
     capturePhaseRef.current = 'off'
     awaitingMRef.current = false
     mPacketReceivedRef.current = false
@@ -625,16 +695,9 @@ export function ExperimentClient() {
       })
     }
 
-    // 1. Setup commands — full OFAT baseline lock + variable, sent once per condition block
-    const indexInCond = computeIndexInCond(nextSuccessSlot, tab)
-    const isFirstRunOfCondition = indexInCond === 1
-
-    if (isFirstRunOfCondition) {
-      const bg = baseGainsRef.current ?? gainsRef.current ?? { kp1: 0.60, ki1: 0.05, kd1: 0.07 }
-      const commands = buildConditionCommands(tab, isConditionA, alpha, sub6, level6, {
-        kp1: bg.kp1, ki1: bg.ki1, kd1: bg.kd1,
-      })
-      try {
+    // Apply and read back the complete OFAT configuration before every run.
+    const commands = buildConditionCommands(tab, isConditionA, alpha)
+    try {
         transition('waiting_for_ready')
         armWatchdog(WD_SETUP_MS, 'setup command batch')
         for (const cmd of commands) {
@@ -645,16 +708,19 @@ export function ExperimentClient() {
         // Brief settle window — any ERR reply arriving here fails the run
         await new Promise(r => setTimeout(r, 500))
         if (stateRef.current !== 'waiting_for_ready') return  // failed or stopped meanwhile
+        const verified = await verifyConfiguration(tab, isConditionA, alpha)
+        if (!verified) {
+          handleRunFailure('Firmware configuration acknowledgement did not match the requested condition')
+          return
+        }
+        addLog('✓ Firmware configuration read-back matches the requested condition.')
         clearWatchdog()
         proceedToPositioning(isForward)
-      } catch (err) {
-        addLog(`❌ Failed to send setup commands: ${err}`)
-        stopSequence('Serial communication failure.')
-      }
-    } else {
-      proceedToPositioning(isForward)
+    } catch (err) {
+      addLog(`❌ Failed to send setup commands: ${err}`)
+      stopSequence('Serial communication failure.')
     }
-  }, [serial, addLog, stopSequence, transition, armWatchdog, clearWatchdog, sendMove, enterHold, handleRunFailure])
+  }, [serial, addLog, stopSequence, transition, armWatchdog, clearWatchdog, sendMove, enterHold, handleRunFailure, verifyConfiguration])
 
   useEffect(() => { executeRunStepRef.current = executeRunStep }, [executeRunStep])
 
@@ -727,11 +793,9 @@ export function ExperimentClient() {
     // The success slot this run will fill
     const tab = activeTabRef.current
     const alpha = exp4AlphaRef.current
-    const sub6 = exp6SubRef.current
-    const level6 = exp6LevelRef.current
     const nextSuccessSlot = successCountRef.current + 1
-    const isForward = computeIsForward(nextSuccessSlot, tab)
-    const isConditionA = computeIsConditionA(nextSuccessSlot, tab)
+    const isForward = computeIsForward(nextSuccessSlot)
+    const isConditionA = computeIsConditionA(nextSuccessSlot)
 
     // ─── Metrics — per-run direction unit vector û = (target − start)/D ─────
     // Forward: p0→pf. Return: pf→p0 (û flips, so MATE keeps its lag semantics).
@@ -743,6 +807,15 @@ export function ExperimentClient() {
     const upy = ux
 
     const movePhase = alignedSamples.filter(s => s.phase === 'move')
+    if (moveD.length < 20) {
+      handleRunFailure(`Insufficient move telemetry (${moveD.length} D samples)`)
+      return
+    }
+    const timestampGaps = moveD.slice(1).map((sample, index) => sample.t - moveD[index].t)
+    if (timestampGaps.some(gap => gap <= 0 || gap > TELEMETRY_STALL_MS)) {
+      handleRunFailure('Corrupt or non-monotonic telemetry timestamp sequence')
+      return
+    }
     let skipped = 0
     let N = 0
     let sumAte = 0, sumSqAte = 0, maxAteAbs = 0
@@ -789,6 +862,11 @@ export function ExperimentClient() {
       handleRunFailure('No Cartesian tracking samples')
       return
     }
+    const cartesianCoverage = N / movePhase.length
+    if (cartesianCoverage < 0.9) {
+      handleRunFailure(`Cartesian telemetry coverage too low (${(cartesianCoverage * 100).toFixed(1)}%)`)
+      return
+    }
 
     const mate_mean = sumAte / N
     const mate_rms = Math.sqrt(sumSqAte / N)
@@ -814,6 +892,14 @@ export function ExperimentClient() {
           a + Math.hypot(s.xActual! - s.xDesired!, s.yActual! - s.yDesired!), 0) / settlePhase.length
       : null
     if (e_ss != null) addLog(`e_ss (${settlePhase.length} settle samples) = ${e_ss.toFixed(4)} mm`)
+    if (tab === 'EXP-1' && sigmaHoldRef.current == null) {
+      handleRunFailure('EXP-1 requires valid hold-phase noise samples')
+      return
+    }
+    if (tab === 'EXP-4' && e_ss == null) {
+      handleRunFailure('EXP-4 requires valid post-settle Cartesian samples')
+      return
+    }
 
     // Build database payloads
     const runId = generateRunId()
@@ -823,9 +909,6 @@ export function ExperimentClient() {
     if (tab === 'EXP-4') {
       expId = `EXP-4-alpha${alpha}`
       expName = `EXP-4 (Gravity Comp Tilt ${alpha}°)`
-    } else if (tab === 'EXP-6') {
-      expId = `EXP-${sub6}-${level6}x`
-      expName = `EXP-${sub6} (${sub6 === '6A' ? 'Kp1' : sub6 === '6B' ? 'Ki1' : 'Kd1'} ${level6}x)`
     }
 
     // Flags reflect the OFAT baseline locks actually commanded for this run
@@ -835,7 +918,6 @@ export function ExperimentClient() {
     else if (tab === 'EXP-3') { ffc = isConditionA ? 1 : 0; ffi = 1; ffg = 0 }
     else if (tab === 'EXP-4') { ffg = isConditionA ? 1 : 0; ffi = 1; ffc = 1 }
     else if (tab === 'EXP-5') { trap = isConditionA ? 1 : 0; ffi = 1; ffc = 1; ffg = 1 }
-    else if (tab === 'EXP-6') { ffi = 1; ffc = 1; ffg = 1 }
 
     const bg = baseGainsRef.current ?? { kp1: gains?.kp1 ?? 0.60, ki1: gains?.ki1 ?? 0.05, kd1: gains?.kd1 ?? 0.07 }
 
@@ -851,9 +933,9 @@ export function ExperimentClient() {
       ffcEnabled: ffc,
       tdEnabled: tden,
       trapEnabled: trap,
-      kp1: tab === 'EXP-6' && sub6 === '6A' ? bg.kp1 * parseFloat(level6) : bg.kp1,
-      ki1: tab === 'EXP-6' && sub6 === '6B' ? bg.ki1 * parseFloat(level6) : bg.ki1,
-      kd1: tab === 'EXP-6' && sub6 === '6C' ? bg.kd1 * parseFloat(level6) : bg.kd1,
+      kp1: bg.kp1,
+      ki1: bg.ki1,
+      kd1: bg.kd1,
       kp2: gains?.kp2 ?? 1.0,
       ki2: gains?.ki2 ?? 0.0,
       kd2: gains?.kd2 ?? 0.0,
@@ -888,120 +970,85 @@ export function ExperimentClient() {
       moveDurationMs: move_duration_ms,
     }
 
-    // ─── Offline Fallback ───────────────────────────────────────────────────
-    if (!navigator.onLine) {
-      addLog('⚠ Offline — saved locally only')
-      await saveRun(runPayload, metricsPayload, alignedSamples, true)
-      setOfflineQueue(prev => [...prev, { run: runPayload, metrics: metricsPayload, samples: alignedSamples }])
+    // ─── Durable outbox + verified database persistence ────────────────────
+    const pendingItem: PendingExperimentRun = {
+      run: runPayload,
+      metrics: metricsPayload,
+      samples: alignedSamples,
+      queuedAt: Date.now(),
+      attempts: 0,
+    }
 
-      // Offline counts as success (queued for sync)
-      const cardResult: RunResultCard = {
-        attemptNumber: totalAttemptsRef.current,
-        successIndex: nextSuccessSlot,
-        direction: runPayload.direction,
-        mate: mate_mean,
-        mcte: mcte_mean,
-        moveDuration: move_duration_ms,
-        sigmaHold: sigmaHoldRef.current,
-        eSs: e_ss,
-        status: 'ok',
-      }
-      setResults(prev => [...prev, cardResult])
-      toast.warning(`Offline: Run #${nextSuccessSlot} saved locally and queued.`)
-
-      // Increment success count
-      setSuccessCount(prev => {
-        successCountRef.current = prev + 1
-        return prev + 1
-      })
-      runRetryCountRef.current = 0
-      runNeedRetryRef.current = false
+    // Persist first, upload second. A database timeout must never cause the
+    // robot to repeat a valid physical acquisition or lose captured telemetry.
+    try {
+      await putPendingExperiment(pendingItem)
+    } catch (error) {
       isProcessingRef.current = false
-      startCooldown()
+      abortSequence(`Could not persist captured telemetry to the browser outbox: ${error}`)
       return
     }
 
-    // ─── Online Database Save with Retry ────────────────────────────────────
-    addLog('Saving run to Turso Database and local backup...')
-    let saveRes = await saveRun(runPayload, metricsPayload, alignedSamples, false)
-    let finalStatus: 'ok' | 'retrying' | 'failed' = 'ok'
+    offlineQueueRef.current = [...offlineQueueRef.current.filter(item => item.run.id !== runId), pendingItem]
+    setOfflineQueue(offlineQueueRef.current)
 
-    if (!saveRes.ok) {
-      addLog('⚠️ Database save failed. Retrying in 2 seconds... (Attempt 1/2)')
-      await new Promise(r => setTimeout(r, 2000))
-      runPayload.status = 'retrying'
-      saveRes = await saveRun(runPayload, metricsPayload, alignedSamples, false)
-      finalStatus = 'retrying'
-
-      if (!saveRes.ok) {
-        addLog('⚠️ Database save failed. Retrying in 2 seconds... (Attempt 2/2)')
-        await new Promise(r => setTimeout(r, 2000))
-        saveRes = await saveRun(runPayload, metricsPayload, alignedSamples, false)
-
-        if (!saveRes.ok) {
-          addLog('❌ Database save failed after all retries. Backing up locally and queuing for sync.')
-          finalStatus = 'ok'
-          runPayload.status = 'ok'
-          await saveRun(runPayload, metricsPayload, alignedSamples, true)
-          setOfflineQueue(prev => [...prev, { run: runPayload, metrics: metricsPayload, samples: alignedSamples }])
-          toast.warning(`Database save failed. Run #${nextSuccessSlot} saved locally and queued for sync.`)
+    let savedToDatabase = false
+    if (navigator.onLine) {
+      addLog(`Uploading ${alignedSamples.length} samples to the database...`)
+      syncInProgressRef.current = true
+      try {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const result = await saveRun(runPayload, metricsPayload, alignedSamples, false)
+            if (!result.ok || result.sampleCount !== alignedSamples.length) {
+              throw new Error(result.error ?? 'Database verification mismatch.')
+            }
+            await removePendingExperiment(runId)
+            offlineQueueRef.current = offlineQueueRef.current.filter(item => item.run.id !== runId)
+            setOfflineQueue(offlineQueueRef.current)
+            savedToDatabase = true
+            addLog(`✓ Database verified ${result.sampleCount}/${alignedSamples.length} samples for ${runId}.`)
+            toast.success(`Run #${nextSuccessSlot} saved and verified.`)
+            break
+          } catch (error) {
+            addLog(`Database attempt ${attempt}/3 failed: ${error instanceof Error ? error.message : 'request failed'}`)
+          }
+          if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** (attempt - 1)))
         }
+      } finally {
+        syncInProgressRef.current = false
       }
     }
 
-    if ((finalStatus as string) !== 'failed') {
-      if (saveRes.ok) {
-        addLog(`✅ Saved successfully. Run ID: ${runId} (success #${nextSuccessSlot})`)
-        toast.success(`Run #${nextSuccessSlot} saved successfully!`)
-      } else {
-        addLog(`⚠ Saved locally and queued for sync. Run ID: ${runId} (success #${nextSuccessSlot})`)
-      }
-    } else {
-      toast.error(`Run #${nextSuccessSlot} failed to save to database.`)
+    if (!savedToDatabase) {
+      addLog(`Run ${runId} is safe in the browser outbox and will retry without repeating the motion.`)
+      toast.warning(`Run #${nextSuccessSlot} captured safely; database sync is pending.`)
     }
 
-    const cardResult: RunResultCard = {
+    setResults(prev => [...prev, {
+      runId,
       attemptNumber: totalAttemptsRef.current,
-      successIndex: (finalStatus as string) !== 'failed' ? nextSuccessSlot : successCountRef.current,
+      successIndex: nextSuccessSlot,
       direction: runPayload.direction,
       mate: mate_mean,
       mcte: mcte_mean,
       moveDuration: move_duration_ms,
       sigmaHold: sigmaHoldRef.current,
       eSs: e_ss,
-      status: finalStatus,
-    }
-    setResults(prev => [...prev, cardResult])
+      status: savedToDatabase ? 'ok' : 'queued',
+    }])
 
-    if ((finalStatus as string) !== 'failed') {
-      // Increment success count only if actually saved
-      setSuccessCount(prev => {
-        successCountRef.current = prev + 1
-        return prev + 1
-      })
-      runRetryCountRef.current = 0
-      runNeedRetryRef.current = false
-    } else {
-      // Failed save: trigger run failure handler (retries the same slot, aborts after cap)
-      isProcessingRef.current = false
-      handleRunFailure('Database save failed after all retries')
-      return
-    }
-
+    setSuccessCount(prev => {
+      successCountRef.current = prev + 1
+      return prev + 1
+    })
+    runRetryCountRef.current = 0
+    runNeedRetryRef.current = false
     isProcessingRef.current = false
     startCooldown()
+    return
 
-  }, [gains, addLog, startCooldown, handleRunFailure, transition])
-
-  // Local helper to generate alphanumeric run IDs
-  const generateRunId = () => {
-    const chars = 'useand-1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-    let res = ''
-    for (let i = 0; i < 15; i++) {
-      res += chars[Math.floor(Math.random() * chars.length)]
-    }
-    return 'RUN-' + res
-  }
+  }, [gains, addLog, startCooldown, handleRunFailure, transition, abortSequence])
 
   // Handle incoming serial lines
   const onLineReceived = useCallback((line: string) => {
@@ -1010,6 +1057,8 @@ export function ExperimentClient() {
 
     const parts = trimmed.split(',')
     const tag = parts[0]
+    if (tag === 'G') gainsPacketVersionRef.current += 1
+    if (tag === 'K') paramsPacketVersionRef.current += 1
     const st = stateRef.current
     const sequenceActive = st !== 'idle' && st !== 'complete'
 
@@ -1090,7 +1139,7 @@ export function ExperimentClient() {
         clearWatchdog()
         addLog('✓ S-packet received. Robot settled at start position.')
         const nextSuccessSlot = successCountRef.current + 1
-        const fwd = computeIsForward(nextSuccessSlot, activeTabRef.current)
+        const fwd = computeIsForward(nextSuccessSlot)
         setTimeout(() => {
           if (stateRef.current === 'positioning') enterHold(fwd)
         }, 300)
@@ -1118,22 +1167,27 @@ export function ExperimentClient() {
 
     // 3. Capture Telemetry Samples (D, T, F, E)
     if (tag === 'T') {
-      const [, xi, yi, xa, ya] = parts.map(Number)
+      // Current schema: T,t,xi,yi,xa,ya. The old experiment page omitted t,
+      // shifting every Cartesian field and silently corrupting MATE/MCTE.
+      const point = parseExperimentTPoint(parts)
+      if (!point) return
+      const { tMs, xi, yi, xa, ya } = point
       // Always track latest actual position (used for positioning-skip check)
-      if (Number.isFinite(xa) && Number.isFinite(ya)) {
-        lastActualPosRef.current = { x: xa, y: ya }
-      }
+      lastActualPosRef.current = { x: xa, y: ya }
       if (capturePhaseRef.current !== 'off') {
         accumulatedTRef.current.push({
-          t_ms: lastSeenDTimeRef.current,
-          xi: xi ?? 0, yi: yi ?? 0, xa: xa ?? 0, ya: ya ?? 0,
+          t_ms: tMs,
+          xi, yi, xa, ya,
         })
       }
     } else if (capturePhaseRef.current !== 'off') {
       const phase = capturePhaseRef.current
       if (tag === 'D') {
+        if (parts.length < 15) return
         const partsNum = parts.map(Number)
-        const t = partsNum[1] || 0
+        const required = partsNum.slice(1, 15)
+        if (!required.every(Number.isFinite)) return
+        const t = partsNum[1]
         lastSeenDTimeRef.current = t
         lastDWallClockRef.current = Date.now()
         accumulatedDRef.current.push({
@@ -1149,6 +1203,7 @@ export function ExperimentClient() {
         })
       } else if (tag === 'F') {
         const [, time_ms, inertia1, coriolis1, gravity1, inertia2, coriolis2, gravity2, ff1_contrib, u1_total, integral1, delta_omega_ff, omega2_raw, integral2] = parts.map(Number)
+        if (![time_ms, inertia1, coriolis1, gravity1, inertia2, coriolis2, gravity2, ff1_contrib, u1_total, integral1, delta_omega_ff, omega2_raw, integral2].every(Number.isFinite)) return
         accumulatedFRef.current.push({
           t: time_ms ?? 0, inertia1: inertia1 ?? 0, coriolis1: coriolis1 ?? 0,
           gravity1: gravity1 ?? 0, inertia2: inertia2 ?? 0, coriolis2: coriolis2 ?? 0,
@@ -1158,6 +1213,7 @@ export function ExperimentClient() {
         })
       } else if (tag === 'E') {
         const [, time_ms, p1_out, i1_out, d1_out, loop_duration_us] = parts.map(Number)
+        if (![time_ms, p1_out, i1_out, d1_out, loop_duration_us].every(Number.isFinite)) return
         accumulatedERef.current.push({
           t: time_ms ?? 0, p1_out: p1_out ?? 0, i1_out: i1_out ?? 0,
           d1_out: d1_out ?? 0, loop_duration_us: loop_duration_us ?? 0,
@@ -1238,7 +1294,7 @@ export function ExperimentClient() {
       await serial.sendCommand('plot,1')
       setCheck('Plot stream', true)
 
-      // 4. Gains snapshot (fresh baseline for EXP-6 scaling + restore-on-exit)
+      // 4. Fresh gains snapshot for reproducible run metadata.
       setCheck('Gains snapshot', null)
       await serial.sendCommand('getgains')
       // Give the fresh G-packet time to arrive (gainsRef may hold a stale snapshot)
@@ -1252,8 +1308,6 @@ export function ExperimentClient() {
         setBaseGains(snap)
         addLog(`Baseline gains: Kp1=${snap.kp1.toFixed(3)}, Ki1=${snap.ki1.toFixed(3)}, Kd1=${snap.kd1.toFixed(3)}`)
         setCheck('Gains snapshot', true)
-      } else if (activeTabRef.current === 'EXP-6') {
-        return fail('Gains snapshot', 'No G-packet received — EXP-6 needs a gains baseline.')
       } else {
         addLog('⚠️ No gains received yet; using firmware defaults for logging.')
         setCheck('Gains snapshot', true)
@@ -1284,7 +1338,7 @@ export function ExperimentClient() {
     const baseKp = baseGains?.kp1 ?? gains?.kp1 ?? 0.60
     const baseKi = baseGains?.ki1 ?? gains?.ki1 ?? 0.05
     const baseKd = baseGains?.kd1 ?? gains?.kd1 ?? 0.07
-    let activeGains = `Kp1=${baseKp.toFixed(2)}, Ki1=${baseKi.toFixed(3)}, Kd1=${baseKd.toFixed(3)}`
+    const activeGains = `Kp1=${baseKp.toFixed(2)}, Ki1=${baseKi.toFixed(3)}, Kd1=${baseKd.toFixed(3)}`
 
     if (tab === 'EXP-1') {
       desc = 'Evaluate the effect of the Tracking Differentiator (TD) filter in the feedback loop. All feedforward locked OFF (ffi=ffc=ffg=0) to isolate velocity estimation.'
@@ -1297,16 +1351,10 @@ export function ExperimentClient() {
       cmds = 'ffc,1.0 (Runs 1-4) | ffc,0.0 (Runs 5-8)'
     } else if (tab === 'EXP-4') {
       desc = `Evaluate the model gravity compensation at tilt angle α = ${exp4Alpha}°. Locks: tden=1, trapen=1, ffi=1.0, ffc=1.0.`
-      cmds = `atilt,${exp4Alpha} & ffg,1.0 (Runs 1-2) | ffg,0.0 (Runs 3-4)`
+      cmds = `atilt,${exp4Alpha} & ffg,1.0 (Runs 1-4) | ffg,0.0 (Runs 5-8)`
     } else if (tab === 'EXP-5') {
       desc = 'Test the input trajectory filter. Compare Trapezoidal profile (Runs 1-4) vs Raw Step input (Runs 5-8). Locks: tden=1, all FF on.'
       cmds = 'trapen,1 (Runs 1-4) | trapen,0 (Runs 5-8)'
-    } else if (tab === 'EXP-6') {
-      const scale = parseFloat(exp6Level)
-      const subLabel = exp6Sub === '6A' ? 'Kp1' : exp6Sub === '6B' ? 'Ki1' : 'Kd1'
-      desc = `Analyze the variation of gain ${subLabel} by ${exp6Level}x baseline. Baseline gains are re-captured at sequence start and restored afterwards. Locks: tden=1, trapen=1, all FF on.`
-      cmds = `${subLabel.toLowerCase()},${(subLabel === 'Kp1' ? baseKp * scale : subLabel === 'Ki1' ? baseKi * scale : baseKd * scale).toFixed(3)} (Runs 1-4)`
-      activeGains = `Kp1=${(exp6Sub === '6A' ? baseKp * scale : baseKp).toFixed(3)}, Ki1=${(exp6Sub === '6B' ? baseKi * scale : baseKi).toFixed(3)}, Kd1=${(exp6Sub === '6C' ? baseKd * scale : baseKd).toFixed(3)}`
     }
 
     return { desc, cmds, activeGains }
@@ -1314,7 +1362,7 @@ export function ExperimentClient() {
 
   const { desc: paramDesc, cmds: paramCmds, activeGains: paramGains } = getParamDescription()
   const currentExp = EXPERIMENTS.find(e => e.id === activeTab)
-  const totalRuns = computeTotalRuns(activeTab)
+  const totalRuns = computeTotalRuns()
   const sequenceActive = state !== 'idle' && state !== 'complete'
 
   return (
@@ -1382,6 +1430,11 @@ export function ExperimentClient() {
           </div>
 
           <div className="flex items-center gap-3">
+            {offlineQueue.length > 0 && (
+              <Badge className="bg-blue-500/15 text-blue-300 border border-blue-400/30 text-[10px] px-2 py-0 font-normal">
+                {offlineQueue.length} DB pending
+              </Badge>
+            )}
             <ThemeToggle />
             <CommandPaletteTrigger />
             <Badge className={`${online ? 'bg-hmi-ok text-white' : 'bg-hmi-off text-hmi-muted'} text-[10px] px-1.5 py-0 font-normal`}>
@@ -1464,46 +1517,6 @@ export function ExperimentClient() {
             </div>
           )}
 
-          {activeTab === 'EXP-6' && (
-            <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-4 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-hmi-muted uppercase">Sub-Eksperimen PID:</span>
-                <div className="flex gap-2">
-                  {(['6A', '6B', '6C'] as const).map(sub => (
-                    <Button
-                      key={sub}
-                      size="sm"
-                      variant={exp6Sub === sub ? 'default' : 'outline'}
-                      disabled={sequenceActive}
-                      onClick={() => { setExp6Sub(sub); setResults([]); setSummary(null); }}
-                      className="h-7 text-xs font-semibold px-4"
-                    >
-                      {sub === '6A' ? '6A: Kp1 (Proportional)' : sub === '6B' ? '6B: Ki1 (Integral)' : '6C: Kd1 (Derivative)'}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between border-t border-hmi-grid/50 pt-3">
-                <span className="text-xs font-bold text-hmi-muted uppercase">Level Scaling Gain J1:</span>
-                <div className="flex gap-2">
-                  {(['0.5', '1.0', '1.5'] as const).map(lvl => (
-                    <Button
-                      key={lvl}
-                      size="sm"
-                      variant={exp6Level === lvl ? 'default' : 'outline'}
-                      disabled={sequenceActive}
-                      onClick={() => { setExp6Level(lvl); setResults([]); setSummary(null); }}
-                      className="h-7 text-xs font-semibold px-4"
-                    >
-                      {lvl}x Baseline
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Description & Parameter Display */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="bg-hmi-panel border-hmi-grid col-span-2">
@@ -1543,6 +1556,14 @@ export function ExperimentClient() {
                   >
                     <Play className="w-3.5 h-3.5 mr-2" />
                     ▶ Start Experiment
+                  </Button>
+                ) : state === 'syncing' ? (
+                  <Button
+                    onClick={() => void syncOutbox()}
+                    disabled={!online || syncInProgressRef.current}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs"
+                  >
+                    Sync {offlineQueue.length} Pending Run{offlineQueue.length === 1 ? '' : 's'}
                   </Button>
                 ) : (
                   <Button
@@ -1671,7 +1692,7 @@ export function ExperimentClient() {
             <Card className="bg-hmi-panel border-hmi-grid flex flex-col h-80 overflow-hidden">
               <CardHeader className="py-3 border-b border-hmi-grid justify-between flex flex-row items-center">
                 <CardTitle className="text-xs font-bold uppercase text-hmi-muted tracking-wider">
-                  Run Results ({results.filter(r => r.status !== 'failed').length} ok / {results.length} total)
+                  Run Results ({results.filter(r => r.status === 'ok').length} DB verified / {results.length} captured)
                 </CardTitle>
                 {state === 'complete' && summary && (
                   <div className="text-[10px] text-hmi-muted bg-hmi-bg border border-hmi-grid px-2 py-0.5 rounded font-mono">
@@ -1689,6 +1710,7 @@ export function ExperimentClient() {
                       className={cn(
                         'border rounded-lg p-2.5 flex items-center justify-between text-xs transition-all duration-300',
                         res.status === 'ok' ? 'bg-hmi-panel border-hmi-grid' :
+                        res.status === 'queued' ? 'bg-hmi-panel border-blue-400/30' :
                         res.status === 'retrying' ? 'bg-hmi-panel border-hmi-warn/30' :
                         'bg-hmi-panel border-hmi-rec-on/30'
                       )}
@@ -1697,6 +1719,7 @@ export function ExperimentClient() {
                         <div className={cn(
                           'w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px]',
                           res.status === 'ok' ? 'bg-hmi-ok/10 text-hmi-ok border border-hmi-ok/30' :
+                          res.status === 'queued' ? 'bg-blue-400/10 text-blue-400 border border-blue-400/30' :
                           res.status === 'retrying' ? 'bg-hmi-warn/10 text-hmi-warn border border-hmi-warn/30' :
                           'bg-hmi-rec-on/10 text-hmi-rec-on border border-hmi-rec-on/30'
                         )}>
@@ -1704,7 +1727,9 @@ export function ExperimentClient() {
                         </div>
                         <div className="flex flex-col">
                           <span className="capitalize font-medium text-hmi-text">{res.direction}</span>
-                          <span className="text-[9px] text-hmi-muted">attempt #{res.attemptNumber}</span>
+                          <span className="text-[9px] text-hmi-muted">
+                            attempt #{res.attemptNumber}{res.status === 'queued' ? ' · DB pending' : ''}
+                          </span>
                         </div>
                       </div>
 

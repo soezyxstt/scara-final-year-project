@@ -3,7 +3,7 @@
 import { useState, useMemo, useTransition, useEffect } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
 import { Button } from '@/components/ui/button'
-import type { ExperimentRun } from '@/lib/db/schema/experiment'
+import type { ExperimentMetric, ExperimentRun, ExperimentSample } from '@/lib/db/schema/experiment'
 import { getExperimentData, deleteExperimentRun, deleteExperiment } from '@/lib/actions/experiment'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -85,9 +85,17 @@ const LEGEND_STYLE = {
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface Props {
   initialRuns: ExperimentRun[]
+  initialLoadError?: string | null
 }
 
-const EXPERIMENT_KEYS = ['EXP-1', 'EXP-2', 'EXP-3', 'EXP-4', 'EXP-5', 'EXP-6'] as const
+interface ExperimentData {
+  runs: ExperimentRun[]
+  metrics: ExperimentMetric[]
+  samples: ExperimentSample[]
+}
+
+const EXPERIMENT_KEYS = ['EXP-1', 'EXP-2', 'EXP-3', 'EXP-4', 'EXP-5'] as const
+type ExperimentKey = typeof EXPERIMENT_KEYS[number]
 
 const EXPERIMENT_NAMES: Record<string, string> = {
   'EXP-1': 'TD Filter',
@@ -95,7 +103,6 @@ const EXPERIMENT_NAMES: Record<string, string> = {
   'EXP-3': 'Coriolis Comp',
   'EXP-4': 'Gravity Comp',
   'EXP-5': 'Trap Profile',
-  'EXP-6': 'PID Variation',
 }
 const EXPERIMENT_DESC: Record<string, string> = {
   'EXP-1': 'Evaluate Tracking Differentiator filter performance for J1 & J2',
@@ -103,7 +110,136 @@ const EXPERIMENT_DESC: Record<string, string> = {
   'EXP-3': 'Test Coriolis & Centrifugal force compensation contribution',
   'EXP-4': 'Test gravity force compensation at various tilt angles',
   'EXP-5': 'Evaluate trapezoidal profile vs raw step input',
-  'EXP-6': 'Test performance with various PID gains',
+}
+
+interface AnalysisMetric {
+  key: keyof ExperimentMetric
+  label: string
+  unit: string
+  rationale: string
+  absolute?: boolean
+}
+
+const ANALYSIS_METRICS: Record<ExperimentKey, AnalysisMetric[]> = {
+  'EXP-1': [
+    { key: 'sigmaTheta1Hold', label: 'Noise floor σθ1', unit: 'mrad', rationale: 'Efek TD terhadap noise posisi saat diam.' },
+    { key: 'joint1ErrorRms', label: 'RMSE sudut J1', unit: 'mrad', rationale: 'Trade-off filtering terhadap tracking joint.' },
+    { key: 'mcteRms', label: 'RMS cross-track', unit: 'mm', rationale: 'Kemampuan mengikuti garis lintasan.' },
+  ],
+  'EXP-2': [
+    { key: 'mateRms', label: 'RMS along-track', unit: 'mm', rationale: 'Lag dinamis yang ditargetkan kompensasi inersia.' },
+    { key: 'joint1ErrorRms', label: 'RMSE sudut J1', unit: 'mrad', rationale: 'Error joint saat akselerasi dan deselerasi.' },
+    { key: 'eefErrorRms', label: 'RMSE end-effector', unit: 'mm', rationale: 'Akurasi Cartesian keseluruhan.' },
+  ],
+  'EXP-3': [
+    { key: 'mcteRms', label: 'RMS cross-track', unit: 'mm', rationale: 'Deviasi lateral akibat coupling Coriolis.' },
+    { key: 'joint2ErrorRms', label: 'RMSE sudut J2', unit: 'mrad', rationale: 'Joint yang menerima koreksi coupling.' },
+    { key: 'eefErrorRms', label: 'RMSE end-effector', unit: 'mm', rationale: 'Dampak coupling pada akurasi Cartesian.' },
+  ],
+  'EXP-4': [
+    { key: 'eSs', label: 'Steady-state error', unit: 'mm', rationale: 'Metric utama beban gravitasi pada setiap sudut tilt.' },
+    { key: 'finalEefError', label: 'Final EEF error', unit: 'mm', rationale: 'Error posisi pada akhir gerak.' },
+    { key: 'eefErrorRms', label: 'RMSE end-effector', unit: 'mm', rationale: 'Kualitas tracking selama gerak.' },
+  ],
+  'EXP-5': [
+    { key: 'eefErrorMax', label: 'Peak EEF error', unit: 'mm', rationale: 'Lonjakan error akibat input step tanpa profil.' },
+    { key: 'joint1ErrorMax', label: 'Peak error J1', unit: 'mrad', rationale: 'Beban transien maksimum pada joint utama.' },
+    { key: 'moveDurationMs', label: 'Durasi gerak', unit: 's', rationale: 'Trade-off kehalusan profil terhadap waktu eksekusi.' },
+  ],
+}
+
+interface DistributionStats {
+  values: number[]
+  min: number
+  q1: number
+  median: number
+  q3: number
+  max: number
+  mean: number
+  std: number
+}
+
+function quantile(values: number[], q: number): number {
+  if (values.length === 0) return 0
+  const position = (values.length - 1) * q
+  const lower = Math.floor(position)
+  const fraction = position - lower
+  return values[lower + 1] === undefined
+    ? values[lower]
+    : values[lower] + fraction * (values[lower + 1] - values[lower])
+}
+
+function metricValue(metric: AnalysisMetric, row: ExperimentMetric): number | null {
+  const raw = row?.[metric.key]
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return null
+  if (metric.key === 'sigmaTheta1Hold' || metric.key.startsWith('joint')) return Math.abs(raw) * 1000
+  if (metric.key === 'moveDurationMs') return raw / 1000
+  return metric.absolute ? Math.abs(raw) : raw
+}
+
+function distribution(metric: AnalysisMetric, rows: ExperimentMetric[]): DistributionStats | null {
+  const values = rows.map(row => metricValue(metric, row)).filter((value): value is number => value !== null).sort((a, b) => a - b)
+  if (values.length === 0) return null
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, values.length - 1)
+  return {
+    values,
+    min: values[0],
+    q1: quantile(values, 0.25),
+    median: quantile(values, 0.5),
+    q3: quantile(values, 0.75),
+    max: values[values.length - 1],
+    mean,
+    std: Math.sqrt(variance),
+  }
+}
+
+function MetricBoxPlot({ metric, groups }: { metric: AnalysisMetric; groups: { name: string; metrics: ExperimentMetric[] }[] }) {
+  const rows = groups.map(group => ({ ...group, stats: distribution(metric, group.metrics) })).filter(row => row.stats)
+  const allValues = rows.flatMap(row => row.stats!.values)
+  if (allValues.length === 0) return null
+  const rawMin = Math.min(...allValues)
+  const rawMax = Math.max(...allValues)
+  const padding = rawMin === rawMax ? Math.max(0.5, Math.abs(rawMin) * 0.1) : (rawMax - rawMin) * 0.12
+  const min = Math.max(0, rawMin - padding)
+  const max = rawMax + padding
+  const left = 150
+  const right = 680
+  const x = (value: number) => left + ((value - min) / Math.max(1e-9, max - min)) * (right - left)
+  const height = 55 + rows.length * 42
+
+  return (
+    <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-4">
+      <div className="mb-3">
+        <p className="text-xs font-bold text-hmi-text">{metric.label} ({metric.unit})</p>
+        <p className="text-[10px] text-hmi-muted mt-0.5">{metric.rationale}</p>
+      </div>
+      <svg viewBox={`0 0 700 ${height}`} className="w-full" role="img" aria-label={`Boxplot ${metric.label}`}>
+        {[0, 0.25, 0.5, 0.75, 1].map(tick => {
+          const value = min + (max - min) * tick
+          const px = x(value)
+          return <g key={tick}><line x1={px} x2={px} y1={12} y2={height - 22} stroke="var(--color-hmi-grid-subtle)" /><text x={px} y={height - 5} textAnchor="middle" fill="var(--color-hmi-muted)" fontSize="9">{value.toFixed(value < 10 ? 2 : 1)}</text></g>
+        })}
+        {rows.map((row, index) => {
+          const stats = row.stats!
+          const y = 30 + index * 42
+          return (
+            <g key={row.name}>
+              <text x={0} y={y + 4} fill="var(--color-hmi-text-secondary)" fontSize="10">{row.name} (n={stats.values.length})</text>
+              <line x1={x(stats.min)} x2={x(stats.max)} y1={y} y2={y} stroke="var(--color-hmi-muted)" strokeWidth="1.5" />
+              <line x1={x(stats.min)} x2={x(stats.min)} y1={y - 7} y2={y + 7} stroke="var(--color-hmi-muted)" />
+              <line x1={x(stats.max)} x2={x(stats.max)} y1={y - 7} y2={y + 7} stroke="var(--color-hmi-muted)" />
+              <rect x={x(stats.q1)} y={y - 10} width={Math.max(1, x(stats.q3) - x(stats.q1))} height={20} rx="2" fill="var(--color-hmi-j1)" fillOpacity="0.25" stroke="var(--color-hmi-j1)" />
+              <line x1={x(stats.median)} x2={x(stats.median)} y1={y - 10} y2={y + 10} stroke="var(--color-hmi-ideal)" strokeWidth="2" />
+              <circle cx={x(stats.mean)} cy={y} r="3" fill="var(--color-hmi-pwm-pos)" />
+              {stats.values.map((value, valueIndex) => <circle key={valueIndex} cx={x(value)} cy={y + 14 + (valueIndex % 2) * 3} r="1.8" fill="var(--color-hmi-text-secondary)" fillOpacity="0.7" />)}
+            </g>
+          )
+        })}
+      </svg>
+      <p className="text-[9px] text-hmi-muted mt-1">Box = Q1–Q3, garis = median, titik merah = mean, titik kecil = setiap run.</p>
+    </div>
+  )
 }
 const RAD2DEG = 180 / Math.PI
 
@@ -488,7 +624,7 @@ function RunCharts({ runId, runSamples, runMetrics }: { runId: string; runSample
 }
 
 // ── Main ResultsClient ────────────────────────────────────────────────────────
-export function ResultsClient({ initialRuns }: Props) {
+export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
   const { state: hmiState, serial } = useHMISlow()
   const { serialStatus, online, estopped } = hmiState
 
@@ -500,7 +636,7 @@ export function ResultsClient({ initialRuns }: Props) {
     )
   }, [allRuns])
 
-  const [selectedExp, setSelectedExp] = useState<'EXP-1' | 'EXP-2' | 'EXP-3' | 'EXP-4' | 'EXP-5' | 'EXP-6'>(() => {
+  const [selectedExp, setSelectedExp] = useState<ExperimentKey>(() => {
     const first = EXPERIMENT_KEYS.find(key => initialRuns.some(run => run.experimentId.startsWith(key)))
     return first || 'EXP-1'
   })
@@ -512,20 +648,30 @@ export function ResultsClient({ initialRuns }: Props) {
   const [deletingExp, setDeletingExp] = useState(false)
 
   const [loading, setLoading] = useState(false)
-  const [data, setData] = useState<{ runs: any[]; metrics: any[]; samples: any[] } | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(initialLoadError)
+  const [data, setData] = useState<ExperimentData | null>(() =>
+    initialLoadError ? { runs: [], metrics: [], samples: [] } : null
+  )
 
   const refreshData = (exp = selectedExp) => {
     setLoading(true)
     getExperimentData(exp)
-      .then(res => setData(res ?? { runs: [], metrics: [], samples: [] }))
-      .catch(() => toast.error('Gagal memuat data eksperimen.'))
+      .then(res => {
+        setData(res ?? { runs: [], metrics: [], samples: [] })
+        setLoadError(null)
+      })
+      .catch(() => {
+        setLoadError('Database tidak dapat dijangkau. Muat ulang setelah koneksi pulih.')
+        toast.error('Gagal memuat data eksperimen.')
+      })
       .finally(() => setLoading(false))
   }
 
   // Load on mount + when selectedExp changes
   useEffect(() => {
+    if (initialLoadError) return
     refreshData(selectedExp)
-  }, [selectedExp])
+  }, [selectedExp, initialLoadError])
 
   const filteredRuns = useMemo(() => {
     if (!data) return []
@@ -547,7 +693,7 @@ export function ResultsClient({ initialRuns }: Props) {
 
   // Standard conditions (EXP-1/2/3/5)
   const standardConditions = useMemo(() => {
-    if (selectedExp === 'EXP-4' || selectedExp === 'EXP-6') return []
+    if (selectedExp === 'EXP-4') return []
     const predA = (r: any) => {
       if (selectedExp === 'EXP-1') return r.tdEnabled === 1
       if (selectedExp === 'EXP-2') return r.ffiEnabled === 1
@@ -567,7 +713,7 @@ export function ResultsClient({ initialRuns }: Props) {
   }, [selectedExp, filteredRuns, filteredMetrics])
 
   const summaryTableRows = useMemo(() => standardConditions.map(cond => {
-    const getVal = (k: string) => cond.metrics.map(m => (m[k] as number) ?? 0)
+    const getVal = (k: keyof ExperimentMetric) => cond.metrics.map(m => (m[k] as number) ?? 0)
     return {
       name: cond.name, n: cond.runs,
       mate: computeMeanStd(getVal('mateMean')),
@@ -627,41 +773,60 @@ export function ResultsClient({ initialRuns }: Props) {
     return rows
   }, [selectedExp, filteredRuns, filteredMetrics])
 
-  // EXP-6
-  const exp6ChartsData = useMemo(() => {
-    if (selectedExp !== 'EXP-6') return { Kp: [], Ki: [], Kd: [] }
-    const levels = ['0.5', '1.0', '1.5']
-    const getLine = (sub: '6A' | '6B' | '6C') => levels.map(lvl => {
-      const key = `EXP-${sub}-${lvl}x`
-      const ids = filteredRuns.filter(r => r.experimentId === key).map(r => r.id)
-      const mets = filteredMetrics.filter(m => ids.includes(m.runId))
-      return {
-        level: `${lvl}x`,
-        MATE: computeMeanStd(mets.map(m => Math.abs(m.mateMean ?? 0))).mean,
-        SettleTime: computeMeanStd(mets.map(m => m.settleTimeMs ?? 0)).mean,
-        MaxErrJ1: computeMeanStd(mets.map(m => m.joint1ErrorMax ?? 0)).mean,
-      }
-    })
-    return { Kp: getLine('6A'), Ki: getLine('6B'), Kd: getLine('6C') }
-  }, [selectedExp, filteredRuns, filteredMetrics])
+  const activeTableRows = selectedExp === 'EXP-4' ? exp4SummaryRows : summaryTableRows
 
-  const exp6SummaryRows = useMemo(() => {
-    if (selectedExp !== 'EXP-6') return []
-    const rows: any[] = []
-    for (const sub of ['6A', '6B', '6C'] as const) {
-      for (const lvl of ['0.5', '1.0', '1.5']) {
-        const key = `EXP-${sub}-${lvl}x`
-        const ids = filteredRuns.filter(r => r.experimentId === key).map(r => r.id)
-        const gm = filteredMetrics.filter(m => ids.includes(m.runId))
-        const label = sub === '6A' ? 'Kp1' : sub === '6B' ? 'Ki1' : 'Kd1'
-        rows.push({ name: `${label} (${lvl}x)`, n: ids.length, mate: computeMeanStd(gm.map(m => m.mateMean ?? 0)), mcte: computeMeanStd(gm.map(m => m.mcteMean ?? 0)), eef: computeMeanStd(gm.map(m => m.eefErrorMean ?? 0)), settle: computeMeanStd(gm.map(m => m.settleTimeMs ?? 0)), finalEef: computeMeanStd(gm.map(m => m.finalEefError ?? 0)) })
-      }
+  const analysisGroups = useMemo(() => {
+    const metricsForRunIds = (ids: string[]) => filteredMetrics.filter(metric => ids.includes(metric.runId))
+    if (selectedExp === 'EXP-4') {
+      return [0, 15, 30, 45].flatMap(alpha => {
+        const atAngle = filteredRuns.filter(run => run.alphaDeg === alpha)
+        const onIds = atAngle.filter(run => run.ffgEnabled === 1).map(run => run.id)
+        const offIds = atAngle.filter(run => run.ffgEnabled === 0).map(run => run.id)
+        return [
+          { name: `${alpha}° · FFG ON`, metrics: metricsForRunIds(onIds) },
+          { name: `${alpha}° · FFG OFF`, metrics: metricsForRunIds(offIds) },
+        ]
+      })
     }
-    return rows
+
+    const isEnabled = (run: ExperimentRun) => {
+      if (selectedExp === 'EXP-1') return run.tdEnabled === 1
+      if (selectedExp === 'EXP-2') return run.ffiEnabled === 1
+      if (selectedExp === 'EXP-3') return run.ffcEnabled === 1
+      return run.trapEnabled === 1
+    }
+    const label = selectedExp === 'EXP-1' ? 'TD' : selectedExp === 'EXP-2' ? 'Inertia' : selectedExp === 'EXP-3' ? 'Coriolis' : 'Trapezoid'
+    const enabledIds = filteredRuns.filter(isEnabled).map(run => run.id)
+    const disabledIds = filteredRuns.filter(run => !isEnabled(run)).map(run => run.id)
+    return [
+      { name: `${label} ON`, metrics: metricsForRunIds(enabledIds) },
+      { name: `${label} OFF`, metrics: metricsForRunIds(disabledIds) },
+    ]
   }, [selectedExp, filteredRuns, filteredMetrics])
 
-  // The table rows to render
-  const activeTableRows = selectedExp === 'EXP-4' ? exp4SummaryRows : selectedExp === 'EXP-6' ? exp6SummaryRows : summaryTableRows
+  const analysisMetrics = ANALYSIS_METRICS[selectedExp]
+  const effectRows = useMemo(() => {
+    const pairs = selectedExp === 'EXP-4'
+      ? [0, 15, 30, 45].map((_, index) => [analysisGroups[index * 2], analysisGroups[index * 2 + 1]] as const)
+      : [[analysisGroups[0], analysisGroups[1]] as const]
+
+    return analysisMetrics.flatMap(metric => pairs.flatMap(([enabled, disabled]) => {
+      if (!enabled || !disabled) return []
+      const enabledStats = distribution(metric, enabled.metrics)
+      const disabledStats = distribution(metric, disabled.metrics)
+      if (!enabledStats || !disabledStats) return []
+      const delta = enabledStats.mean - disabledStats.mean
+      const improvement = disabledStats.mean === 0 ? null : ((disabledStats.mean - enabledStats.mean) / Math.abs(disabledStats.mean)) * 100
+      return [{
+        metric,
+        comparison: selectedExp === 'EXP-4' ? enabled.name.split(' · ')[0] : `${enabled.name} vs ${disabled.name}`,
+        enabledMean: enabledStats.mean,
+        disabledMean: disabledStats.mean,
+        delta,
+        improvement,
+      }]
+    }))
+  }, [selectedExp, analysisGroups, analysisMetrics])
 
   // ── Delete handlers ─────────────────────────────────────────────────────────
   const handleDeleteRun = (runId: string) => {
@@ -834,6 +999,14 @@ export function ResultsClient({ initialRuns }: Props) {
 
         {/* Scroll content */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {loadError && (
+            <div role="alert" className="flex items-center justify-between gap-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+              <div><span className="font-bold">Database offline.</span> {loadError}</div>
+              <Button variant="outline" size="sm" disabled={loading} onClick={() => refreshData()}>
+                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Coba lagi'}
+              </Button>
+            </div>
+          )}
           {loading ? (
             <div className="h-64 flex flex-col items-center justify-center text-xs text-slate-500 gap-3">
               <Loader2 className="w-7 h-7 animate-spin text-hmi-ideal" />
@@ -888,6 +1061,95 @@ export function ResultsClient({ initialRuns }: Props) {
                 </div>
               </div>
 
+              {/* Report-oriented distributions and descriptive statistics */}
+              <div className="space-y-3">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-hmi-text">Analisis Distribusi untuk Laporan</p>
+                    <p className="text-[10px] text-hmi-muted mt-1">
+                      Metric dipilih sesuai hipotesis {selectedExp}; filter arah di atas dapat dipakai untuk memeriksa bias forward/return.
+                    </p>
+                  </div>
+                  <span className="text-[9px] text-hmi-muted border border-hmi-grid rounded px-2 py-1">Mean ● · Median │</span>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {analysisMetrics.map(metric => <MetricBoxPlot key={metric.key} metric={metric} groups={analysisGroups} />)}
+                </div>
+
+                <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-hmi-grid/60">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Besar efek aktivasi — nilai negatif berarti metric turun</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-hmi-grid/60 hover:bg-transparent">
+                          <TableHead className="text-[10px]">Metric</TableHead>
+                          <TableHead className="text-[10px]">Perbandingan</TableHead>
+                          <TableHead className="text-[10px] text-center">ON mean</TableHead>
+                          <TableHead className="text-[10px] text-center">OFF mean</TableHead>
+                          <TableHead className="text-[10px] text-center">Δ ON−OFF</TableHead>
+                          <TableHead className="text-[10px] text-center">Perbaikan relatif</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {effectRows.map(row => (
+                          <TableRow key={`${row.metric.key}-${row.comparison}`} className="border-hmi-grid/40 text-[10px]">
+                            <TableCell className="font-semibold text-hmi-text">{row.metric.label} ({row.metric.unit})</TableCell>
+                            <TableCell>{row.comparison}</TableCell>
+                            <TableCell className="text-center font-mono">{row.enabledMean.toFixed(3)}</TableCell>
+                            <TableCell className="text-center font-mono">{row.disabledMean.toFixed(3)}</TableCell>
+                            <TableCell className={cn('text-center font-mono font-semibold', row.delta <= 0 ? 'text-emerald-400' : 'text-amber-400')}>{row.delta >= 0 ? '+' : ''}{row.delta.toFixed(3)}</TableCell>
+                            <TableCell className={cn('text-center font-mono font-semibold', (row.improvement ?? 0) >= 0 ? 'text-emerald-400' : 'text-amber-400')}>
+                              {row.improvement == null ? '—' : `${row.improvement >= 0 ? '+' : ''}${row.improvement.toFixed(1)}%`}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-hmi-grid/60">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Statistik deskriptif — siap ditransfer ke laporan</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-hmi-grid/60 hover:bg-transparent">
+                          <TableHead className="text-[10px]">Metric</TableHead>
+                          <TableHead className="text-[10px]">Kondisi</TableHead>
+                          <TableHead className="text-[10px] text-center">N</TableHead>
+                          <TableHead className="text-[10px] text-center">Mean ± SD</TableHead>
+                          <TableHead className="text-[10px] text-center">Median</TableHead>
+                          <TableHead className="text-[10px] text-center">Q1–Q3</TableHead>
+                          <TableHead className="text-[10px] text-center">Min–Max</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {analysisMetrics.flatMap(metric => analysisGroups.map(group => {
+                          const stats = distribution(metric, group.metrics)
+                          if (!stats) return null
+                          return (
+                            <TableRow key={`${metric.key}-${group.name}`} className="border-hmi-grid/40 text-[10px]">
+                              <TableCell className="font-semibold text-hmi-text">{metric.label} <span className="text-hmi-muted">({metric.unit})</span></TableCell>
+                              <TableCell>{group.name}</TableCell>
+                              <TableCell className="text-center font-mono">{stats.values.length}</TableCell>
+                              <TableCell className="text-center font-mono">{stats.mean.toFixed(3)} ± {stats.std.toFixed(3)}</TableCell>
+                              <TableCell className="text-center font-mono">{stats.median.toFixed(3)}</TableCell>
+                              <TableCell className="text-center font-mono">{stats.q1.toFixed(3)}–{stats.q3.toFixed(3)}</TableCell>
+                              <TableCell className="text-center font-mono">{stats.min.toFixed(3)}–{stats.max.toFixed(3)}</TableCell>
+                            </TableRow>
+                          )
+                        }))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </div>
+
               {/* ── Comparative Charts ─────────────────────────────────────── */}
               {selectedExp === 'EXP-4' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -926,25 +1188,6 @@ export function ResultsClient({ initialRuns }: Props) {
                       </BarChart>
                     </ResponsiveContainer>
                   </ExpandableChart>
-                </div>
-              ) : selectedExp === 'EXP-6' ? (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  {(['Kp', 'Ki', 'Kd'] as const).map((k, ki) => (
-                    <ExpandableChart key={k} title={`${k} Gain Scaling`} subtitle={`6${['A','B','C'][ki]}: ${k}1 variation`} className="h-[300px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={exp6ChartsData[k]} margin={MARGIN}>
-                          <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
-                          <XAxis dataKey="level" tick={AT} axisLine={AL} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={AT} axisLine={AL} tickLine={false} tickFormatter={YFmt} width={48} />
-                          <Tooltip contentStyle={TS} />
-                          <Legend verticalAlign="top" align="left" height={20} wrapperStyle={LEGEND_STYLE} />
-                          <Line type="monotone" dataKey="MATE" stroke="var(--color-hmi-j1)" strokeWidth={2} dot={{ r: 3, fill: 'var(--color-hmi-j1)' }} isAnimationActive={false} name="MATE (mm)" />
-                          <Line type="monotone" dataKey="SettleTime" stroke="var(--color-hmi-j2)" strokeWidth={2} dot={{ r: 3, fill: 'var(--color-hmi-j2)' }} isAnimationActive={false} name="Settle (ms)" />
-                          <Line type="monotone" dataKey="MaxErrJ1" stroke="var(--color-hmi-pwm-pos)" strokeWidth={2} dot={{ r: 3, fill: 'var(--color-hmi-pwm-pos)' }} isAnimationActive={false} name="Max Err J1" />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </ExpandableChart>
-                  ))}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

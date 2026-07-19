@@ -48,7 +48,7 @@ export async function saveExperimentRun(payload: {
   }
 }
 
-import { eq, like, inArray } from 'drizzle-orm'
+import { and, eq, like, inArray } from 'drizzle-orm'
 
 /**
  * Delete a single experiment run and all its associated metrics and samples.
@@ -69,14 +69,14 @@ export async function deleteExperimentRun(runId: string): Promise<{ ok: boolean;
 }
 
 /**
- * Delete all runs for a given experimentId (supports prefix matching for EXP-4 and EXP-6).
+ * Delete all runs for a given experimentId (EXP-4 uses an angle suffix).
  * Performs cascade delete: samples → metrics → runs.
  */
 export async function deleteExperiment(experimentId: string): Promise<{ ok: boolean; deletedCount: number; error?: string }> {
   try {
     // Find all matching run IDs
     let runsList
-    if (experimentId === 'EXP-4' || experimentId === 'EXP-6') {
+    if (experimentId === 'EXP-4') {
       runsList = await db
         .select({ id: experimentRuns.id })
         .from(experimentRuns)
@@ -126,17 +126,17 @@ export async function getExperimentRunDetails(runId: string) {
 export async function getExperimentData(experimentId: string) {
   try {
     let runsList
-    if (experimentId === 'EXP-4' || experimentId === 'EXP-6') {
+    if (experimentId === 'EXP-4') {
       runsList = await db
         .select()
         .from(experimentRuns)
-        .where(like(experimentRuns.experimentId, `${experimentId}%`))
+        .where(and(like(experimentRuns.experimentId, `${experimentId}%`), eq(experimentRuns.status, 'ok')))
         .orderBy(experimentRuns.createdAt)
     } else {
       runsList = await db
         .select()
         .from(experimentRuns)
-        .where(eq(experimentRuns.experimentId, experimentId))
+        .where(and(eq(experimentRuns.experimentId, experimentId), eq(experimentRuns.status, 'ok')))
         .orderBy(experimentRuns.createdAt)
     }
 

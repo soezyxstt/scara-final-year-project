@@ -1,12 +1,24 @@
 import { db } from '@/lib/db'
 import { experimentRuns } from '@/lib/db/schema/experiment'
-import { desc } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { ResultsClient } from './results-client'
 
 export const dynamic = 'force-dynamic'
 
 export default async function HasilEksperimenPage() {
-  const runs = await db.select().from(experimentRuns).orderBy(desc(experimentRuns.createdAt))
+  let runs: (typeof experimentRuns.$inferSelect)[] = []
+  let initialLoadError: string | null = null
 
-  return <ResultsClient initialRuns={runs} />
+  try {
+    runs = await db
+      .select()
+      .from(experimentRuns)
+      .where(eq(experimentRuns.status, 'ok'))
+      .orderBy(desc(experimentRuns.createdAt))
+  } catch (error) {
+    console.error('Failed to load experiment results:', error)
+    initialLoadError = 'Database tidak dapat dijangkau. Data yang sudah tertangkap tetap aman di outbox perangkat eksperimen dan akan disinkronkan saat koneksi pulih.'
+  }
+
+  return <ResultsClient initialRuns={runs} initialLoadError={initialLoadError} />
 }
