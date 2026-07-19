@@ -746,8 +746,8 @@ export function ReadmeTabEn() {
               />
               <Property
                 name="3D CAD Link Overlay"
-                type="SOLID BLUE & ORANGE LINKS"
-                description="3D solid-shaded models of physical linkages: J1 base is solid blue (#3B82F6) mounted at Z=35 mm height; J2 outer is solid orange (#F97316) mounted at Z=5 mm height."
+                type="NEUTRAL BASE, BLUE & ORANGE LINKS"
+                description="Theme-aware 3D CAD models: the neutral-gray static base and blue J1 share their SolidWorks origin at Z=62 mm; orange J2 is mounted at Z=32 mm."
               />
               <Property
                 name="Reachable Workspace"

@@ -200,18 +200,12 @@ GND ───── [Pot End B] ────────┴──► GND
 
 ## 7. ADC Calibration & Position Mapping
 
-The 12-bit ADC of the ESP32 maps physical potentiometer voltages (0.0 to 3.3V) into raw integer values (0 to 4095). To reduce noise, the firmware reads 8 accumulated samples (shifted right by 3) during boot and 4 samples during runtime (`analogRead` summed and shifted right by 2). These integers are mapped to joint angles in radians inside `src/hal/hal_adc.cpp` using **piecewise-linear interpolation** between the following breakpoints:
+The 12-bit ADC of the ESP32 maps physical potentiometer voltages (0.0 to 3.3 V) into raw integer values (0 to 4095). Both potentiometers use ADC1: their channels are configured once during setup, then sampled directly through the ESP-IDF ADC driver to avoid Arduino's per-read pin setup overhead. The firmware averages 8 samples during boot and 4 samples during runtime. The resulting raw value $y$ is mapped to an angle in radians inside `src/hal/hal_adc.cpp` using the third-order polynomial $\hat{x}=a_3y^3+a_2y^2+a_1y+a_0$.
 
-- **Joint 1 (DC Motor)**:
-  - $0^\circ$ (0.0 rad) = `851` counts
-  - $90^\circ$ ($\pi/2$ rad) = `2301` counts
-  - $180^\circ$ ($\pi$ rad) = `4095` counts
-- **Joint 2 (Stepper)**:
-  - $-90^\circ$ ($-\pi/2$ rad) = `198` counts
-  - $0^\circ$ (0.0 rad) = `1522` counts
-  - $90^\circ$ ($\pi/2$ rad) = `2852` counts
+- **Joint 1 (DC motor)**: $a_3=-2.813562\times10^{-11}$, $a_2=1.364894\times10^{-7}$, $a_1=8.810620\times10^{-4}$, and $a_0=-0.776008$; calibration $R^2=0.999973$.
+- **Joint 2 (stepper motor)**: $a_3=1.271488\times10^{-11}$, $a_2=-6.791787\times10^{-8}$, $a_1=1.192900\times10^{-3}$, and $a_0=-1.926119$; calibration $R^2=0.999991$.
 
-Between breakpoints, the mapping function uses linear interpolation. Values outside the calibrated range are clamped to the nearest endpoint.
+The cubic model captures the potentiometer nonlinearity more accurately than a single linear map while remaining inexpensive to evaluate at the 500 Hz control rate. The calibration range must still cover all commanded joint angles; extrapolation outside that range is not treated as a validated measurement.
 
 ---
 

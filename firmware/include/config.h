@@ -123,4 +123,4 @@ constexpr unsigned long SERIAL_WATCHDOG_MS  = 3000UL;
 // ------------------------------------------------------------
 
 #define DLINE_BUF_SIZE  8
-#define DLINE_STR_LEN   256
+#define DLINE_STR_LEN   320

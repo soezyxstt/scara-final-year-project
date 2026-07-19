@@ -137,14 +137,12 @@ void processSerialCommand(const char *cmd_raw) {
       return;
     }
     if (input == "record_fft") {
-      fft_record_idx = 0;
-      fft_record_active = true;
+      startFFTRecord();
       Serial.println("INFO: ZN FFT recording started (4096 samples @ 500 Hz)");
       return;
     }
     if (input == "cancel_fft") {
-      fft_record_active = false;
-      fft_record_idx = 0;
+      cancelFFTRecord();
       Serial.println("INFO: ZN FFT recording cancelled");
       return;
     }

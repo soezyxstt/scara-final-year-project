@@ -311,33 +311,40 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
       fftRecordBufferRef.current = []
     }
 
-    const handleFftSample = (e: Event) => {
-      const sample = (e as CustomEvent).detail as {
+    const handleFftBatch = (e: Event) => {
+      const samples = (e as CustomEvent).detail as Array<{
         idx: number
         t1_raw: number
         t1_actual: number
         t2_raw: number
         t2_actual: number
+      }>
+
+      // The firmware stream is indexed. Keep only the contiguous prefix so a
+      // dropped/corrupt serial line cannot compress time and create false FFT
+      // frequencies. The FFT below chooses a power-of-two prefix from this.
+      const contiguous: ZNSample[] = []
+      for (const sample of samples) {
+        if (sample.idx !== contiguous.length) break
+        contiguous.push({
+          idx: sample.idx,
+          t: sample.idx * 0.002, // 500 Hz constant timestep (2 ms)
+          t1_target: 0,
+          t1_actual: sample.t1_actual,
+          t2_target: 0,
+          t2_actual: sample.t2_actual,
+          pwm1: 0,
+          t1_raw: sample.t1_raw,
+          t2_raw: sample.t2_raw,
+          v1: 0,
+          v2: 0,
+          p1_out: 0,
+          i1_out: 0,
+          d1_out: 0,
+          ff_total: 0
+        })
       }
-      
-      const znSample: ZNSample = {
-        idx: sample.idx,
-        t: sample.idx * 0.002, // 500 Hz constant timestep (2ms)
-        t1_target: 0,
-        t1_actual: sample.t1_actual,
-        t2_target: 0,
-        t2_actual: sample.t2_actual,
-        pwm1: 0,
-        t1_raw: sample.t1_raw,
-        t2_raw: sample.t2_raw,
-        v1: 0,
-        v2: 0,
-        p1_out: 0,
-        i1_out: 0,
-        d1_out: 0,
-        ff_total: 0
-      }
-      fftRecordBufferRef.current.push(znSample)
+      fftRecordBufferRef.current = contiguous
     }
 
     const handleFftDone = () => {
@@ -350,7 +357,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
     window.addEventListener('hmi_rx', handleRx)
     window.addEventListener('hmi_tx', handleTx)
     window.addEventListener('fft_start', handleFftStart)
-    window.addEventListener('fft_data_sample', handleFftSample)
+    window.addEventListener('fft_data_batch', handleFftBatch)
     window.addEventListener('fft_done', handleFftDone)
 
     return () => {
@@ -358,7 +365,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
       window.removeEventListener('hmi_rx', handleRx)
       window.removeEventListener('hmi_tx', handleTx)
       window.removeEventListener('fft_start', handleFftStart)
-      window.removeEventListener('fft_data_sample', handleFftSample)
+      window.removeEventListener('fft_data_batch', handleFftBatch)
       window.removeEventListener('fft_done', handleFftDone)
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
     }
@@ -602,15 +609,6 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
 
     const sliced = recordedSamples.slice(0, N)
     const isJ1 = activeJoint === 1
-
-    console.log("FFT Calculation debug:", {
-      sampleSize,
-      N,
-      isJ1,
-      firstSample: sliced[0],
-      lastSample: sliced[sliced.length - 1],
-      totalTimes: sliced.map(s => s.t).slice(0, 5)
-    })
 
     const times = sliced.map((s) => s.t)
     const totalTime = times[times.length - 1] - times[0]
@@ -1097,7 +1095,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                       Frequency Analysis (FFT Spectrum)
                     </div>
                     <p className="text-xs text-hmi-muted max-w-sm mb-4">
-                      Capture a high-resolution 1024-sample window at 500 Hz to analyze vibrations, structural resonances, and sensor noise.
+                      Capture a high-resolution 4096-sample window at 500 Hz to analyze vibrations, structural resonances, and sensor noise.
                     </p>
                     <Button 
                       size="sm"

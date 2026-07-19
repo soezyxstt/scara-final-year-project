@@ -599,6 +599,13 @@ function useSerial(
   // fQueue and eQueue remain local — canvas doesn't need them for rendering
   const fQueueRef = useRef<FSample[]>([])
   const eQueueRef = useRef<ESample[]>([])
+  const fftBatchRef = useRef<Array<{
+    idx: number
+    t1_raw: number
+    t1_actual: number
+    t2_raw: number
+    t2_actual: number
+  }>>([])
   // Last accepted T point — anchor for the teleport/continuity filter
   const lastTPointRef = useRef<TPoint | null>(null)
   // A point rejected by the continuity filter is held here instead of being
@@ -647,6 +654,7 @@ function useSerial(
 
       // FFT batch recording stream parsing
       if (line === 'FFT_START') {
+        fftBatchRef.current = []
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('fft_start'))
         }
@@ -654,6 +662,9 @@ function useSerial(
       }
       if (line === 'FFT_DONE') {
         if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('fft_data_batch', {
+            detail: fftBatchRef.current.filter(Boolean)
+          }))
           window.dispatchEvent(new CustomEvent('fft_done'))
         }
         return
@@ -663,18 +674,21 @@ function useSerial(
           const fftParts = line.split(',')
           if (fftParts.length === 6) {
             const [, idxStr, t1_raw_str, t1_actual_str, t2_raw_str, t2_actual_str] = fftParts
-            if (idxStr === '0' || idxStr === '500' || idxStr === '1023') {
-              console.log("HMI parsed FFT line:", line, { idxStr, t1_raw_str, t1_actual_str, t2_raw_str, t2_actual_str })
+            const sample = {
+              idx: Number(idxStr),
+              t1_raw: Number(t1_raw_str),
+              t1_actual: Number(t1_actual_str),
+              t2_raw: Number(t2_raw_str),
+              t2_actual: Number(t2_actual_str)
             }
-            window.dispatchEvent(new CustomEvent('fft_data_sample', {
-              detail: {
-                idx: parseInt(idxStr, 10),
-                t1_raw: parseFloat(t1_raw_str),
-                t1_actual: parseFloat(t1_actual_str),
-                t2_raw: parseFloat(t2_raw_str),
-                t2_actual: parseFloat(t2_actual_str)
-              }
-            }))
+            const values = [sample.idx, sample.t1_raw, sample.t1_actual, sample.t2_raw, sample.t2_actual]
+            if (Number.isInteger(sample.idx)
+                && sample.idx >= 0 && sample.idx < 4096
+                && values.every(Number.isFinite)) {
+              // Index assignment deduplicates retries and retains ordering
+              // without dispatching 4096 main-thread window events.
+              fftBatchRef.current[sample.idx] = sample
+            }
           }
         }
         return

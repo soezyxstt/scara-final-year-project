@@ -27,6 +27,79 @@ static float fft_t1_raw[FFT_RECORD_SIZE];
 static float fft_t1_actual[FFT_RECORD_SIZE];
 static float fft_t2_raw[FFT_RECORD_SIZE];
 static float fft_t2_actual[FFT_RECORD_SIZE];
+static bool fft_dump_active = false;
+static bool fft_dump_started = false;
+static uint16_t fft_dump_idx = 0;
+
+void startFFTRecord() {
+  fft_dump_active = false;
+  fft_dump_started = false;
+  fft_dump_idx = 0;
+  fft_record_idx = 0;
+  fft_record_active = true;
+}
+
+void cancelFFTRecord() {
+  fft_record_active = false;
+  fft_record_idx = 0;
+  fft_dump_active = false;
+  fft_dump_started = false;
+  fft_dump_idx = 0;
+}
+
+bool isFFTDumpActive() {
+  return fft_dump_active;
+}
+
+void serviceFFTDump() {
+  if (!fft_dump_active) return;
+
+  static const char START_PACKET[] = "FFT_START\n";
+  static const char DONE_PACKET[] = "FFT_DONE\n";
+
+  if (!fft_dump_started) {
+    constexpr size_t len = sizeof(START_PACKET) - 1;
+    if ((size_t)Serial.availableForWrite() < len) return;
+    Serial.write((const uint8_t *)START_PACKET, len);
+    fft_dump_started = true;
+    return;
+  }
+
+  if (fft_dump_idx < FFT_RECORD_SIZE) {
+    // Avoid float formatting until the TX buffer has room for the worst-case
+    // line. Formatting and one atomic write happen outside runControlLoop().
+    if (Serial.availableForWrite() < 96) return;
+
+    char line[96];
+    const uint16_t i = fft_dump_idx;
+    const float rad_to_deg = 180.0f / PI;
+    const int len = snprintf(
+        line, sizeof(line), "FFT_DATA,%u,%.4f,%.4f,%.4f,%.4f\n",
+        (unsigned int)i,
+        fft_t1_raw[i] * rad_to_deg,
+        fft_t1_actual[i] * rad_to_deg,
+        fft_t2_raw[i] * rad_to_deg,
+        fft_t2_actual[i] * rad_to_deg);
+
+    if (len <= 0 || len >= (int)sizeof(line)) {
+      // A formatting failure must not leave the browser waiting forever.
+      cancelFFTRecord();
+      return;
+    }
+    if (Serial.availableForWrite() < len) return;
+
+    Serial.write((const uint8_t *)line, (size_t)len);
+    fft_dump_idx++;
+    return;
+  }
+
+  constexpr size_t len = sizeof(DONE_PACKET) - 1;
+  if ((size_t)Serial.availableForWrite() < len) return;
+  Serial.write((const uint8_t *)DONE_PACKET, len);
+  fft_dump_active = false;
+  fft_dump_started = false;
+  fft_dump_idx = 0;
+}
 
 // ============================================================
 //  Function pointer instances
@@ -128,6 +201,7 @@ void outputIdle() { /* noop */ }
 // ============================================================
 
 void allOutputsOff() {
+  cancelFFTRecord();
   step_period_us  = 0;
   jog2_active     = false;
   integral1       = 0.0f;
@@ -309,7 +383,7 @@ void runControlLoop() {
   // then block elsewhere in loop(), corrupting the fixed-DT control timing
   // and stepper pulse timing.
   static uint8_t dline_tick_div = 0;
-  if (op_mode != MODE_IDLE && (plot_enabled || is_moving || is_resting)) {
+  if (!fft_dump_active && op_mode != MODE_IDLE && (plot_enabled || is_moving || is_resting)) {
     if (++dline_tick_div >= 5) {
       dline_tick_div = 0;
       writeDLineToBuffer();
@@ -326,19 +400,9 @@ void runControlLoop() {
       fft_record_idx++;
     } else {
       fft_record_active = false;
-      
-      // Sequential serial dump
-      Serial.println("FFT_START");
-      for (uint16_t i = 0; i < FFT_RECORD_SIZE; i++) {
-        // Format: FFT_DATA,index,t1_raw,t1_actual,t2_raw,t2_actual
-        Serial.print("FFT_DATA,");
-        Serial.print(i); Serial.print(",");
-        Serial.print(fft_t1_raw[i] * (180.0f / PI), 4); Serial.print(",");
-        Serial.print(fft_t1_actual[i] * (180.0f / PI), 4); Serial.print(",");
-        Serial.print(fft_t2_raw[i] * (180.0f / PI), 4); Serial.print(",");
-        Serial.println(fft_t2_actual[i] * (180.0f / PI), 4);
-      }
-      Serial.println("FFT_DONE");
+      fft_dump_idx = 0;
+      fft_dump_started = false;
+      fft_dump_active = true;
     }
   }
 }

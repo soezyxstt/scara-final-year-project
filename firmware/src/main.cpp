@@ -55,17 +55,16 @@ void setup() {
 
   pwmSetup();
   pwmWrite(0);
+  setupADC();
   delay(200);
 
   // --- Seed TD and state from 8-sample ADC average ---
   {
-    int s1 = 0, s2 = 0;
-    for (int i = 0; i < 8; i++) {
-      s1 += analogRead(DC_POT_PIN);
-      s2 += analogRead(STEP_POT_PIN);
-    }
-    float seed1 = mapADCtoRadJ1(s1 >> 3);
-    float seed2 = mapADCtoRadJ2(s2 >> 3);
+    // Average two 4-sample reads per channel to retain the 8-sample boot seed.
+    const int raw1 = (readRawADC4(DC_POT_PIN) + readRawADC4(DC_POT_PIN)) >> 1;
+    const int raw2 = (readRawADC4(STEP_POT_PIN) + readRawADC4(STEP_POT_PIN)) >> 1;
+    float seed1 = mapADCtoRadJ1(raw1);
+    float seed2 = mapADCtoRadJ2(raw2);
 
     theta1 = theta1_raw = theta1_d = seed1;
     theta2 = theta2_raw = theta2_d = seed2;
@@ -146,8 +145,14 @@ void loop() {
   // --- Stepper pulse (free-running, micros resolution) ---
   serviceStepperPulse();
 
-  // --- Drain D-line ring buffer to UART ---
-  drainDLineBuffer();
+  // --- Non-blocking FFT transfer has UART priority while active ---
+  serviceFFTDump();
+
+  // Do not interleave ordinary telemetry with an FFT frame sequence. The
+  // control loop still runs; only non-essential serial output is deferred.
+  if (!isFFTDumpActive()) {
+    drainDLineBuffer();
+  }
 
   // --- Serial RX ---
   serviceSerial();
@@ -172,7 +177,8 @@ void loop() {
   // (slow) HMI drains the link — stalling loop() and the fixed-rate control
   // tick, which undersamples motion and stretches the plotted timeline. Skip
   // this telemetry cycle instead; control timing must never wait on the HMI.
-  if (op_mode != MODE_IDLE && op_mode != MODE_ZN && !estop_active
+  if (!isFFTDumpActive()
+      && op_mode != MODE_IDLE && op_mode != MODE_ZN && !estop_active
       && (now_ms - last_telemetry_ms >= TELEMETRY_MS)
       && Serial.availableForWrite() >= 256) {
     last_telemetry_ms = now_ms;

@@ -11,6 +11,7 @@ import { useTheme } from '@/components/hmi/theme-provider'
 const MM = 0.001 // mm -> three.js scene meters
 const L_INNER = 70.7  // mm - inner dead zone radius
 const L_OUTER = 170   // mm - outer boundary radius
+const BASE_YAW_OFFSET_RAD = Math.PI / 2 // 90 degrees counter-clockwise in robot XY
 
 /**
  * Robot space (X, Y horizontal, Z up) -> three.js scene space (X, Z horizontal, Y up).
@@ -42,19 +43,29 @@ function useClonedGltf(url: string, isIdeal?: boolean, colorStr?: string) {
           const origMat = mesh.material as THREE.MeshStandardMaterial
           const mat = origMat ? origMat.clone() : new THREE.MeshStandardMaterial()
           
-          const isMainLink = child.name.toLowerCase().includes('link') || 
-                             (child.parent && child.parent.name.toLowerCase().includes('link'))
+          const childName = child.name.toLowerCase()
+          const parentName = child.parent?.name.toLowerCase() ?? ''
+          const componentName = `${parentName} ${childName}`
+          const isBaseBody = url.includes('/base.glb') && (
+            componentName.includes('base') || componentName.includes('l-plate')
+          )
+          const isJ1Body = url.includes('/j1.glb') && (
+            componentName.includes('link') || componentName.includes('cover-l1')
+          )
+          const isJ2Body = url.includes('/j2.glb') && componentName.includes('link')
+          const isMainLink = isBaseBody || isJ1Body || isJ2Body
           
           if (isMainLink) {
-            // Main structural links base: apply vibrant colors matching the 2D capsule legend (blue-500/orange-500)
-            mat.color.set(colorStr || (url.includes('j1') ? '#3b82f6' : '#f97316'))
+            // Give each structural component a stable identity while retaining
+            // the CAD materials on motors, shafts, fasteners, and other details.
+            mat.color.set(colorStr || (url.includes('base') ? '#71717A' : url.includes('j1') ? '#3B82F6' : '#F97316'))
             mat.map = null
             mat.normalMap = null
             mat.roughnessMap = null
             mat.metalnessMap = null
             mat.aoMap = null
-            mat.metalness = 0.1
-            mat.roughness = 0.35
+            mat.metalness = isBaseBody ? 0.25 : 0.1
+            mat.roughness = isBaseBody ? 0.55 : 0.35
             mat.transparent = false
             mat.opacity = 1.0
           } else {
@@ -105,12 +116,14 @@ export function ScaraArmModels({
   th1,
   th2,
   isIdeal = false,
+  baseColor = '#71717A',
   j1Color = '#3B82F6',
   j2Color = '#F97316',
 }: {
   th1: number
   th2: number
   isIdeal?: boolean
+  baseColor?: string
   j1Color?: string
   j2Color?: string
 }) {
@@ -120,6 +133,14 @@ export function ScaraArmModels({
 
   return (
     <Suspense fallback={null}>
+      {!isIdeal && (
+        <LinkAssembly
+          url="/models/base.glb"
+          yawRad={BASE_YAW_OFFSET_RAD}
+          position={link1Pos}
+          colorStr={baseColor}
+        />
+      )}
       {/* Zero yaw offset needed since links point along +X at zero rotation */}
       <LinkAssembly
         url="/models/j1.glb"
@@ -142,6 +163,7 @@ export function ScaraArmModels({
 }
 
 // Preload models for immediate display
+useGLTF.preload('/models/base.glb')
 useGLTF.preload('/models/j1.glb')
 useGLTF.preload('/models/j2.glb')
 
@@ -203,6 +225,21 @@ function PosedArm({
       <group ref={j2Ref}>
         <LinkAssembly url="/models/j2.glb" yawRad={0} yawOffsetRad={0} isIdeal={isIdeal} colorStr={j2Color} />
       </group>
+    </Suspense>
+  )
+}
+
+function StaticBase({ color }: { color: string }) {
+  const position = useMemo(() => robotToScene(0, 0, J1_MOUNT_Z_MM), [])
+
+  return (
+    <Suspense fallback={null}>
+      <LinkAssembly
+        url="/models/base.glb"
+        yawRad={BASE_YAW_OFFSET_RAD}
+        position={position}
+        colorStr={color}
+      />
     </Suspense>
   )
 }
@@ -785,6 +822,7 @@ export function SCARA3DCanvas({
       j1Des: getCSSColor('--hmi-j1-des', isLight ? '#3B82F6' : '#93C5FD'),
       j2: getCSSColor('--hmi-j2', isLight ? '#EA580C' : '#FB923C'),
       j2Des: getCSSColor('--hmi-j2-des', isLight ? '#F97316' : '#FDBA74'),
+      base: getCSSColor('--hmi-robot-base', isLight ? '#52525B' : '#9CA3AF'),
       actual: getCSSColor('--hmi-actual', isLight ? '#DC2626' : '#F87171'),
       start: getCSSColor('--hmi-start', isLight ? '#16A34A' : '#34D399'),
       target: getCSSColor('--hmi-target', isLight ? '#EA580C' : '#FB923C'),
@@ -869,17 +907,18 @@ export function SCARA3DCanvas({
         {/* Arms */}
         {showArm && (
           <group>
+            <StaticBase color={colors.base} />
             <PosedArm
               getCurrentAngles={getCurrentAngles}
               isIdeal={false}
-              j1Color="#3B82F6"
-              j2Color="#F97316"
+              j1Color={colors.j1}
+              j2Color={colors.j2}
             />
             <PosedArm
               getCurrentAngles={getCurrentAngles}
               isIdeal={true}
-              j1Color="#60A5FA"
-              j2Color="#FB923C"
+              j1Color={colors.j1Des}
+              j2Color={colors.j2Des}
             />
           </group>
         )}

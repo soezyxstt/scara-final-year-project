@@ -21,13 +21,8 @@ TD td2;
 // ============================================================
 
 void sensorWithTD() {
-  int s1 = 0, s2 = 0;
-  for (int i = 0; i < 4; i++) {
-    s1 += analogRead(DC_POT_PIN);
-    s2 += analogRead(STEP_POT_PIN);
-  }
-  theta1_raw = mapADCtoRadJ1(s1 >> 2);
-  theta2_raw = mapADCtoRadJ2(s2 >> 2);
+  theta1_raw = mapADCtoRadJ1(readRawADC4(DC_POT_PIN));
+  theta2_raw = mapADCtoRadJ2(readRawADC4(STEP_POT_PIN));
 
   td1.update(theta1_raw, DT);
   td2.update(theta2_raw, DT);
@@ -43,13 +38,8 @@ void sensorWithTD() {
 // ============================================================
 
 void sensorRawOnly() {
-  int s1 = 0, s2 = 0;
-  for (int i = 0; i < 4; i++) {
-    s1 += analogRead(DC_POT_PIN);
-    s2 += analogRead(STEP_POT_PIN);
-  }
-  theta1_raw = mapADCtoRadJ1(s1 >> 2);
-  theta2_raw = mapADCtoRadJ2(s2 >> 2);
+  theta1_raw = mapADCtoRadJ1(readRawADC4(DC_POT_PIN));
+  theta2_raw = mapADCtoRadJ2(readRawADC4(STEP_POT_PIN));
 
   theta1 = theta1_raw;
   theta2 = theta2_raw;

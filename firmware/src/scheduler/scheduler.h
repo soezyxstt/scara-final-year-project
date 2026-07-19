@@ -33,6 +33,16 @@ extern OutputFn  active_output_fn;
 // Zero if (op_mode == ...) checks inside this function.
 void runControlLoop();
 
+// Stream a completed FFT capture without blocking the control loop. Call on
+// every loop() iteration; it writes at most one complete packet when the UART
+// has enough room.
+void serviceFFTDump();
+
+// FFT capture lifecycle used by the command parser.
+void startFFTRecord();
+void cancelFFTRecord();
+bool isFFTDumpActive();
+
 // Transition to a new operating mode.
 // Calls allOutputsOff(), seeds theta_d, assigns function pointers,
 // emits X-packet and full state.

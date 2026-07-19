@@ -24,7 +24,7 @@ using namespace Params;
 
 struct DLineEntry {
   char    str[DLINE_STR_LEN];
-  uint8_t len;
+  uint16_t len;
 };
 
 static DLineEntry       dline_buf[DLINE_BUF_SIZE];
@@ -41,7 +41,7 @@ void writeDLineToBuffer() {
 
   DLineEntry &e = dline_buf[dline_head];
 
-  e.len = (uint8_t)formatDSamplePacket(
+  const int written = formatDSamplePacket(
       e.str, DLINE_STR_LEN,
       millis(),
       theta1, theta2,
@@ -55,6 +55,12 @@ void writeDLineToBuffer() {
       p1_out, i1_out, d1_out, ff1_contrib_out,
       0.0f,   // v1_enc — unused; reserved for encoder-based velocity
       0);     // enc_count — unused; reserved for raw encoder counts
+
+  // snprintf returns the length it wanted to write. Never publish a
+  // truncated packet: casting that length to uint8_t previously wrapped and
+  // made Serial.write() emit partial frames into the HMI.
+  if (written <= 0 || written >= DLINE_STR_LEN) return;
+  e.len = static_cast<uint16_t>(written);
 
   dline_head = next_head;
 }

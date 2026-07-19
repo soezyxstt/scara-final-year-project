@@ -87,6 +87,7 @@
   --hmi-j1-des:       #93C5FD;   /* Blue-300 */
   --hmi-j2:           #FB923C;   /* Orange-400 */
   --hmi-j2-des:       #FDBA74;   /* Orange-300 */
+  --hmi-robot-base:   #9CA3AF;   /* Gray-400 */
   --hmi-actual:       #F87171;   /* Red-400 */
   --hmi-pwm-pos:      #34D399;   /* Emerald-400 */
   --hmi-pwm-neg:      #F87171;   /* Red-400 */
@@ -141,6 +142,7 @@
   --hmi-j1-des:       #3B82F6;   /* Blue-500 */
   --hmi-j2:           #EA580C;   /* Orange-600 */
   --hmi-j2-des:       #F97316;   /* Orange-500 */
+  --hmi-robot-base:   #52525B;   /* Zinc-600 */
   --hmi-actual:       #DC2626;   /* Red-600 */
   --hmi-pwm-pos:      #059669;   /* Emerald-600 */
   --hmi-pwm-neg:      #DC2626;   /* Red-600 */

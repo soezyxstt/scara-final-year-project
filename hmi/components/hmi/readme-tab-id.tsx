@@ -746,8 +746,8 @@ export function ReadmeTabId() {
               />
               <Property
                 name="Overlay Link CAD 3D"
-                type="LINK SOLID BIRU & ORANYE"
-                description="Model solid-shaded 3D dari link fisik: base J1 berwarna biru solid (#3B82F6) dipasang pada ketinggian Z=35 mm; link luar J2 berwarna oranye solid (#F97316) dipasang pada ketinggian Z=5 mm."
+                type="BASE NETRAL, LINK BIRU & ORANYE"
+                description="Model CAD 3D yang menyesuaikan tema: base statis abu-abu netral dan J1 biru berbagi origin SolidWorks pada Z=62 mm; J2 oranye dipasang pada Z=32 mm."
               />
               <Property
                 name="Ruang Kerja Terjangkau"
