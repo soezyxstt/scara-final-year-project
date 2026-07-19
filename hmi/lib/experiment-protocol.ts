@@ -1,5 +1,16 @@
 export const EXPERIMENT_RUNS_PER_CONDITION = 4
 export const EXPERIMENT_TOTAL_RUNS = 8
+export const SHARED_BASELINE_ID = 'BASELINE'
+
+const SHARED_BASELINE_EXPERIMENTS = new Set(['EXP-2', 'EXP-3', 'EXP-4'])
+
+export function usesSharedBaseline(experimentId: string): boolean {
+  return SHARED_BASELINE_EXPERIMENTS.has(experimentId)
+}
+
+export function getExperimentTotalRuns(experimentId: string): number {
+  return usesSharedBaseline(experimentId) ? EXPERIMENT_RUNS_PER_CONDITION : EXPERIMENT_TOTAL_RUNS
+}
 
 export interface ExperimentSlot {
   slot: number

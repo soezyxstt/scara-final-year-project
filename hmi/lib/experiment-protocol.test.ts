@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getExperimentSlot, parseExperimentTPoint } from './experiment-protocol'
+import { getExperimentSlot, getExperimentTotalRuns, parseExperimentTPoint, usesSharedBaseline } from './experiment-protocol'
 
 test('experiment plan contains 2 forward and 2 return runs per condition', () => {
   const slots = Array.from({ length: 8 }, (_, index) => getExperimentSlot(index + 1))
@@ -10,6 +10,19 @@ test('experiment plan contains 2 forward and 2 return runs per condition', () =>
     assert.equal(group.filter(slot => slot.direction === 'return').length, 2)
     assert.deepEqual(group.map(slot => slot.repetition), [1, 1, 2, 2])
   }
+})
+
+test('dynamic-model experiments reuse a four-run shared baseline', () => {
+  for (const experimentId of ['EXP-2', 'EXP-3', 'EXP-4']) {
+    assert.equal(usesSharedBaseline(experimentId), true)
+    assert.equal(getExperimentTotalRuns(experimentId), 4)
+  }
+  assert.deepEqual(
+    Array.from({ length: getExperimentTotalRuns('EXP-2') }, (_, index) => getExperimentSlot(index + 1).direction),
+    ['forward', 'return', 'forward', 'return'],
+  )
+  assert.equal(getExperimentTotalRuns('EXP-1'), 8)
+  assert.equal(getExperimentTotalRuns('EXP-5'), 8)
 })
 
 test('T packet parser keeps timestamp and Cartesian columns aligned', () => {

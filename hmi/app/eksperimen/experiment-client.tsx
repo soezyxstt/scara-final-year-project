@@ -14,7 +14,7 @@ import {
   removePendingExperiment,
   type PendingExperimentRun,
 } from '@/lib/experiment-outbox'
-import { EXPERIMENT_TOTAL_RUNS, getExperimentSlot, parseExperimentTPoint } from '@/lib/experiment-protocol'
+import { getExperimentSlot, getExperimentTotalRuns, parseExperimentTPoint, usesSharedBaseline } from '@/lib/experiment-protocol'
 import { Play, Square, ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
@@ -102,12 +102,12 @@ function computeIsForward(successCount: number): boolean {
   return getExperimentSlot(successCount).direction === 'forward'
 }
 
-function computeIsConditionA(successCount: number): boolean {
-  return getExperimentSlot(successCount).condition === 'A'
+function computeIsConditionA(successCount: number, tab: ExperimentId): boolean {
+  return usesSharedBaseline(tab) || getExperimentSlot(successCount).condition === 'A'
 }
 
-function computeTotalRuns(): number {
-  return EXPERIMENT_TOTAL_RUNS
+function computeTotalRuns(tab: ExperimentId): number {
+  return getExperimentTotalRuns(tab)
 }
 
 // ─── OFAT baseline-lock commands per experiment ─────────────────────────────
@@ -124,19 +124,11 @@ function buildConditionCommands(
     cmds.push('trapen,1', 'ffi,0.0', 'ffc,0.0', 'ffg,0.0')
     cmds.push(isConditionA ? 'tden,1' : 'tden,0')
   } else if (tab === 'EXP-2') {
-    cmds.push('tden,1', 'trapen,1', 'ffc,0.0', 'ffg,0.0')
-    cmds.push(isConditionA ? 'ffi,1.0' : 'ffi,0.0')
+    cmds.push('tden,1', 'trapen,1', 'ffi,1.0', 'ffc,0.0', 'ffg,0.0')
   } else if (tab === 'EXP-3') {
-    cmds.push('tden,1', 'trapen,1', 'ffi,1.0', 'ffg,0.0')
-    cmds.push(isConditionA ? 'ffc,1.0' : 'ffc,0.0')
+    cmds.push('tden,1', 'trapen,1', 'ffi,0.0', 'ffc,1.0', 'ffg,0.0')
   } else if (tab === 'EXP-4') {
-    cmds.push('tden,1', 'trapen,1', 'ffi,1.0', 'ffc,1.0')
-    if (isConditionA) {
-      cmds.push(`atilt,${alpha}`)
-      cmds.push('ffg,1.0')
-    } else {
-      cmds.push('ffg,0.0')
-    }
+    cmds.push('tden,1', 'trapen,1', 'ffi,0.0', 'ffc,0.0', `atilt,${alpha}`, 'ffg,1.0')
   } else if (tab === 'EXP-5') {
     cmds.push('tden,1', 'ffi,1.0', 'ffc,1.0', 'ffg,1.0')
     cmds.push(isConditionA ? 'trapen,1' : 'trapen,0')
@@ -159,7 +151,7 @@ export function ExperimentClient() {
   const [activeTab, setActiveTab] = useState<ExperimentId>('EXP-1')
 
   // EXP-4 specific state
-  const [exp4Alpha, setExp4Alpha] = useState<'0' | '15' | '30' | '45'>('0')
+  const [exp4Alpha, setExp4Alpha] = useState<'15' | '30' | '45'>('15')
 
   // Automation State Machine
   const [state, setState] = useState<State>('idle')
@@ -339,9 +331,10 @@ export function ExperimentClient() {
       setOfflineQueue(offlineQueueRef.current)
       syncInProgressRef.current = false
 
-      if (offlineQueueRef.current.length === 0 && successCountRef.current >= computeTotalRuns() && stateRef.current === 'syncing') {
+      const requiredRuns = computeTotalRuns(activeTabRef.current)
+      if (offlineQueueRef.current.length === 0 && successCountRef.current >= requiredRuns && stateRef.current === 'syncing') {
         transition('complete')
-        addLog('🎉 All 8 acquisitions and database verification completed successfully.')
+        addLog(`🎉 All ${requiredRuns} acquisitions and database verification completed successfully.`)
         toast.success('Experiment complete — every run is verified in the database.')
       }
     }
@@ -476,9 +469,9 @@ export function ExperimentClient() {
     }
 
     if (tab === 'EXP-1') Object.assign(expected, { td: isConditionA, ffi: 0, ffc: 0, ffg: 0 })
-    if (tab === 'EXP-2') Object.assign(expected, { ffi: isConditionA ? 1 : 0, ffc: 0, ffg: 0 })
-    if (tab === 'EXP-3') Object.assign(expected, { ffi: 1, ffc: isConditionA ? 1 : 0, ffg: 0 })
-    if (tab === 'EXP-4') Object.assign(expected, { ffi: 1, ffc: 1, ffg: isConditionA ? 1 : 0 })
+    if (tab === 'EXP-2') Object.assign(expected, { ffi: 1, ffc: 0, ffg: 0 })
+    if (tab === 'EXP-3') Object.assign(expected, { ffi: 0, ffc: 1, ffg: 0 })
+    if (tab === 'EXP-4') Object.assign(expected, { ffi: 0, ffc: 0, ffg: 1 })
     if (tab === 'EXP-5') Object.assign(expected, { trap: isConditionA, ffi: 1, ffc: 1, ffg: 1 })
 
     return p.tdEnabled === expected.td
@@ -505,7 +498,7 @@ export function ExperimentClient() {
         if (prev <= 1) {
           clearInterval(cooldownTimerRef.current!)
           cooldownTimerRef.current = null
-          const totalRuns = computeTotalRuns()
+          const totalRuns = computeTotalRuns(activeTabRef.current)
 
           if (runNeedRetryRef.current) {
             // Retry: direction stays the same (successCount unchanged), just re-attempt
@@ -518,8 +511,8 @@ export function ExperimentClient() {
               const hasPendingUploads = offlineQueueRef.current.length > 0
               transition(hasPendingUploads ? 'syncing' : 'complete')
               addLog(hasPendingUploads
-                ? `All 8 acquisitions are durable; waiting for ${offlineQueueRef.current.length} database upload(s).`
-                : '🎉 All 8 acquisitions are verified in the database!')
+                ? `All ${totalRuns} acquisitions are durable; waiting for ${offlineQueueRef.current.length} database upload(s).`
+                : `🎉 All ${totalRuns} acquisitions are verified in the database!`)
               if (hasPendingUploads) void syncOutbox()
 
               setResults(currentResults => {
@@ -643,10 +636,10 @@ export function ExperimentClient() {
     const nextSuccessSlot = successCountRef.current + 1  // 1-based index of the run we want to capture
     const tab = activeTabRef.current
     const alpha = exp4AlphaRef.current
-    const totalRuns = computeTotalRuns()
+    const totalRuns = computeTotalRuns(tab)
 
     const isForward = computeIsForward(nextSuccessSlot)
-    const isConditionA = computeIsConditionA(nextSuccessSlot)
+    const isConditionA = computeIsConditionA(nextSuccessSlot, tab)
     const runDir = isForward ? 'forward' : 'return'
     setDirection(runDir)
 
@@ -670,7 +663,7 @@ export function ExperimentClient() {
     runFailureLatchRef.current = false
 
     addLog(`-------------------- RUN slot #${nextSuccessSlot}/${totalRuns} (saved ${successCountRef.current}, attempt ${totalAttemptsRef.current}) --------------------`)
-    addLog(`Direction: ${runDir.toUpperCase()} | Condition: ${isConditionA ? 'A' : 'B'}`)
+    addLog(`Direction: ${runDir.toUpperCase()} | Condition: ${usesSharedBaseline(tab) ? 'treatment ON (shared baseline)' : isConditionA ? 'A' : 'B'}`)
 
     const proceedToPositioning = (fwd: boolean) => {
       if (stateRef.current === 'idle') return
@@ -795,7 +788,7 @@ export function ExperimentClient() {
     const alpha = exp4AlphaRef.current
     const nextSuccessSlot = successCountRef.current + 1
     const isForward = computeIsForward(nextSuccessSlot)
-    const isConditionA = computeIsConditionA(nextSuccessSlot)
+    const isConditionA = computeIsConditionA(nextSuccessSlot, tab)
 
     // ─── Metrics — per-run direction unit vector û = (target − start)/D ─────
     // Forward: p0→pf. Return: pf→p0 (û flips, so MATE keeps its lag semantics).
@@ -914,9 +907,9 @@ export function ExperimentClient() {
     // Flags reflect the OFAT baseline locks actually commanded for this run
     let ffg = 0, ffi = 0, ffc = 0, tden = 1, trap = 1
     if (tab === 'EXP-1') { tden = isConditionA ? 1 : 0; ffi = 0; ffc = 0; ffg = 0 }
-    else if (tab === 'EXP-2') { ffi = isConditionA ? 1 : 0; ffc = 0; ffg = 0 }
-    else if (tab === 'EXP-3') { ffc = isConditionA ? 1 : 0; ffi = 1; ffg = 0 }
-    else if (tab === 'EXP-4') { ffg = isConditionA ? 1 : 0; ffi = 1; ffc = 1 }
+    else if (tab === 'EXP-2') { ffi = 1; ffc = 0; ffg = 0 }
+    else if (tab === 'EXP-3') { ffc = 1; ffi = 0; ffg = 0 }
+    else if (tab === 'EXP-4') { ffg = 1; ffi = 0; ffc = 0 }
     else if (tab === 'EXP-5') { trap = isConditionA ? 1 : 0; ffi = 1; ffc = 1; ffg = 1 }
 
     const bg = baseGainsRef.current ?? { kp1: gains?.kp1 ?? 0.60, ki1: gains?.ki1 ?? 0.05, kd1: gains?.kd1 ?? 0.07 }
@@ -1344,14 +1337,14 @@ export function ExperimentClient() {
       desc = 'Evaluate the effect of the Tracking Differentiator (TD) filter in the feedback loop. All feedforward locked OFF (ffi=ffc=ffg=0) to isolate velocity estimation.'
       cmds = 'tden,1 (Runs 1-4, Cond A) | tden,0 (Runs 5-8, Cond B) + lock: ffi,0 ffc,0 ffg,0'
     } else if (tab === 'EXP-2') {
-      desc = 'Evaluate the inertia moment compensation in the dynamic model. Locks: tden=1, trapen=1, ffc=0, ffg=0.'
-      cmds = 'ffi,1.0 (Runs 1-4) | ffi,0.0 (Runs 5-8)'
+      desc = 'Evaluate inertia compensation against the manually selected shared baseline. Coriolis and gravity compensation stay OFF.'
+      cmds = 'ffi,1.0 + lock: ffc,0 ffg,0 (2 forward + 2 return)'
     } else if (tab === 'EXP-3') {
-      desc = 'Evaluate the contribution of the Coriolis & Centrifugal force compensation feedforward. Locks: tden=1, trapen=1, ffi=1.0, ffg=0.'
-      cmds = 'ffc,1.0 (Runs 1-4) | ffc,0.0 (Runs 5-8)'
+      desc = 'Evaluate Coriolis compensation against the manually selected shared baseline. Inertia and gravity compensation stay OFF.'
+      cmds = 'ffc,1.0 + lock: ffi,0 ffg,0 (2 forward + 2 return)'
     } else if (tab === 'EXP-4') {
-      desc = `Evaluate the model gravity compensation at tilt angle α = ${exp4Alpha}°. Locks: tden=1, trapen=1, ffi=1.0, ffc=1.0.`
-      cmds = `atilt,${exp4Alpha} & ffg,1.0 (Runs 1-4) | ffg,0.0 (Runs 5-8)`
+      desc = `Evaluate gravity compensation at tilt angle α = ${exp4Alpha}° against the shared α=0° baseline. Inertia and Coriolis compensation stay OFF.`
+      cmds = `atilt,${exp4Alpha} + ffg,1.0 + lock: ffi,0 ffc,0 (2 forward + 2 return)`
     } else if (tab === 'EXP-5') {
       desc = 'Test the input trajectory filter. Compare Trapezoidal profile (Runs 1-4) vs Raw Step input (Runs 5-8). Locks: tden=1, all FF on.'
       cmds = 'trapen,1 (Runs 1-4) | trapen,0 (Runs 5-8)'
@@ -1362,7 +1355,7 @@ export function ExperimentClient() {
 
   const { desc: paramDesc, cmds: paramCmds, activeGains: paramGains } = getParamDescription()
   const currentExp = EXPERIMENTS.find(e => e.id === activeTab)
-  const totalRuns = computeTotalRuns()
+  const totalRuns = computeTotalRuns(activeTab)
   const sequenceActive = state !== 'idle' && state !== 'complete'
 
   return (
@@ -1501,7 +1494,7 @@ export function ExperimentClient() {
             <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-3 flex items-center justify-between">
               <span className="text-xs font-bold text-hmi-muted uppercase">Sudut Kemiringan (Tilt Alpha Deg):</span>
               <div className="flex gap-2">
-                {(['0', '15', '30', '45'] as const).map(a => (
+                {(['15', '30', '45'] as const).map(a => (
                   <Button
                     key={a}
                     size="sm"

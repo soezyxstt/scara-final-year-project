@@ -3,6 +3,7 @@
 import { db } from '../db'
 import { experimentRuns, experimentMetrics, experimentSamples } from '../db/schema/experiment'
 import { backupRun, backupMetrics, backupSamples } from '../db/backup'
+import { SHARED_BASELINE_ID, usesSharedBaseline } from '../experiment-protocol'
 
 export async function saveExperimentRun(payload: {
   run: typeof experimentRuns.$inferInsert
@@ -48,7 +49,45 @@ export async function saveExperimentRun(payload: {
   }
 }
 
-import { and, eq, like, inArray } from 'drizzle-orm'
+import { and, eq, like, inArray, or } from 'drizzle-orm'
+
+export async function markExperimentRunsAsBaseline(runIds: string[]): Promise<{ ok: boolean; updatedCount: number; error?: string }> {
+  const uniqueIds = [...new Set(runIds)]
+  if (uniqueIds.length === 0) return { ok: false, updatedCount: 0, error: 'Pilih minimal satu run.' }
+
+  try {
+    const selectedRuns = await db
+      .select()
+      .from(experimentRuns)
+      .where(and(inArray(experimentRuns.id, uniqueIds), eq(experimentRuns.status, 'ok')))
+
+    if (selectedRuns.length !== uniqueIds.length) {
+      return { ok: false, updatedCount: 0, error: 'Sebagian run tidak ditemukan atau belum berstatus OK.' }
+    }
+
+    const invalid = selectedRuns.filter(run => run.ffiEnabled !== 0 || run.ffcEnabled !== 0 || run.ffgEnabled !== 0 || run.alphaDeg !== 0)
+    if (invalid.length > 0) {
+      return { ok: false, updatedCount: 0, error: `Run ${invalid.map(run => run.id).join(', ')} bukan baseline: FFI, FFC, FFG harus OFF dan alpha harus 0°.` }
+    }
+
+    await db.transaction(async tx => {
+      for (const run of selectedRuns) {
+        await tx
+          .update(experimentRuns)
+          .set({
+            experimentId: SHARED_BASELINE_ID,
+            experimentName: `Shared Baseline (from ${run.experimentId})`,
+          })
+          .where(eq(experimentRuns.id, run.id))
+      }
+    })
+
+    return { ok: true, updatedCount: selectedRuns.length }
+  } catch (error) {
+    console.error('Failed to mark experiment runs as baseline:', error)
+    return { ok: false, updatedCount: 0, error: error instanceof Error ? error.message : 'Unknown error' }
+  }
+}
 
 /**
  * Delete a single experiment run and all its associated metrics and samples.
@@ -130,7 +169,19 @@ export async function getExperimentData(experimentId: string) {
       runsList = await db
         .select()
         .from(experimentRuns)
-        .where(and(like(experimentRuns.experimentId, `${experimentId}%`), eq(experimentRuns.status, 'ok')))
+        .where(and(
+          or(like(experimentRuns.experimentId, `${experimentId}%`), eq(experimentRuns.experimentId, SHARED_BASELINE_ID)),
+          eq(experimentRuns.status, 'ok'),
+        ))
+        .orderBy(experimentRuns.createdAt)
+    } else if (usesSharedBaseline(experimentId)) {
+      runsList = await db
+        .select()
+        .from(experimentRuns)
+        .where(and(
+          or(eq(experimentRuns.experimentId, experimentId), eq(experimentRuns.experimentId, SHARED_BASELINE_ID)),
+          eq(experimentRuns.status, 'ok'),
+        ))
         .orderBy(experimentRuns.createdAt)
     } else {
       runsList = await db

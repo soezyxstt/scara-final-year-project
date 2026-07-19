@@ -154,10 +154,10 @@ namespace CtcState {
 
 namespace Params {
 
-  float Kp1 = 0.3f;
+  float Kp1 = 0.25f;
   float Ki1 = 0.01f;
   float Kd1 = 0.008f;
-  float Kp2 = 5.5f;
+  float Kp2 = 5.0f;
   float Ki2 = 0.01f;
   float Kd2 = 0.02f;
 
@@ -171,7 +171,7 @@ namespace Params {
 
   float U1_MAX           = 1.0f;
   float FRAC_ZERO_THRESH = 0.01f;
-  int PWM_DEADBAND = 70;
+  int PWM_DEADBAND = 68;
   // Kickstart: reduce fractional threshold during trajectory acceleration
   // Expressed as a percentage of `FRAC_ZERO_THRESH` (0.1 = 10%)
   bool KICKSTART_ENABLED = true;

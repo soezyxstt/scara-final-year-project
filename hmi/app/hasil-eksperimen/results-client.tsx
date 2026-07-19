@@ -4,7 +4,8 @@ import { useState, useMemo, useTransition, useEffect } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
 import { Button } from '@/components/ui/button'
 import type { ExperimentMetric, ExperimentRun, ExperimentSample } from '@/lib/db/schema/experiment'
-import { getExperimentData, deleteExperimentRun, deleteExperiment } from '@/lib/actions/experiment'
+import { getExperimentData, deleteExperimentRun, deleteExperiment, markExperimentRunsAsBaseline } from '@/lib/actions/experiment'
+import { SHARED_BASELINE_ID, usesSharedBaseline } from '@/lib/experiment-protocol'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -642,6 +643,7 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
   })
   const [directionFilter, setDirectionFilter] = useState<'all' | 'forward' | 'return'>('all')
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
+  const [selectedBaselineRunIds, setSelectedBaselineRunIds] = useState<Set<string>>(() => new Set())
 
   const [isPending, startTransition] = useTransition()
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null)
@@ -701,10 +703,13 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
       if (selectedExp === 'EXP-5') return r.trapEnabled === 1
       return false
     }
+    const sharedBaseline = usesSharedBaseline(selectedExp)
     const nameA = selectedExp === 'EXP-1' ? 'TD ON' : selectedExp === 'EXP-2' ? 'Inertia ON' : selectedExp === 'EXP-3' ? 'Coriolis ON' : 'Trap ON'
-    const nameB = selectedExp === 'EXP-1' ? 'TD OFF' : selectedExp === 'EXP-2' ? 'Inertia OFF' : selectedExp === 'EXP-3' ? 'Coriolis OFF' : 'Trap OFF'
-    const idsA = filteredRuns.filter(predA).map(r => r.id)
-    const idsB = filteredRuns.filter(r => !predA(r)).map(r => r.id)
+    const nameB = sharedBaseline ? 'Shared baseline' : selectedExp === 'EXP-1' ? 'TD OFF' : 'Trap OFF'
+    const idsA = filteredRuns.filter(r => r.experimentId !== SHARED_BASELINE_ID && predA(r)).map(r => r.id)
+    const idsB = filteredRuns
+      .filter(r => sharedBaseline ? r.experimentId === SHARED_BASELINE_ID : !predA(r))
+      .map(r => r.id)
     const mets = (ids: string[]) => filteredMetrics.filter(m => ids.includes(m.runId))
     return [
       { name: nameA, runs: idsA.length, metrics: mets(idsA) },
@@ -739,12 +744,13 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
   // EXP-4
   const exp4AlphasData = useMemo(() => {
     if (selectedExp !== 'EXP-4') return []
-    return ['0', '15', '30', '45'].map(a => {
-      const runsA = filteredRuns.filter(r => r.alphaDeg === parseFloat(a))
-      const idsOn = runsA.filter(r => r.ffgEnabled === 1).map(r => r.id)
-      const idsOff = runsA.filter(r => r.ffgEnabled === 0).map(r => r.id)
+    const baselineIds = filteredRuns.filter(r => r.experimentId === SHARED_BASELINE_ID).map(r => r.id)
+    return ['15', '30', '45'].map(a => {
+      const idsOn = filteredRuns
+        .filter(r => r.experimentId !== SHARED_BASELINE_ID && r.alphaDeg === parseFloat(a) && r.ffgEnabled === 1)
+        .map(r => r.id)
       const mOn = filteredMetrics.filter(m => idsOn.includes(m.runId))
-      const mOff = filteredMetrics.filter(m => idsOff.includes(m.runId))
+      const mOff = filteredMetrics.filter(m => baselineIds.includes(m.runId))
       const mateOn = computeMeanStd(mOn.map(m => Math.abs(m.mateMean ?? 0)))
       const mateOff = computeMeanStd(mOff.map(m => Math.abs(m.mateMean ?? 0)))
       const eefOn = computeMeanStd(mOn.map(m => m.finalEefError ?? 0))
@@ -752,9 +758,9 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
       return {
         alpha: `α=${a}°`,
         'FFG ON': mateOn.mean, 'FFG ON Std': mateOn.std,
-        'FFG OFF': mateOff.mean, 'FFG OFF Std': mateOff.std,
+        'Baseline': mateOff.mean, 'Baseline Std': mateOff.std,
         'EEF ON': eefOn.mean, 'EEF ON Std': eefOn.std,
-        'EEF OFF': eefOff.mean, 'EEF OFF Std': eefOff.std,
+        'EEF Baseline': eefOff.mean, 'EEF Baseline Std': eefOff.std,
       }
     })
   }, [selectedExp, filteredRuns, filteredMetrics])
@@ -762,13 +768,14 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
   const exp4SummaryRows = useMemo(() => {
     if (selectedExp !== 'EXP-4') return []
     const rows: any[] = []
-    for (const a of ['0', '15', '30', '45']) {
-      const runsA = filteredRuns.filter(r => r.alphaDeg === parseFloat(a))
-      const idsOn = runsA.filter(r => r.ffgEnabled === 1).map(r => r.id)
-      const idsOff = runsA.filter(r => r.ffgEnabled === 0).map(r => r.id)
+    const baselineIds = filteredRuns.filter(r => r.experimentId === SHARED_BASELINE_ID).map(r => r.id)
+    for (const a of ['15', '30', '45']) {
+      const idsOn = filteredRuns
+        .filter(r => r.experimentId !== SHARED_BASELINE_ID && r.alphaDeg === parseFloat(a) && r.ffgEnabled === 1)
+        .map(r => r.id)
       const gm = (ids: string[]) => filteredMetrics.filter(m => ids.includes(m.runId))
       rows.push({ name: `α=${a}° FFG ON`, n: idsOn.length, mate: computeMeanStd(gm(idsOn).map(m => m.mateMean ?? 0)), mcte: computeMeanStd(gm(idsOn).map(m => m.mcteMean ?? 0)), eef: computeMeanStd(gm(idsOn).map(m => m.eefErrorMean ?? 0)), settle: computeMeanStd(gm(idsOn).map(m => m.settleTimeMs ?? 0)), finalEef: computeMeanStd(gm(idsOn).map(m => m.finalEefError ?? 0)) })
-      rows.push({ name: `α=${a}° FFG OFF`, n: idsOff.length, mate: computeMeanStd(gm(idsOff).map(m => m.mateMean ?? 0)), mcte: computeMeanStd(gm(idsOff).map(m => m.mcteMean ?? 0)), eef: computeMeanStd(gm(idsOff).map(m => m.eefErrorMean ?? 0)), settle: computeMeanStd(gm(idsOff).map(m => m.settleTimeMs ?? 0)), finalEef: computeMeanStd(gm(idsOff).map(m => m.finalEefError ?? 0)) })
+      rows.push({ name: 'Shared baseline', n: baselineIds.length, mate: computeMeanStd(gm(baselineIds).map(m => m.mateMean ?? 0)), mcte: computeMeanStd(gm(baselineIds).map(m => m.mcteMean ?? 0)), eef: computeMeanStd(gm(baselineIds).map(m => m.eefErrorMean ?? 0)), settle: computeMeanStd(gm(baselineIds).map(m => m.settleTimeMs ?? 0)), finalEef: computeMeanStd(gm(baselineIds).map(m => m.finalEefError ?? 0)) })
     }
     return rows
   }, [selectedExp, filteredRuns, filteredMetrics])
@@ -778,13 +785,14 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
   const analysisGroups = useMemo(() => {
     const metricsForRunIds = (ids: string[]) => filteredMetrics.filter(metric => ids.includes(metric.runId))
     if (selectedExp === 'EXP-4') {
-      return [0, 15, 30, 45].flatMap(alpha => {
-        const atAngle = filteredRuns.filter(run => run.alphaDeg === alpha)
-        const onIds = atAngle.filter(run => run.ffgEnabled === 1).map(run => run.id)
-        const offIds = atAngle.filter(run => run.ffgEnabled === 0).map(run => run.id)
+      const baselineIds = filteredRuns.filter(run => run.experimentId === SHARED_BASELINE_ID).map(run => run.id)
+      return [15, 30, 45].flatMap(alpha => {
+        const onIds = filteredRuns
+          .filter(run => run.experimentId !== SHARED_BASELINE_ID && run.alphaDeg === alpha && run.ffgEnabled === 1)
+          .map(run => run.id)
         return [
           { name: `${alpha}° · FFG ON`, metrics: metricsForRunIds(onIds) },
-          { name: `${alpha}° · FFG OFF`, metrics: metricsForRunIds(offIds) },
+          { name: `${alpha}° · Shared baseline`, metrics: metricsForRunIds(baselineIds) },
         ]
       })
     }
@@ -796,18 +804,21 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
       return run.trapEnabled === 1
     }
     const label = selectedExp === 'EXP-1' ? 'TD' : selectedExp === 'EXP-2' ? 'Inertia' : selectedExp === 'EXP-3' ? 'Coriolis' : 'Trapezoid'
-    const enabledIds = filteredRuns.filter(isEnabled).map(run => run.id)
-    const disabledIds = filteredRuns.filter(run => !isEnabled(run)).map(run => run.id)
+    const sharedBaseline = usesSharedBaseline(selectedExp)
+    const enabledIds = filteredRuns.filter(run => run.experimentId !== SHARED_BASELINE_ID && isEnabled(run)).map(run => run.id)
+    const disabledIds = filteredRuns
+      .filter(run => sharedBaseline ? run.experimentId === SHARED_BASELINE_ID : !isEnabled(run))
+      .map(run => run.id)
     return [
       { name: `${label} ON`, metrics: metricsForRunIds(enabledIds) },
-      { name: `${label} OFF`, metrics: metricsForRunIds(disabledIds) },
+      { name: sharedBaseline ? 'Shared baseline' : `${label} OFF`, metrics: metricsForRunIds(disabledIds) },
     ]
   }, [selectedExp, filteredRuns, filteredMetrics])
 
   const analysisMetrics = ANALYSIS_METRICS[selectedExp]
   const effectRows = useMemo(() => {
     const pairs = selectedExp === 'EXP-4'
-      ? [0, 15, 30, 45].map((_, index) => [analysisGroups[index * 2], analysisGroups[index * 2 + 1]] as const)
+      ? [15, 30, 45].map((_, index) => [analysisGroups[index * 2], analysisGroups[index * 2 + 1]] as const)
       : [[analysisGroups[0], analysisGroups[1]] as const]
 
     return analysisMetrics.flatMap(metric => pairs.flatMap(([enabled, disabled]) => {
@@ -827,6 +838,45 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
       }]
     }))
   }, [selectedExp, analysisGroups, analysisMetrics])
+
+  const canManageSharedBaseline = usesSharedBaseline(selectedExp)
+  const baselineCandidateIds = useMemo(() => new Set(
+    filteredRuns
+      .filter(run => run.experimentId !== SHARED_BASELINE_ID && run.ffiEnabled === 0 && run.ffcEnabled === 0 && run.ffgEnabled === 0 && run.alphaDeg === 0)
+      .map(run => run.id)
+  ), [filteredRuns])
+
+  const toggleBaselineSelection = (runId: string) => {
+    setSelectedBaselineRunIds(previous => {
+      const next = new Set(previous)
+      if (next.has(runId)) next.delete(runId)
+      else next.add(runId)
+      return next
+    })
+  }
+
+  const handleMarkBaseline = () => {
+    const runIds = [...selectedBaselineRunIds]
+    if (runIds.length === 0) return
+    if (!confirm(`Jadikan ${runIds.length} run terpilih sebagai shared baseline?\n\nFFI, FFC, dan FFG harus OFF. Sampel dan metrik tidak akan diubah.`)) return
+
+    startTransition(async () => {
+      const result = await markExperimentRunsAsBaseline(runIds)
+      if (!result.ok) {
+        toast.error(`Gagal membuat baseline: ${result.error}`)
+        return
+      }
+
+      const promotedIds = new Set(runIds)
+      setAllRuns(previous => previous.map(run => promotedIds.has(run.id)
+        ? { ...run, experimentId: SHARED_BASELINE_ID, experimentName: `Shared Baseline (from ${run.experimentId})` }
+        : run
+      ))
+      setSelectedBaselineRunIds(new Set())
+      refreshData()
+      toast.success(`${result.updatedCount} run sekarang menjadi shared baseline.`)
+    })
+  }
 
   // ── Delete handlers ─────────────────────────────────────────────────────────
   const handleDeleteRun = (runId: string) => {
@@ -889,7 +939,7 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
               return (
                 <button
                   key={key}
-                  onClick={() => { if (hasData) { setSelectedExp(key); setExpandedRunId(null); setDirectionFilter('all') } }}
+                  onClick={() => { if (hasData) { setSelectedExp(key); setExpandedRunId(null); setDirectionFilter('all'); setSelectedBaselineRunIds(new Set()) } }}
                   className={cn(
                     'w-full text-left px-3 py-2.5 rounded text-xs font-medium transition-all duration-150',
                     selectedExp === key && hasData
@@ -1087,9 +1137,9 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
                         <TableRow className="border-hmi-grid/60 hover:bg-transparent">
                           <TableHead className="text-[10px]">Metric</TableHead>
                           <TableHead className="text-[10px]">Perbandingan</TableHead>
-                          <TableHead className="text-[10px] text-center">ON mean</TableHead>
-                          <TableHead className="text-[10px] text-center">OFF mean</TableHead>
-                          <TableHead className="text-[10px] text-center">Δ ON−OFF</TableHead>
+                          <TableHead className="text-[10px] text-center">Treatment mean</TableHead>
+                          <TableHead className="text-[10px] text-center">Reference mean</TableHead>
+                          <TableHead className="text-[10px] text-center">Δ treatment−reference</TableHead>
                           <TableHead className="text-[10px] text-center">Perbaikan relatif</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1153,7 +1203,7 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
               {/* ── Comparative Charts ─────────────────────────────────────── */}
               {selectedExp === 'EXP-4' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <ExpandableChart title="MATE vs Tilt Angle" subtitle="FFG ON vs OFF per sudut kemiringan" className="h-[340px]">
+                  <ExpandableChart title="MATE vs Tilt Angle" subtitle="FFG ON dibanding shared baseline α=0°" className="h-[340px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={exp4AlphasData} margin={MARGIN}>
                         <CartesianGrid stroke={GRID} strokeDasharray="2 2" />
@@ -1164,8 +1214,8 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
                         <Bar dataKey="FFG ON" fill="var(--color-hmi-j1)" radius={[3, 3, 0, 0]} isAnimationActive={false}>
                           <ErrorBar dataKey="FFG ON Std" stroke="var(--color-hmi-j1-des)" strokeWidth={1.5} />
                         </Bar>
-                        <Bar dataKey="FFG OFF" fill="var(--color-hmi-j2)" radius={[3, 3, 0, 0]} isAnimationActive={false}>
-                          <ErrorBar dataKey="FFG OFF Std" stroke="var(--color-hmi-j2-des)" strokeWidth={1.5} />
+                        <Bar dataKey="Baseline" fill="var(--color-hmi-j2)" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                          <ErrorBar dataKey="Baseline Std" stroke="var(--color-hmi-j2-des)" strokeWidth={1.5} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -1182,8 +1232,8 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
                         <Bar dataKey="EEF ON" fill="var(--color-hmi-pwm-pos)" radius={[3, 3, 0, 0]} isAnimationActive={false}>
                           <ErrorBar dataKey="EEF ON Std" stroke="var(--color-hmi-pwm-pos)" strokeWidth={1.5} />
                         </Bar>
-                        <Bar dataKey="EEF OFF" fill="var(--color-hmi-ideal)" radius={[3, 3, 0, 0]} isAnimationActive={false}>
-                          <ErrorBar dataKey="EEF OFF Std" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} />
+                        <Bar dataKey="EEF Baseline" fill="var(--color-hmi-ideal)" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                          <ErrorBar dataKey="EEF Baseline Std" stroke="var(--color-hmi-ideal)" strokeWidth={1.5} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -1231,13 +1281,37 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
 
               {/* ── Individual Runs Table ───────────────────────────────────── */}
               <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-hmi-grid/60">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    Individual Run Results List — {filteredRuns.length} runs
-                  </p>
-                  <p className="text-[9px] text-slate-600 mt-0.5">
-                    Click row to view 9 telemetry charts. Click ⤢ on any chart to fullscreen.
-                  </p>
+                <div className="px-4 py-2.5 border-b border-hmi-grid/60 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                      Individual Run Results List — {filteredRuns.length} runs
+                    </p>
+                    <p className="text-[9px] text-slate-600 mt-0.5">
+                      Click row to view telemetry. Run α=0° dengan FFI=FFC=FFG=0 dapat dipilih sebagai shared baseline.
+                    </p>
+                  </div>
+                  {canManageSharedBaseline && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={baselineCandidateIds.size === 0 || isPending}
+                        onClick={() => setSelectedBaselineRunIds(new Set(baselineCandidateIds))}
+                        className="text-[10px]"
+                      >
+                        Pilih semua OFF ({baselineCandidateIds.size})
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={selectedBaselineRunIds.size === 0 || isPending}
+                        onClick={handleMarkBaseline}
+                        className="text-[10px]"
+                      >
+                        Jadikan baseline ({selectedBaselineRunIds.size})
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <Table>
                   <TableHeader>
@@ -1256,6 +1330,8 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
                       const isExpanded = expandedRunId === r.id
                       const runSamples = data.samples.filter(s => s.runId === r.id)
                       const isDeleting = deletingRunId === r.id
+                      const isSharedBaseline = r.experimentId === SHARED_BASELINE_ID
+                      const canSelectAsBaseline = canManageSharedBaseline && baselineCandidateIds.has(r.id)
 
                       return (
                         <>
@@ -1267,7 +1343,20 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
                             )}
                           >
                             <TableCell className="font-mono font-bold text-slate-200 py-2.5" onClick={() => setExpandedRunId(isExpanded ? null : r.id)}>
-                              {r.id}
+                              <div className="flex items-center gap-2">
+                                {canSelectAsBaseline && (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedBaselineRunIds.has(r.id)}
+                                    onChange={() => toggleBaselineSelection(r.id)}
+                                    onClick={event => event.stopPropagation()}
+                                    aria-label={`Pilih ${r.id} sebagai baseline`}
+                                    className="accent-emerald-500"
+                                  />
+                                )}
+                                <span>{r.id}</span>
+                                {isSharedBaseline && <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px]">BASELINE</Badge>}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center font-mono text-slate-400 py-2.5" onClick={() => setExpandedRunId(isExpanded ? null : r.id)}>
                               #{r.runNumber}
