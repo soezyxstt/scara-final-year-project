@@ -1,0 +1,6 @@
+experiment_id,file_name,run_references,unique_runs,sample_rows,notes
+EXP-1,exp1_tracking_differentiator.csv,8,8,6474,
+EXP-2,exp2_inertia_compensation.csv,8,8,6586,BASELINE digunakan bersama
+EXP-3,exp3_coriolis_compensation.csv,8,8,6684,BASELINE digunakan bersama
+EXP-4,exp4_gravity_compensation.csv,32,28,19959,BASELINE digunakan bersama
+EXP-5,exp5_trapezoidal_profile.csv,8,8,6531,

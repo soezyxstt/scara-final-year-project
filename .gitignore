@@ -27,12 +27,23 @@ Thumbs.db
 
 # Environment and Key Files
 .env*
+!.env.example
 *.pem
 
 # AI Tools and Editors
+.agents/
 .claude/
+.codex/
 .gemini/
 .vscode/
 .idea/
+AGENTS.md
+CLAUDE.md
+
+# Local Data and Temporary Utilities
+local-backup/
+scratch/
+*.db
+.history/
 
 .temp
