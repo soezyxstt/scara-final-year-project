@@ -21,7 +21,7 @@ function ZNTunerShell() {
   const t = useTranslations('Header')
   const tCommon = useTranslations('Common')
   const { state, serial } = useHMI()
-  const { serialStatus, portName, online, estopped } = state
+  const { serialStatus, online, estopped } = state
 
   const router = useRouter()
 
@@ -56,15 +56,6 @@ function ZNTunerShell() {
   // silenced D-packets every time deps changed.
 
   const [serialLogOpen, setSerialLogOpen] = useState(false)
-  const [lastPort, setLastPort] = useState('')
-  useEffect(() => {
-    const val = localStorage.getItem('hmi_lastPort') ?? ''
-    requestAnimationFrame(() => {
-      setLastPort(val)
-    })
-  }, [portName])
-
-
   return (
     <div className="flex flex-col h-screen min-w-[1280px] bg-hmi-bg text-hmi-text animate-fade-in">
       {/* ── Header bar ── */}
@@ -123,7 +114,7 @@ function ZNTunerShell() {
 
       {/* ── Page content ── */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        <ZNTunerTab isActive={true} />
+        <ZNTunerTab />
       </div>
     </div>
   )

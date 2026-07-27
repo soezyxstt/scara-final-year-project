@@ -17,6 +17,152 @@
     "enable": "Enable",
     "disable": "Disable"
   },
+  "ZNTuner": {
+    "loading": "Loading ZN Tuner...",
+    "series": {
+      "rawAdc": "Raw ADC (°)",
+      "target": "Target (°)",
+      "filtered": "TD Filtered (°)",
+      "pwm": "PWM Output"
+    },
+    "chart": {
+      "title": "Live Caliper Graph",
+      "streaming": "⚡ Live streaming (10 s window)",
+      "frozen": "⏸ Graph view frozen",
+      "selectionZoomed": "🔍 Selection zoomed · time starts at 0 s",
+      "resume": "Resume Scrolling",
+      "pause": "Pause Scrolling",
+      "resetSelection": "Reset Selection",
+      "clear": "Clear Graph",
+      "collapse": "Collapse",
+      "expand": "Expand",
+      "tooltipTime": "Time: {time} s",
+      "noData": "No data available"
+    },
+    "controls": {
+      "title": "Gain Tuning Controls",
+      "joint1": "Joint 1 (DC Motor)",
+      "joint2": "Joint 2 (Stepper)",
+      "proportional": "Proportional",
+      "integral": "Integral",
+      "derivative": "Derivative",
+      "stepTarget": "Send Step Target (deg)",
+      "sendTarget": "Send Target",
+      "rawCommand": "Send Raw ASCII Command",
+      "send": "Send",
+      "resume": "RESUME",
+      "estop": "EMERGENCY STOP"
+    },
+    "tabs": {
+      "zn": "ZN Advisor",
+      "dynamic": "Dynamic Properties",
+      "stats": "Statistics"
+    },
+    "selection": {
+      "duration": "Selection: {duration}s",
+      "none": "No selection",
+      "rangeLabel": "Selection",
+      "to": "to",
+      "width": "Width",
+      "peaks": "Peaks"
+    },
+    "zn": {
+      "needPeaksTitle": "Need ≥ 2 peaks.",
+      "needPeaksBody": "Raise Kp until oscillation is sustained, then select 2–3 complete cycles.",
+      "period": "Period Tu",
+      "frequency": "Frequency fu",
+      "rule": "Rule / Target Response",
+      "proportional": "Proportional Kp (Ku = {ku})",
+      "integral": "Integral Ki",
+      "derivative": "Derivative Kd",
+      "pControl": "P Control",
+      "piControl": "PI Control",
+      "pidClassic": "PID Classic (¼ Decay)",
+      "pidNoOvershoot": "PID No-Overshoot",
+      "pidPessen": "PID Pessen Integration"
+    },
+    "metrics": {
+      "peakToPeak": "Peak-to-Peak",
+      "rmsError": "RMS Error",
+      "maxError": "Maximum Error",
+      "steadyState": "Steady State"
+    },
+    "dynamic": {
+      "stepDetection": "Step Detection",
+      "autoDetected": "Auto-detected",
+      "manualFallback": "Manual selection fallback",
+      "start": "Start",
+      "target": "Target",
+      "settled": "Settled",
+      "actualSize": "Actual Size",
+      "smallStepTitle": "Small step detected.",
+      "smallStepBody": "The target change is only {size}°. Dynamic metrics may be noisy; use a larger step (for example 30°+) for cleaner analysis.",
+      "rise1090": "Rise Time (10–90%)",
+      "rise0100": "Rise Time (0–100%)",
+      "settling2": "Settling Time (2%)",
+      "settling5": "Settling Time (5%)",
+      "notSettled": "Not settled",
+      "peakTime": "Peak Time (Tp)",
+      "maxOvershoot": "Maximum Overshoot",
+      "dampingRatio": "Damping Ratio (ζ)",
+      "naturalFrequency": "Natural Frequency (ωn)",
+      "underdamped": "Underdamped",
+      "overdamped": "Critically/overdamped",
+      "unavailable": "Insufficient response",
+      "estimationNote": "Estimator: {method}. Parameters use a noise-resistant second-order approximation; select the full transient through steady state for best results.",
+      "methods": {
+        "log-decrement": "logarithmic decrement and oscillation period",
+        "overshoot": "overshoot and peak time",
+        "model-fit": "second-order response fit",
+        "none": "insufficient data"
+      }
+    },
+    "stats": {
+      "status": "Status Rating",
+      "ratings": { "negligible": "Negligible", "marginal": "Marginal", "significant": "Significant" },
+      "descriptions": {
+        "negligible": "Steady-state error is negligible relative to the noise floor (SNR < 1).",
+        "marginal": "Steady-state error is slightly visible but near the noise floor (1 ≤ SNR ≤ 3).",
+        "significant": "Steady-state error is significant relative to noise (SNR > 3). Consider adjusting Ki."
+      },
+      "meanPosition": "Mean Position (μ)",
+      "runningAverage": "Running Average",
+      "stdDev": "Std Dev (σ)",
+      "runningVariance": "Running Variance",
+      "maxMinSelection": "Max − Min over selection",
+      "snrProxy": "SNR Proxy",
+      "metric": "Metric",
+      "formula": "Formula",
+      "value": "Value",
+      "whyUseful": "Why Useful",
+      "meanHelp": "Confirms the held position; compare it with the target",
+      "stdHelp": "Quantifies the position noise floor objectively. Lower is better.",
+      "maxMinWindow": "max − min over window",
+      "p2pHelp": "Captures spike outliers and the maximum deviation range.",
+      "snrHelp": "Checks whether steady-state error is significant relative to noise. SNR < 1 is negligible; SNR > 3 is significant.",
+      "note": "Statistical metrics analyze the selected position samples. Use them after the robot has settled at a static target to evaluate holding performance and the noise floor."
+    },
+    "empty": {
+      "title": "Caliper Area Idle",
+      "body": "Drag horizontally on the live chart to select a response. The selected range is zoomed and its time axis restarts at 0 s."
+    },
+    "help": {
+      "title": "How to Use the ZN Procedure",
+      "step1": "Set Ki = 0.0000 and Kd = 0.0000 in the controls above.",
+      "step2": "Send a step target command, such as t1,45.00.",
+      "step3": "Raise Kp slowly until the output reaches a stable, sustained, constant-amplitude oscillation.",
+      "step4": "Record the Kp at this point as the ultimate gain Ku.",
+      "step5": "Drag over 2–3 complete oscillation cycles on the chart.",
+      "step6": "The advisor calculates the ultimate period Tu and recommended gains.",
+      "step7": "Choose a tuning rule and click each highlighted coefficient to apply it to the device."
+    },
+    "footer": {
+      "port": "Port",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "samples": "Samples"
+    }
+  },
   "Header": {
     "title": "SCARA HMI",
     "monitor": "Monitor",

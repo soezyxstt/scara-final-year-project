@@ -17,6 +17,152 @@
     "enable": "Aktifkan",
     "disable": "Nonaktifkan"
   },
+  "ZNTuner": {
+    "loading": "Memuat ZN Tuner...",
+    "series": {
+      "rawAdc": "ADC Mentah (°)",
+      "target": "Target (°)",
+      "filtered": "Hasil Filter TD (°)",
+      "pwm": "Keluaran PWM"
+    },
+    "chart": {
+      "title": "Grafik Kaliper Langsung",
+      "streaming": "⚡ Streaming langsung (jendela 10 dtk)",
+      "frozen": "⏸ Tampilan grafik dibekukan",
+      "selectionZoomed": "🔍 Pilihan diperbesar · waktu dimulai dari 0 dtk",
+      "resume": "Lanjutkan Pengguliran",
+      "pause": "Jeda Pengguliran",
+      "resetSelection": "Reset Pilihan",
+      "clear": "Bersihkan Grafik",
+      "collapse": "Perkecil",
+      "expand": "Perbesar",
+      "tooltipTime": "Waktu: {time} dtk",
+      "noData": "Belum ada data"
+    },
+    "controls": {
+      "title": "Kontrol Penalaan Gain",
+      "joint1": "Sendi 1 (Motor DC)",
+      "joint2": "Sendi 2 (Stepper)",
+      "proportional": "Proporsional",
+      "integral": "Integral",
+      "derivative": "Derivatif",
+      "stepTarget": "Kirim Target Step (derajat)",
+      "sendTarget": "Kirim Target",
+      "rawCommand": "Kirim Perintah ASCII Mentah",
+      "send": "Kirim",
+      "resume": "LANJUTKAN",
+      "estop": "HENTI DARURAT"
+    },
+    "tabs": {
+      "zn": "Rekomendasi ZN",
+      "dynamic": "Properti Dinamis",
+      "stats": "Statistik"
+    },
+    "selection": {
+      "duration": "Pilihan: {duration} dtk",
+      "none": "Belum ada pilihan",
+      "rangeLabel": "Pilihan",
+      "to": "hingga",
+      "width": "Lebar",
+      "peaks": "Puncak"
+    },
+    "zn": {
+      "needPeaksTitle": "Diperlukan ≥ 2 puncak.",
+      "needPeaksBody": "Naikkan Kp hingga osilasi berkelanjutan, lalu pilih 2–3 siklus penuh.",
+      "period": "Periode Tu",
+      "frequency": "Frekuensi fu",
+      "rule": "Aturan / Respons Target",
+      "proportional": "Kp Proporsional (Ku = {ku})",
+      "integral": "Ki Integral",
+      "derivative": "Kd Derivatif",
+      "pControl": "Kontrol P",
+      "piControl": "Kontrol PI",
+      "pidClassic": "PID Klasik (Peluruhan ¼)",
+      "pidNoOvershoot": "PID Tanpa Overshoot",
+      "pidPessen": "PID Integrasi Pessen"
+    },
+    "metrics": {
+      "peakToPeak": "Puncak-ke-Puncak",
+      "rmsError": "Error RMS",
+      "maxError": "Error Maksimum",
+      "steadyState": "Keadaan Tunak"
+    },
+    "dynamic": {
+      "stepDetection": "Deteksi Step",
+      "autoDetected": "Terdeteksi otomatis",
+      "manualFallback": "Fallback pilihan manual",
+      "start": "Awal",
+      "target": "Target",
+      "settled": "Nilai Tunak",
+      "actualSize": "Besar Aktual",
+      "smallStepTitle": "Step kecil terdeteksi.",
+      "smallStepBody": "Perubahan target hanya {size}°. Metrik dinamis dapat terpengaruh noise; gunakan step yang lebih besar (misalnya 30°+) agar analisis lebih bersih.",
+      "rise1090": "Waktu Naik (10–90%)",
+      "rise0100": "Waktu Naik (0–100%)",
+      "settling2": "Waktu Tunak (2%)",
+      "settling5": "Waktu Tunak (5%)",
+      "notSettled": "Belum tunak",
+      "peakTime": "Waktu Puncak (Tp)",
+      "maxOvershoot": "Overshoot Maksimum",
+      "dampingRatio": "Rasio Redaman (ζ)",
+      "naturalFrequency": "Frekuensi Alami (ωn)",
+      "underdamped": "Redaman kurang",
+      "overdamped": "Redaman kritis/lebih",
+      "unavailable": "Respons belum memadai",
+      "estimationNote": "Estimator: {method}. Parameter memakai pendekatan orde dua yang tahan noise; pilih seluruh transien hingga keadaan tunak untuk hasil terbaik.",
+      "methods": {
+        "log-decrement": "decrement logaritmik dan periode osilasi",
+        "overshoot": "overshoot dan waktu puncak",
+        "model-fit": "fitting respons orde dua",
+        "none": "data belum memadai"
+      }
+    },
+    "stats": {
+      "status": "Penilaian Status",
+      "ratings": { "negligible": "Dapat Diabaikan", "marginal": "Marginal", "significant": "Signifikan" },
+      "descriptions": {
+        "negligible": "Error keadaan tunak dapat diabaikan dibandingkan noise floor (SNR < 1).",
+        "marginal": "Error keadaan tunak sedikit terlihat tetapi dekat dengan noise floor (1 ≤ SNR ≤ 3).",
+        "significant": "Error keadaan tunak signifikan dibandingkan noise (SNR > 3). Pertimbangkan penyesuaian Ki."
+      },
+      "meanPosition": "Posisi Rata-rata (μ)",
+      "runningAverage": "Rata-rata Berjalan",
+      "stdDev": "Simpangan Baku (σ)",
+      "runningVariance": "Variansi Berjalan",
+      "maxMinSelection": "Maks − Min pada pilihan",
+      "snrProxy": "Proksi SNR",
+      "metric": "Metrik",
+      "formula": "Rumus",
+      "value": "Nilai",
+      "whyUseful": "Kegunaan",
+      "meanHelp": "Mengonfirmasi posisi yang ditahan; bandingkan dengan target",
+      "stdHelp": "Mengukur noise floor posisi secara objektif. Lebih rendah lebih baik.",
+      "maxMinWindow": "maks − min pada jendela",
+      "p2pHelp": "Menangkap pencilan lonjakan dan rentang deviasi maksimum.",
+      "snrHelp": "Memeriksa signifikansi error keadaan tunak terhadap noise. SNR < 1 dapat diabaikan; SNR > 3 signifikan.",
+      "note": "Metrik statistik menganalisis sampel posisi yang dipilih. Gunakan setelah robot tunak pada target statis untuk mengevaluasi kemampuan menahan posisi dan noise floor."
+    },
+    "empty": {
+      "title": "Area Kaliper Belum Aktif",
+      "body": "Seret secara horizontal pada grafik untuk memilih respons. Rentang terpilih akan diperbesar dan sumbu waktunya dimulai kembali dari 0 dtk."
+    },
+    "help": {
+      "title": "Cara Menggunakan Prosedur ZN",
+      "step1": "Atur Ki = 0.0000 dan Kd = 0.0000 pada kontrol di atas.",
+      "step2": "Kirim perintah target step, misalnya t1,45.00.",
+      "step3": "Naikkan Kp perlahan hingga keluaran berosilasi stabil, berkelanjutan, dan beramplitudo tetap.",
+      "step4": "Catat Kp pada kondisi tersebut sebagai ultimate gain Ku.",
+      "step5": "Seret pada 2–3 siklus osilasi penuh di grafik.",
+      "step6": "Rekomendasi ZN menghitung periode ultimate Tu dan gain yang disarankan.",
+      "step7": "Pilih aturan penalaan lalu klik setiap koefisien yang disorot untuk menerapkannya ke perangkat."
+    },
+    "footer": {
+      "port": "Port",
+      "connected": "Terhubung",
+      "disconnected": "Terputus",
+      "samples": "Sampel"
+    }
+  },
   "Header": {
     "title": "SCARA HMI",
     "monitor": "Monitor",

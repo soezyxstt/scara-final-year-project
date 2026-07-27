@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef, JSX } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import UniversalTimeSeriesChart, { ChartSeries } from './universal-time-series-chart'
 import {
   ChevronUp,
@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ZNSample } from '@/lib/hmi-types'
+import { useTranslations } from 'next-intl'
 
 interface DynamicMetrics {
   stepDetected: boolean
@@ -52,6 +53,7 @@ interface DynamicMetrics {
   omegaN: number | null
   fD: number | null
   fN: number | null
+  estimationMethod: 'log-decrement' | 'overshoot' | 'model-fit' | null
 }
 
 interface StatMetrics {
@@ -90,7 +92,107 @@ function downsample<T>(arr: T[], max = 500): T[] {
   return arr.filter((_, i) => i % step === 0)
 }
 
-export function ZNTunerTab({ isActive }: { isActive: boolean }) {
+const median = (values: number[]) => {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const middle = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle]
+}
+
+const smoothValues = (values: number[], radius = 2) => values.map((_, index) => {
+  const from = Math.max(0, index - radius)
+  const to = Math.min(values.length, index + radius + 1)
+  return median(values.slice(from, to))
+})
+
+function secondOrderStep(t: number, zeta: number, omegaN: number) {
+  if (t <= 0) return 0
+  if (Math.abs(zeta - 1) < 1e-3) {
+    return 1 - Math.exp(-omegaN * t) * (1 + omegaN * t)
+  }
+  if (zeta < 1) {
+    const root = Math.sqrt(1 - zeta * zeta)
+    const omegaD = omegaN * root
+    return 1 - Math.exp(-zeta * omegaN * t)
+      * (Math.cos(omegaD * t) + (zeta / root) * Math.sin(omegaD * t))
+  }
+
+  const root = Math.sqrt(zeta * zeta - 1)
+  const r1 = -omegaN * (zeta - root)
+  const r2 = -omegaN * (zeta + root)
+  return 1 + (r2 * Math.exp(r1 * t) - r1 * Math.exp(r2 * t)) / (r1 - r2)
+}
+
+function fitSecondOrderResponse(
+  samples: ZNSample[],
+  getVal: (sample: ZNSample) => number,
+  tOrigin: number,
+  yStart: number,
+  ySS: number,
+) {
+  const height = ySS - yStart
+  const duration = samples.at(-1)!.t - tOrigin
+  if (samples.length < 8 || Math.abs(height) < 0.1 || duration <= 0.05) return null
+
+  const fittedSamples = downsample(samples, 240)
+    .map(sample => ({ t: sample.t - tOrigin, y: (getVal(sample) - yStart) / height }))
+    .filter(sample => sample.t >= 0 && Number.isFinite(sample.y))
+  if (fittedSamples.length < 8) return null
+
+  const positiveDts = fittedSamples.slice(1)
+    .map((sample, index) => sample.t - fittedSamples[index].t)
+    .filter(dt => dt > 0)
+  const sampleDt = median(positiveDts) || duration / fittedSamples.length
+  const omegaMin = Math.max(0.05, 0.25 / duration)
+  const omegaMax = Math.min(200, Math.max(omegaMin * 4, Math.PI / sampleDt))
+
+  let best = { zeta: 0.7, omegaN: 1.8 / duration, error: Infinity }
+  const evaluate = (zeta: number, omegaN: number) => {
+    let error = 0
+    for (const sample of fittedSamples) {
+      const residual = sample.y - secondOrderStep(sample.t, zeta, omegaN)
+      const clipped = Math.max(-3, Math.min(3, residual))
+      error += clipped * clipped
+    }
+    return error / fittedSamples.length
+  }
+
+  for (let zi = 0; zi <= 48; zi++) {
+    const zeta = 0.05 + (2.35 * zi) / 48
+    for (let wi = 0; wi <= 64; wi++) {
+      const ratio = wi / 64
+      const omegaN = omegaMin * Math.pow(omegaMax / omegaMin, ratio)
+      const error = evaluate(zeta, omegaN)
+      if (error < best.error) best = { zeta, omegaN, error }
+    }
+  }
+
+  for (let pass = 0; pass < 2; pass++) {
+    const zetaSpan = pass === 0 ? 0.16 : 0.05
+    const omegaSpan = pass === 0 ? 0.25 : 0.08
+    const center = best
+    for (let zi = -6; zi <= 6; zi++) {
+      const zeta = Math.max(0.01, Math.min(3, center.zeta + (zi / 6) * zetaSpan))
+      for (let wi = -6; wi <= 6; wi++) {
+        const omegaN = Math.max(0.01, center.omegaN * (1 + (wi / 6) * omegaSpan))
+        const error = evaluate(zeta, omegaN)
+        if (error < best.error) best = { zeta, omegaN, error }
+      }
+    }
+  }
+
+  // Reject selections that do not resemble a second-order step at all.
+  return best.error <= 0.35 ? best : null
+}
+
+interface ChartPointerEvent {
+  activeLabel?: unknown
+}
+
+export function ZNTunerTab() {
+  const t = useTranslations('ZNTuner')
   const { state, serial } = useHMISlow()
   const { serialStatus, portName, gains, estopped } = state
 
@@ -157,7 +259,8 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
   // Synchronize local states with gains from the global context
   useEffect(() => {
-    if (gains) {
+    if (!gains) return
+    const frame = requestAnimationFrame(() => {
       if (activeJoint === 1) {
         const positiveKp1 = Math.round(Math.max(0, gains.kp1) * 1000) / 1000
         const positiveKi1 = Math.round(Math.max(0, gains.ki1) * 1000) / 1000
@@ -176,20 +279,24 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
         setKd(positiveKd2)
         if (!kdFocused) setKdInput(positiveKd2.toString())
       }
-    }
+    })
+    return () => cancelAnimationFrame(frame)
   }, [gains, activeJoint, kpFocused, kiFocused, kdFocused])
 
   useEffect(() => {
     localStorage.setItem('hmi_zn_deadband', deadband.toString())
     if (!dbFocused) {
-      setDbInput(deadband.toString())
+      const frame = requestAnimationFrame(() => setDbInput(deadband.toString()))
+      return () => cancelAnimationFrame(frame)
     }
   }, [deadband, dbFocused])
 
   // Synchronize deadband local state with global params context if available
   useEffect(() => {
     if (state.params?.pwmDb !== undefined) {
-      setDeadband(state.params.pwmDb)
+      const pwmDb = state.params.pwmDb
+      const frame = requestAnimationFrame(() => setDeadband(pwmDb))
+      return () => cancelAnimationFrame(frame)
     }
   }, [state.params?.pwmDb])
 
@@ -212,8 +319,9 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       if (persisted) {
         const parsed = JSON.parse(persisted)
         if (Array.isArray(parsed)) {
-          const sanitized = parsed.map((s: any) => {
-            if (!s) return null
+          const sanitized = parsed.map((value: unknown) => {
+            if (!value || typeof value !== 'object') return null
+            const s = value as Partial<ZNSample>
             return {
               idx: s.idx ?? 0,
               t: s.t ?? 0,
@@ -430,7 +538,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     await serial.sendCommand('getgains')
   }
 
-  const handleGainKeyDown = (e: React.KeyboardEvent, gainName: 'kp' | 'ki' | 'kd') => {
+  const handleGainKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       (e.currentTarget as HTMLInputElement).blur()
     }
@@ -539,14 +647,28 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     return chartData[chartData.length - 1]?.t ?? 0
   }, [isFrozen, frozenEndTime, chartData])
 
+  const selectedRange = useMemo(() => {
+    if (selecting || selectStart === null || selectEnd === null) return null
+    const tMin = Math.min(selectStart, selectEnd)
+    const tMax = Math.max(selectStart, selectEnd)
+    return tMax - tMin >= 0.1 ? { tMin, tMax } : null
+  }, [selecting, selectStart, selectEnd])
+
   const visibleData = useMemo(() => {
+    if (selectedRange) {
+      const selected = chartData
+        .filter((sample) => sample.t >= selectedRange.tMin && sample.t <= selectedRange.tMax)
+        .map((sample) => ({ ...sample, t: sample.t - selectedRange.tMin }))
+      return downsample(selected, 500)
+    }
+
     const minT = chartEndTime - 10
     const filtered = chartData.filter((d) => d.t >= minT && d.t <= chartEndTime)
     return downsample(filtered, 500)
-  }, [chartData, chartEndTime])
+  }, [chartData, chartEndTime, selectedRange])
 
   // Caliper selection events
-  const handleMouseDown = (e: any) => {
+  const handleMouseDown = (e: ChartPointerEvent | null) => {
     if (!e || typeof e.activeLabel !== 'number') return
     setSelecting(true)
     setSelectStart(e.activeLabel)
@@ -559,7 +681,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     }
   }
 
-  const handleMouseMove = (e: any) => {
+  const handleMouseMove = (e: ChartPointerEvent | null) => {
     if (selecting && e && typeof e.activeLabel === 'number') {
       setSelectEnd(e.activeLabel)
     }
@@ -568,15 +690,23 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
   const handleMouseUp = () => {
     if (selecting) {
       setSelecting(false)
-      computeMetrics()
+      if (selectStart === null || selectEnd === null || Math.abs(selectEnd - selectStart) < 0.1) {
+        setSelectStart(null)
+        setSelectEnd(null)
+        setMetrics(null)
+        setIsFrozen(false)
+        setFrozenEndTime(null)
+        return
+      }
+      computeMetrics(selectStart, selectEnd)
     }
   }
 
   // Calculate ZN metrics & Dynamic Properties
-  const computeMetrics = () => {
-    if (selectStart === null || selectEnd === null) return
-    const tMin = Math.min(selectStart, selectEnd)
-    const tMax = Math.max(selectStart, selectEnd)
+  const computeMetrics = (selectionStart = selectStart, selectionEnd = selectEnd) => {
+    if (selectionStart === null || selectionEnd === null) return
+    const tMin = Math.min(selectionStart, selectionEnd)
+    const tMax = Math.max(selectionStart, selectionEnd)
 
     if (tMax - tMin < 0.1) {
       setMetrics(null)
@@ -632,71 +762,67 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     const ssErr = ssErrors.length > 0 ? ssErrors.reduce((a, b) => a + b, 0) / ssErrors.length : 0
 
     // ── DYNAMIC PROPERTIES STEP RESPONSE ANALYSIS ──
-    const finalTarget = getTar(samples[samples.length - 1])
-    
-    // Find index of the last sample of selection in the full buffer
-    const lastSampleInSelection = samples[samples.length - 1]
-    const lastIdxInFull = fullBuffer.findIndex((s) => s.t === lastSampleInSelection.t)
-    
-    // Scan backward to find when target transitioned to finalTarget
+    // Find the strongest target transition with tolerance instead of relying on
+    // exact float equality. A short look-behind catches a step at the drag edge.
+    const lookBehind = Math.min(1, Math.max(0.15, (tMax - tMin) * 0.2))
+    const firstSearchIndex = fullBuffer.findIndex(sample => sample.t >= tMin - lookBehind)
+    const searchStartIdx = Math.max(1, firstSearchIndex === -1 ? 1 : firstSearchIndex)
     let stepIdx = -1
-    if (lastIdxInFull !== -1) {
-      for (let i = lastIdxInFull; i > 0; i--) {
-        // If we find a target transition point
-        if (getTar(fullBuffer[i]) === finalTarget && getTar(fullBuffer[i - 1]) !== finalTarget) {
-          stepIdx = i
-          break
-        }
+    let largestTargetDelta = 0
+    for (let i = searchStartIdx; i < fullBuffer.length && fullBuffer[i].t <= tMax; i++) {
+      const delta = Math.abs(getTar(fullBuffer[i]) - getTar(fullBuffer[i - 1]))
+      if (delta > largestTargetDelta) {
+        largestTargetDelta = delta
+        stepIdx = i
       }
     }
 
-    let stepDetected = stepIdx !== -1
-    let tStart = stepDetected ? fullBuffer[stepIdx].t : tMin
-    let yTargetBefore = stepDetected ? getTar(fullBuffer[stepIdx - 1]) : getVal(samples[0])
-    let yTargetAfter = finalTarget
+    const stepDetected = stepIdx > 0 && largestTargetDelta >= 0.05
+    const tStart = stepDetected ? Math.max(tMin, fullBuffer[stepIdx].t) : tMin
+    const beforeTargets = stepDetected
+      ? fullBuffer.slice(Math.max(0, stepIdx - 8), stepIdx).map(getTar)
+      : [getTar(samples[0])]
+    const afterTargets = stepDetected
+      ? fullBuffer.slice(stepIdx, Math.min(fullBuffer.length, stepIdx + 8)).map(getTar)
+      : samples.slice(-Math.max(1, Math.floor(samples.length * 0.15))).map(getTar)
+    const yTargetBefore = median(beforeTargets)
+    const yTargetAfter = median(afterTargets)
     let stepSize = yTargetAfter - yTargetBefore
 
-    // Fallback if step size is too small (e.g. constant target trace with manual step estimation)
-    if (Math.abs(stepSize) < 0.1 && samples.length > 0) {
-      stepSize = yTargetAfter - getVal(samples[0])
-    }
-
-    // Filter samples chronologically starting from the detected/assumed step start
-    const responseSamples = fullBuffer.filter((s) => s.t >= tStart && s.t <= tMax)
-    const fallbackSamples = responseSamples.length > 0 ? responseSamples : samples
-    
-    const yStart = getVal(fallbackSamples[0])
-    
-    // Steady state value calculation for the selected response window (actual settled value)
-    const ssActualSamples = fallbackSamples.slice(Math.floor(fallbackSamples.length * 0.85))
-    const ySS = ssActualSamples.length > 0
-      ? ssActualSamples.reduce((sum, s) => sum + getVal(s), 0) / ssActualSamples.length
-      : yTargetAfter
-
-    // Actual change height of the step response
+    const responseSamples = samples.filter(sample => sample.t >= tStart)
+    const fallbackSamples = responseSamples.length >= 3 ? responseSamples : samples
+    const smoothedResponseValues = smoothValues(fallbackSamples.map(getVal))
+    const baselineCount = Math.max(1, Math.min(10, Math.floor(fallbackSamples.length * 0.1)))
+    const yStart = median(smoothedResponseValues.slice(0, baselineCount))
+    const ssCountActual = Math.max(3, Math.floor(fallbackSamples.length * 0.15))
+    const ySS = median(smoothedResponseValues.slice(-ssCountActual))
     const actualChange = ySS - yStart
-    // Use actual change if significant, otherwise fallback to the command step size
+    if (Math.abs(stepSize) < 0.1) stepSize = actualChange
     const stepHeight = Math.abs(actualChange) > 0.1 ? actualChange : stepSize
 
-    // Peak search within step response window
-    let peakSample = fallbackSamples[0]
-    let yPeak = getVal(peakSample)
-    for (const s of fallbackSamples) {
-      const val = getVal(s)
-      if (stepHeight >= 0) {
-        if (val > yPeak) {
-          yPeak = val
-          peakSample = s
-        }
-      } else {
-        if (val < yPeak) {
-          yPeak = val
-          peakSample = s
-        }
+    const baselineNoise = median(
+      smoothedResponseValues.slice(0, baselineCount).map(value => Math.abs(value - yStart))
+    )
+    const onsetThreshold = Math.max(0.03, Math.abs(stepHeight) * 0.02, baselineNoise * 4)
+    let onsetIndex = 0
+    for (let i = 0; i < smoothedResponseValues.length; i++) {
+      if (Math.abs(smoothedResponseValues[i] - yStart) >= onsetThreshold) {
+        onsetIndex = i
+        break
       }
     }
-    const tPeak = peakSample.t
-    const peakTime = Math.max(0, tPeak - tStart)
+    const responseOrigin = fallbackSamples[onsetIndex]?.t ?? tStart
+
+    let peakIndex = onsetIndex
+    for (let i = onsetIndex; i < smoothedResponseValues.length; i++) {
+      if ((stepHeight >= 0 && smoothedResponseValues[i] > smoothedResponseValues[peakIndex])
+        || (stepHeight < 0 && smoothedResponseValues[i] < smoothedResponseValues[peakIndex])) {
+        peakIndex = i
+      }
+    }
+    const yPeak = smoothedResponseValues[peakIndex]
+    const tPeak = fallbackSamples[peakIndex].t
+    const peakTime = Math.max(0, tPeak - responseOrigin)
 
     // Calculate overshoot relative to the settled value ySS
     let overshootDeg = 0
@@ -714,8 +840,8 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
     let t10: number | null = null
     for (let i = 0; i < fallbackSamples.length - 1; i++) {
-      const v1 = getVal(fallbackSamples[i])
-      const v2 = getVal(fallbackSamples[i + 1])
+      const v1 = smoothedResponseValues[i]
+      const v2 = smoothedResponseValues[i + 1]
       const t1 = fallbackSamples[i].t
       const t2 = fallbackSamples[i + 1].t
 
@@ -725,16 +851,16 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       }
     }
     if (t10 === null && fallbackSamples.length > 0) {
-      const initialVal = getVal(fallbackSamples[0])
+      const initialVal = smoothedResponseValues[0]
       if ((stepHeight >= 0 && initialVal >= y10) || (stepHeight < 0 && initialVal <= y10)) {
-        t10 = tStart
+        t10 = responseOrigin
       }
     }
 
     let t90: number | null = null
     for (let i = 0; i < fallbackSamples.length - 1; i++) {
-      const v1 = getVal(fallbackSamples[i])
-      const v2 = getVal(fallbackSamples[i + 1])
+      const v1 = smoothedResponseValues[i]
+      const v2 = smoothedResponseValues[i + 1]
       const t1 = fallbackSamples[i].t
       const t2 = fallbackSamples[i + 1].t
 
@@ -746,8 +872,8 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
     let t100: number | null = null
     for (let i = 0; i < fallbackSamples.length - 1; i++) {
-      const v1 = getVal(fallbackSamples[i])
-      const v2 = getVal(fallbackSamples[i + 1])
+      const v1 = smoothedResponseValues[i]
+      const v2 = smoothedResponseValues[i + 1]
       const t1 = fallbackSamples[i].t
       const t2 = fallbackSamples[i + 1].t
 
@@ -758,7 +884,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     }
 
     const riseTime1090 = (t10 !== null && t90 !== null) ? Math.max(0, t90 - t10) : null
-    const riseTime0100 = (t100 !== null) ? Math.max(0, t100 - tStart) : null
+    const riseTime0100 = (t100 !== null) ? Math.max(0, t100 - responseOrigin) : null
 
     // Settling time calculations (2% and 5%) relative to ySS and stepHeight
     const tol2 = 0.02 * Math.abs(stepHeight)
@@ -766,7 +892,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
     let settleIndex2 = -1
     for (let i = fallbackSamples.length - 1; i >= 0; i--) {
-      const err = Math.abs(getVal(fallbackSamples[i]) - ySS)
+      const err = Math.abs(smoothedResponseValues[i] - ySS)
       if (err > tol2) {
         settleIndex2 = i
         break
@@ -779,12 +905,12 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     } else if (settleIndex2 === -1) {
       settlingTime2 = 0
     } else {
-      settlingTime2 = Math.max(0, fallbackSamples[settleIndex2].t - tStart)
+      settlingTime2 = Math.max(0, fallbackSamples[settleIndex2].t - responseOrigin)
     }
 
     let settleIndex5 = -1
     for (let i = fallbackSamples.length - 1; i >= 0; i--) {
-      const err = Math.abs(getVal(fallbackSamples[i]) - ySS)
+      const err = Math.abs(smoothedResponseValues[i] - ySS)
       if (err > tol5) {
         settleIndex5 = i
         break
@@ -797,17 +923,52 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     } else if (settleIndex5 === -1) {
       settlingTime5 = 0
     } else {
-      settlingTime5 = Math.max(0, fallbackSamples[settleIndex5].t - tStart)
+      settlingTime5 = Math.max(0, fallbackSamples[settleIndex5].t - responseOrigin)
     }
 
-    // Estimate second-order parameters from overshoot (underdamped assumption)
+    // Prefer logarithmic decrement for repeated oscillations, then classical
+    // overshoot, and finally a bounded second-order fit for monotonic responses.
     let dampingRatio: number | null = null
     let omegaD: number | null = null
     let omegaN: number | null = null
     let fD: number | null = null
     let fN: number | null = null
+    let estimationMethod: DynamicMetrics['estimationMethod'] = null
 
-    if (overshootPct > 0.5 && peakTime > 0) {
+    const extrema: { t: number; amplitude: number }[] = []
+    const minPeakAmplitude = Math.max(Math.abs(stepHeight) * 0.01, baselineNoise * 3, 0.02)
+    for (let i = Math.max(1, onsetIndex); i < smoothedResponseValues.length - 1; i++) {
+      const prev = smoothedResponseValues[i - 1]
+      const curr = smoothedResponseValues[i]
+      const next = smoothedResponseValues[i + 1]
+      const isSameDirectionPeak = stepHeight >= 0
+        ? curr > prev && curr >= next && curr > ySS
+        : curr < prev && curr <= next && curr < ySS
+      const amplitude = Math.abs(curr - ySS)
+      if (isSameDirectionPeak && amplitude >= minPeakAmplitude) {
+        extrema.push({ t: fallbackSamples[i].t, amplitude })
+      }
+    }
+
+    const logDecrements: number[] = []
+    const periods: number[] = []
+    for (let i = 1; i < extrema.length; i++) {
+      if (extrema[i - 1].amplitude > extrema[i].amplitude * 1.01) {
+        logDecrements.push(Math.log(extrema[i - 1].amplitude / extrema[i].amplitude))
+        periods.push(extrema[i].t - extrema[i - 1].t)
+      }
+    }
+
+    if (logDecrements.length > 0 && periods.some(period => period > 0)) {
+      const delta = median(logDecrements)
+      const period = median(periods.filter(value => value > 0))
+      dampingRatio = delta / Math.sqrt(4 * Math.PI * Math.PI + delta * delta)
+      omegaD = 2 * Math.PI / period
+      omegaN = omegaD / Math.sqrt(1 - dampingRatio * dampingRatio)
+      fD = omegaD / (2 * Math.PI)
+      fN = omegaN / (2 * Math.PI)
+      estimationMethod = 'log-decrement'
+    } else if (overshootPct > 0.1 && overshootPct < 100 && peakTime > 0) {
       const OS = overshootPct / 100
       const lnOS = Math.log(OS)
       dampingRatio = -lnOS / Math.sqrt(Math.PI * Math.PI + lnOS * lnOS)
@@ -818,6 +979,27 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
         
         omegaN = omegaD / Math.sqrt(1 - dampingRatio * dampingRatio)
         fN = omegaN / (2 * Math.PI)
+        estimationMethod = 'overshoot'
+      }
+    }
+
+    if (dampingRatio === null || omegaN === null) {
+      const fitted = fitSecondOrderResponse(
+        fallbackSamples.slice(onsetIndex),
+        getVal,
+        responseOrigin,
+        yStart,
+        ySS,
+      )
+      if (fitted) {
+        dampingRatio = fitted.zeta
+        omegaN = fitted.omegaN
+        fN = omegaN / (2 * Math.PI)
+        if (dampingRatio < 1) {
+          omegaD = omegaN * Math.sqrt(1 - dampingRatio * dampingRatio)
+          fD = omegaD / (2 * Math.PI)
+        }
+        estimationMethod = 'model-fit'
       }
     }
 
@@ -845,7 +1027,8 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       omegaD,
       omegaN,
       fD,
-      fN
+      fN,
+      estimationMethod,
     }
 
     // Statistical calculations (Robot at Rest)
@@ -907,7 +1090,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
     return [
       {
         key: activeJoint === 1 ? 't1_raw' : 't2_raw',
-        name: 'Raw ADC (°)',
+        name: t('series.rawAdc'),
         stroke: '#94a3b8',
         strokeWidth: 1,
         strokeOpacity: 0.4,
@@ -915,7 +1098,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       },
       {
         key: activeJoint === 1 ? 't1_target' : 't2_target',
-        name: 'Target (°)',
+        name: t('series.target'),
         stroke: '#06B6D4',
         strokeDasharray: '4 4',
         strokeWidth: 1.5,
@@ -923,28 +1106,28 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       },
       {
         key: activeJoint === 1 ? 't1_actual' : 't2_actual',
-        name: 'TD Filtered (°)',
+        name: t('series.filtered'),
         stroke: '#FF9800',
         strokeWidth: 2,
         yAxisId: 'default'
       },
       {
         key: 'pwm1',
-        name: 'PWM Output',
+        name: t('series.pwm'),
         stroke: '#4CAF50',
         strokeWidth: 1.5,
         strokeOpacity: 0.4,
         yAxisId: 'pwm'
       }
     ] as ChartSeries[]
-  }, [activeJoint])
+  }, [activeJoint, t])
 
   const secondaryYAxisProps = useMemo(() => {
     return {
       id: 'pwm',
       domain: [-260, 260] as [number, number],
       width: 40,
-      tickFormatter: (v: any) => `${v}`
+      tickFormatter: (v: number | string) => `${v}`
     }
   }, [])
 
@@ -970,8 +1153,8 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
   }, [deadband])
 
   const refArea = selectStart !== null && selectEnd !== null ? {
-    x1: Math.min(selectStart, selectEnd),
-    x2: Math.max(selectStart, selectEnd),
+    x1: selectedRange ? 0 : Math.min(selectStart, selectEnd),
+    x2: selectedRange ? selectedRange.tMax - selectedRange.tMin : Math.max(selectStart, selectEnd),
     fill: "#FFD700",
     fillOpacity: 0.15,
     stroke: "#FFD700",
@@ -996,9 +1179,9 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
           )}>
             <div className="flex items-center justify-between pb-2">
               <div className="flex items-center gap-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-hmi-muted">Live Caliper Graph</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-hmi-muted">{t('chart.title')}</span>
                 <span className="text-xs text-hmi-ideal font-mono">
-                  {isFrozen ? '⏸ Graph View Frozen' : '⚡ Live Streaming (60 ms Viewport)'}
+                  {selectedRange ? t('chart.selectionZoomed') : isFrozen ? t('chart.frozen') : t('chart.streaming')}
                 </span>
               </div>
               <div className="flex gap-2">
@@ -1015,7 +1198,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     }
                   }}
                 >
-                  {isFrozen ? 'Resume Scrolling' : 'Pause Scrolling'}
+                  {isFrozen ? t('chart.resume') : t('chart.pause')}
                 </Button>
                 <Button
                   size="sm"
@@ -1023,7 +1206,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   className="h-7 text-xs border-hmi-grid text-hmi-muted hover:text-hmi-text hover:bg-hmi-btn"
                   onClick={handleResetCursor}
                 >
-                  <RotateCcw className="w-3 h-3 mr-1" /> Reset Selection
+                  <RotateCcw className="w-3 h-3 mr-1" /> {t('chart.resetSelection')}
                 </Button>
                 <Button
                   size="sm"
@@ -1031,7 +1214,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   className="h-7 text-xs border-hmi-grid text-hmi-muted hover:text-red-400 hover:bg-hmi-btn hover:border-red-900"
                   onClick={handleClearGraph}
                 >
-                  <Trash2 className="w-3 h-3 mr-1" /> Clear Graph
+                  <Trash2 className="w-3 h-3 mr-1" /> {t('chart.clear')}
                 </Button>
                 <Button
                   size="sm"
@@ -1040,7 +1223,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   onClick={() => setIsChartExpanded(!isChartExpanded)}
                 >
                   {isChartExpanded ? <Minimize2 className="w-3.5 h-3.5 mr-1" /> : <Maximize2 className="w-3.5 h-3.5 mr-1" />}
-                  {isChartExpanded ? 'Collapse' : 'Expand'}
+                  {isChartExpanded ? t('chart.collapse') : t('chart.expand')}
                 </Button>
               </div>
             </div>
@@ -1049,9 +1232,9 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
               <UniversalTimeSeriesChart
                 data={visibleData}
                 xAxisKey="t"
-                xDomain={[chartEndTime - 10, chartEndTime]}
+                xDomain={selectedRange ? [0, selectedRange.tMax - selectedRange.tMin] : [chartEndTime - 10, chartEndTime]}
                 yAxisTickFormatter={(v) => `${v.toFixed(1)}°`}
-                tooltipLabelFormatter={(label) => `Time: ${Number(label).toFixed(3)} s`}
+                tooltipLabelFormatter={(label) => t('chart.tooltipTime', { time: Number(label).toFixed(3) })}
                 tooltipValueFormatter={(v, name) => {
                   if (v == null || isNaN(Number(v))) return String(v)
                   if (String(name).toLowerCase().includes('pwm')) {
@@ -1060,7 +1243,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   return `${Number(v).toFixed(4)}°`
                 }}
                 isEmpty={visibleData.length === 0}
-                msg="No data available"
+                msg={t('chart.noData')}
                 series={seriesList}
                 secondaryYAxis={secondaryYAxisProps}
                 referenceLines={refLines}
@@ -1068,13 +1251,14 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
               />
             </div>
           </div>
 
           {/* Gain Controls Panel wrapper (Right, occupying ~30%) */}
           <div className="w-full lg:w-[320px] flex flex-col border border-hmi-grid bg-hmi-panel rounded-md p-3 shrink-0 overflow-y-auto">
-            <span className="text-xs font-bold uppercase tracking-wider text-hmi-muted pb-3">Gain Tuning Controls</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-hmi-muted pb-3">{t('controls.title')}</span>
 
             {/* Joint Selector Toggle */}
             <div className="flex bg-hmi-bg p-0.5 rounded border border-hmi-grid mb-4">
@@ -1085,7 +1269,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   activeJoint === 1 ? "bg-hmi-btn text-hmi-text shadow-sm" : "text-hmi-muted hover:text-hmi-text"
                 )}
               >
-                Joint 1 (DC Motor)
+                {t('controls.joint1')}
               </button>
               <button
                 onClick={() => setActiveJoint(2)}
@@ -1094,7 +1278,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   activeJoint === 2 ? "bg-hmi-btn text-hmi-text shadow-sm" : "text-hmi-muted hover:text-hmi-text"
                 )}
               >
-                Joint 2 (Stepper)
+                {t('controls.joint2')}
               </button>
             </div>
 
@@ -1105,7 +1289,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
               <div className="flex items-center justify-between border-b border-hmi-grid/50 pb-2">
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-hmi-text font-mono">Kp</span>
-                  <span className="text-[10px] text-hmi-muted">Proportional</span>
+                  <span className="text-[10px] text-hmi-muted">{t('controls.proportional')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
@@ -1117,7 +1301,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     onChange={(e) => handleGainChange('kp', e.target.value)}
                     onFocus={() => setKpFocused(true)}
                     onBlur={() => handleGainBlur('kp')}
-                    onKeyDown={(e) => handleGainKeyDown(e, 'kp')}
+                    onKeyDown={handleGainKeyDown}
                   />
                   <div className="flex flex-col gap-0.5">
                     <button onClick={() => adjustGain('kp', 'up')} className="bg-emerald-700 hover:bg-emerald-600 p-0.5 rounded text-white shrink-0 cursor-pointer"><ChevronUp className="w-3.5 h-3.5" /></button>
@@ -1151,7 +1335,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                 <div className="flex items-center justify-between border-b border-hmi-grid/50 pb-2">
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-hmi-text font-mono">Ki</span>
-                    <span className="text-[10px] text-hmi-muted">Integral</span>
+                    <span className="text-[10px] text-hmi-muted">{t('controls.integral')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Input
@@ -1163,7 +1347,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                       onChange={(e) => handleGainChange('ki', e.target.value)}
                       onFocus={() => setKiFocused(true)}
                       onBlur={() => handleGainBlur('ki')}
-                      onKeyDown={(e) => handleGainKeyDown(e, 'ki')}
+                      onKeyDown={handleGainKeyDown}
                     />
                     <div className="flex flex-col gap-0.5">
                       <button onClick={() => adjustGain('ki', 'up')} className="bg-emerald-700 hover:bg-emerald-600 p-0.5 rounded text-white shrink-0 cursor-pointer"><ChevronUp className="w-3.5 h-3.5" /></button>
@@ -1197,7 +1381,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
               <div className="flex items-center justify-between border-b border-hmi-grid/50 pb-2">
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-hmi-text font-mono">Kd</span>
-                  <span className="text-[10px] text-hmi-muted">Derivative</span>
+                  <span className="text-[10px] text-hmi-muted">{t('controls.derivative')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
@@ -1209,7 +1393,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     onChange={(e) => handleGainChange('kd', e.target.value)}
                     onFocus={() => setKdFocused(true)}
                     onBlur={() => handleGainBlur('kd')}
-                    onKeyDown={(e) => handleGainKeyDown(e, 'kd')}
+                    onKeyDown={handleGainKeyDown}
                   />
                   <div className="flex flex-col gap-0.5">
                     <button onClick={() => adjustGain('kd', 'up')} className="bg-emerald-700 hover:bg-emerald-600 p-0.5 rounded text-white shrink-0 cursor-pointer"><ChevronUp className="w-3.5 h-3.5" /></button>
@@ -1301,7 +1485,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
               {/* Target step command input */}
               <div className="flex flex-col gap-1 border-b border-hmi-grid/50 pb-3">
-                <span className="text-[10px] font-bold text-hmi-muted uppercase">Send Step Target (deg)</span>
+                <span className="text-[10px] font-bold text-hmi-muted uppercase">{t('controls.stepTarget')}</span>
                 <div className="flex gap-2">
                   <Input
                     type="number"
@@ -1310,14 +1494,14 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     onChange={(e) => setStepTarget(e.target.value)}
                   />
                   <Button size="sm" onClick={handleSendStep} className="h-7 px-3 text-xs bg-hmi-btn hover:bg-hmi-btn-hover shrink-0">
-                    Send Target
+                    {t('controls.sendTarget')}
                   </Button>
                 </div>
               </div>
 
               {/* Raw CLI command input */}
               <form onSubmit={handleSendCustom} className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-hmi-muted uppercase">Send Raw ASCII command</span>
+                <span className="text-[10px] font-bold text-hmi-muted uppercase">{t('controls.rawCommand')}</span>
                 <div className="flex gap-2">
                   <Input
                     type="text"
@@ -1327,7 +1511,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     onChange={(e) => setCustomCmd(e.target.value)}
                   />
                   <Button type="submit" size="sm" className="h-7 px-3 text-xs bg-hmi-btn hover:bg-hmi-btn-hover shrink-0">
-                    Send
+                    {t('controls.send')}
                   </Button>
                 </div>
               </form>
@@ -1339,7 +1523,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   className="w-full h-9 uppercase font-bold text-sm bg-hmi-ok hover:bg-hmi-ok-hover tracking-wide mt-auto animate-pulse"
                   onClick={() => serial.sendCommand('resume')}
                 >
-                  🔄 RESUME
+                  🔄 {t('controls.resume')}
                 </Button>
               ) : (
                 <Button
@@ -1347,7 +1531,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   className="w-full h-9 uppercase font-bold text-sm bg-hmi-estop hover:bg-hmi-estop-hover tracking-wide mt-auto"
                   onClick={() => serial.sendCommand('estop')}
                 >
-                  🛑 EMERGENCY STOP
+                  🛑 {t('controls.estop')}
                 </Button>
               )}
 
@@ -1372,7 +1556,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                       : "border-transparent text-hmi-muted hover:text-hmi-text"
                   )}
                 >
-                  ZN Advisor
+                  {t('tabs.zn')}
                 </button>
                 <button
                   onClick={() => setAnalyzerTab('dyn')}
@@ -1383,7 +1567,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                       : "border-transparent text-hmi-muted hover:text-hmi-text"
                   )}
                 >
-                  Dynamic Props
+                  {t('tabs.dynamic')}
                 </button>
                 <button
                   onClick={() => setAnalyzerTab('stats')}
@@ -1394,11 +1578,11 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                       : "border-transparent text-hmi-muted hover:text-hmi-text"
                   )}
                 >
-                  Stats
+                  {t('tabs.stats')}
                 </button>
               </div>
               <span className="text-[10px] font-mono text-hmi-muted">
-                {metrics ? `Selection: ${(metrics.tMax - metrics.tMin).toFixed(2)}s` : 'No selection'}
+                {metrics ? t('selection.duration', { duration: (metrics.tMax - metrics.tMin).toFixed(2) }) : t('selection.none')}
               </span>
             </div>
 
@@ -1408,9 +1592,9 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   
                   {/* Visual caliper highlights readout */}
                   <div className="bg-hmi-bg border border-hmi-grid p-2.5 rounded flex items-center justify-between text-xs text-hmi-muted">
-                    <span>Selection: <strong className="text-hmi-text font-mono">{metrics.tMin.toFixed(2)}s</strong> to <strong className="text-hmi-text font-mono">{metrics.tMax.toFixed(2)}s</strong></span>
-                    <span>Width: <strong className="text-hmi-text font-mono">{(metrics.tMax - metrics.tMin).toFixed(2)}s</strong></span>
-                    <span>Peaks: <strong className="text-hmi-text font-mono">{metrics.peaksCount}</strong></span>
+                    <span>{t('selection.rangeLabel')}: <strong className="text-hmi-text font-mono">0.00s</strong> {t('selection.to')} <strong className="text-hmi-text font-mono">{(metrics.tMax - metrics.tMin).toFixed(2)}s</strong></span>
+                    <span>{t('selection.width')}: <strong className="text-hmi-text font-mono">{(metrics.tMax - metrics.tMin).toFixed(2)}s</strong></span>
+                    <span>{t('selection.peaks')}: <strong className="text-hmi-text font-mono">{metrics.peaksCount}</strong></span>
                   </div>
 
                   {/* Inline warning alert if peaks < 2 */}
@@ -1418,7 +1602,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     <div className="flex items-start gap-2 p-3 bg-hmi-bg border border-hmi-text-error text-hmi-text-error rounded text-xs">
                       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                       <div>
-                        <strong>Need ≥ 2 peaks.</strong> Raise Kp until sustained oscillation, then select 2–3 full cycles.
+                        <strong>{t('zn.needPeaksTitle')}</strong> {t('zn.needPeaksBody')}
                       </div>
                     </div>
                   )}
@@ -1426,37 +1610,37 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                   {/* Grid readout of calculated metrics */}
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">Period Tu</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('zn.period')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.Tu ? `${metrics.Tu.toFixed(3)}s` : '—'}
                       </span>
                     </Card>
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">Freq fu</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('zn.frequency')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.fu ? `${metrics.fu.toFixed(2)} Hz` : '—'}
                       </span>
                     </Card>
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">Peak-to-Peak</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('metrics.peakToPeak')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.p2p.toFixed(2)}°
                       </span>
                     </Card>
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">RMS Error</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('metrics.rmsError')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.rms.toFixed(3)}°
                       </span>
                     </Card>
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">Max Error</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('metrics.maxError')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.maxAbs.toFixed(3)}°
                       </span>
                     </Card>
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">Steady State</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('metrics.steadyState')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.ssErr.toFixed(3)}°
                       </span>
@@ -1468,16 +1652,16 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-hmi-bg text-hmi-muted border-b border-hmi-grid font-semibold">
-                          <th className="p-2 border-r border-hmi-grid font-sans">Rule / Target Response</th>
-                          <th className="p-2 border-r border-hmi-grid font-sans">Proportional Kp (Ku = {Ku.toFixed(2)})</th>
-                          <th className="p-2 border-r border-hmi-grid font-sans">Integral Ki</th>
-                          <th className="p-2 font-sans">Derivative Kd</th>
+                          <th className="p-2 border-r border-hmi-grid font-sans">{t('zn.rule')}</th>
+                          <th className="p-2 border-r border-hmi-grid font-sans">{t('zn.proportional', { ku: Ku.toFixed(2) })}</th>
+                          <th className="p-2 border-r border-hmi-grid font-sans">{t('zn.integral')}</th>
+                          <th className="p-2 font-sans">{t('zn.derivative')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-hmi-grid font-mono">
                         {/* Row P */}
                         <tr>
-                          <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text-secondary">P Control</td>
+                          <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text-secondary">{t('zn.pControl')}</td>
                           <td className="p-2 border-r border-hmi-grid">
                             <button
                               onClick={() => applyRecommendedGain('kp', 0.50 * Ku)}
@@ -1492,7 +1676,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
                         {/* Row PI */}
                         <tr>
-                          <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text-secondary">PI Control</td>
+                          <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text-secondary">{t('zn.piControl')}</td>
                           <td className="p-2 border-r border-hmi-grid">
                             <button
                               onClick={() => applyRecommendedGain('kp', 0.45 * Ku)}
@@ -1519,7 +1703,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
                         {/* Row PID classic */}
                         <tr>
-                          <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text-secondary">PID Classic (¼ Decay)</td>
+                          <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text-secondary">{t('zn.pidClassic')}</td>
                           <td className="p-2 border-r border-hmi-grid">
                             <button
                               onClick={() => applyRecommendedGain('kp', 0.60 * Ku)}
@@ -1558,7 +1742,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
                         {/* Row PID no-overshoot */}
                         <tr>
-                          <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text-secondary">PID No-Overshoot</td>
+                          <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text-secondary">{t('zn.pidNoOvershoot')}</td>
                           <td className="p-2 border-r border-hmi-grid">
                             <button
                               onClick={() => applyRecommendedGain('kp', 0.20 * Ku)}
@@ -1597,7 +1781,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
                         {/* Row PID Pessen */}
                         <tr>
-                          <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text-secondary">PID Pessen Integration</td>
+                          <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text-secondary">{t('zn.pidPessen')}</td>
                           <td className="p-2 border-r border-hmi-grid">
                             <button
                               onClick={() => applyRecommendedGain('kp', 0.70 * Ku)}
@@ -1646,20 +1830,20 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     <span className="flex items-center gap-1.5">
                       <Zap className="w-3.5 h-3.5 text-hmi-ideal shrink-0" />
                       <span>
-                        Step Detection:{' '}
+                        {t('dynamic.stepDetection')}:{' '}
                         {metrics.dynProps.stepDetected ? (
-                          <strong className="text-hmi-text-success font-bold">Auto-detected</strong>
+                          <strong className="text-hmi-text-success font-bold">{t('dynamic.autoDetected')}</strong>
                         ) : (
-                          <strong className="text-hmi-text-warning font-bold">Manual selection fallback</strong>
+                          <strong className="text-hmi-text-warning font-bold">{t('dynamic.manualFallback')}</strong>
                         )}
                       </span>
                     </span>
                     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span>Start: <strong className="text-hmi-text font-mono">{metrics.dynProps.yStart.toFixed(2)}°</strong></span>
+                      <span>{t('dynamic.start')}: <strong className="text-hmi-text font-mono">{metrics.dynProps.yStart.toFixed(2)}°</strong></span>
                       <ArrowRight className="w-3 h-3 text-hmi-muted" />
-                      <span>Target: <strong className="text-hmi-text font-mono">{metrics.dynProps.yTargetAfter.toFixed(2)}°</strong></span>
-                      <span>Settled: <strong className="text-hmi-text font-mono">{metrics.dynProps.ySS.toFixed(2)}°</strong></span>
-                      <span>(Actual Size:{' '}
+                      <span>{t('dynamic.target')}: <strong className="text-hmi-text font-mono">{metrics.dynProps.yTargetAfter.toFixed(2)}°</strong></span>
+                      <span>{t('dynamic.settled')}: <strong className="text-hmi-text font-mono">{metrics.dynProps.ySS.toFixed(2)}°</strong></span>
+                      <span>({t('dynamic.actualSize')}:{' '}
                         <strong className={cn("font-mono", metrics.dynProps.stepHeight >= 0 ? "text-hmi-text-success" : "text-hmi-text-error")}>
                           {metrics.dynProps.stepHeight >= 0 ? '+' : ''}{metrics.dynProps.stepHeight.toFixed(2)}°
                         </strong>
@@ -1672,7 +1856,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     <div className="flex items-start gap-2 p-3 bg-hmi-bg border border-hmi-text-warning text-hmi-text-warning rounded text-xs">
                       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                       <div>
-                        <strong>Small Step Detected.</strong> The detected target step change is very small ({metrics.dynProps.stepSize.toFixed(2)}°). Dynamic properties (rise time, overshoot) may be noisy or inaccurate. Issue a larger step command (e.g. 30°+) for cleaner analysis.
+                        <strong>{t('dynamic.smallStepTitle')}</strong> {t('dynamic.smallStepBody', { size: metrics.dynProps.stepSize.toFixed(2) })}
                       </div>
                     </div>
                   )}
@@ -1682,7 +1866,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* Rise Time 10-90% */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">Rise Time (10-90%)</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.rise1090')}</span>
                         <Clock className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <span className="text-sm font-mono font-bold text-hmi-text text-right">
@@ -1693,7 +1877,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* Rise Time 0-100% */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">Rise Time (0-100%)</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.rise0100')}</span>
                         <Clock className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <span className="text-sm font-mono font-bold text-hmi-text text-right">
@@ -1704,12 +1888,12 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* Settling Time 2% */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">Settling Time (2%)</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.settling2')}</span>
                         <Activity className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <span className={cn("text-sm font-mono font-bold text-right", !metrics.dynProps.settledInSelection2 ? "text-hmi-text-warning text-xs" : "text-hmi-text")}>
                         {metrics.dynProps.settlingTime2 !== null ? (
-                          metrics.dynProps.settledInSelection2 ? `${metrics.dynProps.settlingTime2.toFixed(3)}s` : 'Not settled'
+                          metrics.dynProps.settledInSelection2 ? `${metrics.dynProps.settlingTime2.toFixed(3)}s` : t('dynamic.notSettled')
                         ) : '—'}
                       </span>
                     </Card>
@@ -1717,12 +1901,12 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* Settling Time 5% */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">Settling Time (5%)</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.settling5')}</span>
                         <Activity className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <span className={cn("text-sm font-mono font-bold text-right", !metrics.dynProps.settledInSelection5 ? "text-hmi-text-warning text-xs" : "text-hmi-text")}>
                         {metrics.dynProps.settlingTime5 !== null ? (
-                          metrics.dynProps.settledInSelection5 ? `${metrics.dynProps.settlingTime5.toFixed(3)}s` : 'Not settled'
+                          metrics.dynProps.settledInSelection5 ? `${metrics.dynProps.settlingTime5.toFixed(3)}s` : t('dynamic.notSettled')
                         ) : '—'}
                       </span>
                     </Card>
@@ -1730,7 +1914,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* Peak Time */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">Peak Time (Tp)</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.peakTime')}</span>
                         <Clock className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <span className="text-sm font-mono font-bold text-hmi-text text-right">
@@ -1741,7 +1925,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* Max Overshoot */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">Max Overshoot</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.maxOvershoot')}</span>
                         <TrendingUp className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <div className="flex flex-col items-end">
@@ -1759,7 +1943,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* Damping Ratio */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">Damping Ratio (ζ)</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.dampingRatio')}</span>
                         <Gauge className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <div className="flex flex-col items-end">
@@ -1768,9 +1952,9 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                         </span>
                         <span className="text-[9px] text-hmi-muted leading-none">
                           {metrics.dynProps.dampingRatio !== null ? (
-                            metrics.dynProps.dampingRatio < 1 ? 'Underdamped' : 'Overdamped'
+                            metrics.dynProps.dampingRatio < 1 ? t('dynamic.underdamped') : t('dynamic.overdamped')
                           ) : (
-                            metrics.dynProps.overshootPct <= 0.5 ? 'Overdamped / None' : '—'
+                            t('dynamic.unavailable')
                           )}
                         </span>
                       </div>
@@ -1779,7 +1963,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* Frequencies (omega_n) */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">Natural Freq (ωn)</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.naturalFrequency')}</span>
                         <Gauge className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <div className="flex flex-col items-end">
@@ -1797,7 +1981,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
                   {/* Subtle educational text at bottom */}
                   <div className="text-[10px] text-hmi-muted border-t border-hmi-grid/50 pt-2 font-sans italic leading-relaxed">
-                    Note: Damping ratio (ζ) and natural frequency (ωn) are calculated using classical second-order underdamped approximations based on measured overshoot and peak time.
+                    {t('dynamic.estimationNote', { method: metrics.dynProps.estimationMethod ? t(`dynamic.methods.${metrics.dynProps.estimationMethod}`) : t('dynamic.methods.none') })}
                   </div>
                 </div>
               ) : (
@@ -1813,21 +1997,19 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     <span className="flex items-center gap-2">
                       <Zap className="w-4 h-4 shrink-0" />
                       <span>
-                        Status Rating:{' '}
+                        {t('stats.status')}:{' '}
                         <strong className={cn(
                           "px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border",
                           metrics.statProps.rating === 'negligible' && "border-hmi-text-success text-hmi-text-success",
                           metrics.statProps.rating === 'marginal' && "border-hmi-text-warning text-hmi-text-warning",
                           metrics.statProps.rating === 'significant' && "border-hmi-text-error text-hmi-text-error"
                         )}>
-                          {metrics.statProps.rating === 'negligible' ? 'Negligible' : metrics.statProps.rating === 'marginal' ? 'Marginal' : 'Significant'}
+                          {t(`stats.ratings.${metrics.statProps.rating}`)}
                         </strong>
                       </span>
                     </span>
                     <span className="text-hmi-muted font-sans md:text-right">
-                      {metrics.statProps.rating === 'negligible' && "Steady-state error is negligible compared to the system noise floor (SNR < 1)."}
-                      {metrics.statProps.rating === 'marginal' && "Steady-state error is slightly visible but close to the noise floor (1 ≤ SNR ≤ 3)."}
-                      {metrics.statProps.rating === 'significant' && "Steady-state error is significant compared to the noise floor (SNR > 3). Suggest Ki adjustment."}
+                      {t(`stats.descriptions.${metrics.statProps.rating}`)}
                     </span>
                   </div>
 
@@ -1836,11 +2018,11 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* Mean position */}
                     <Card className="border-hmi-grid bg-hmi-bg/40 backdrop-blur-sm p-3 flex flex-col justify-between h-20 hover:border-hmi-grid/80 transition-all group">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Mean Position (μ)</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">{t('stats.meanPosition')}</span>
                         <Target className="w-4 h-4 text-hmi-muted group-hover:text-hmi-text-success transition-colors" />
                       </div>
                       <div className="flex items-baseline justify-between">
-                        <span className="text-[10px] text-hmi-muted font-mono">Running Average</span>
+                        <span className="text-[10px] text-hmi-muted font-mono">{t('stats.runningAverage')}</span>
                         <span className="text-base font-mono font-bold text-hmi-text">
                           {metrics.statProps.mean.toFixed(4)}°
                         </span>
@@ -1850,11 +2032,11 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* Standard deviation */}
                     <Card className="border-hmi-grid bg-hmi-bg/40 backdrop-blur-sm p-3 flex flex-col justify-between h-20 hover:border-hmi-grid/80 transition-all group">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Std Dev (σ)</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">{t('stats.stdDev')}</span>
                         <Activity className="w-4 h-4 text-hmi-muted group-hover:text-hmi-text-cyan transition-colors" />
                       </div>
                       <div className="flex items-baseline justify-between">
-                        <span className="text-[10px] text-hmi-muted font-mono">Running Variance</span>
+                        <span className="text-[10px] text-hmi-muted font-mono">{t('stats.runningVariance')}</span>
                         <span className="text-base font-mono font-bold text-hmi-text">
                           {metrics.statProps.stdDev.toFixed(4)}°
                         </span>
@@ -1864,11 +2046,11 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* Peak-to-peak */}
                     <Card className="border-hmi-grid bg-hmi-bg/40 backdrop-blur-sm p-3 flex flex-col justify-between h-20 hover:border-hmi-grid/80 transition-all group">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Peak-to-Peak</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">{t('metrics.peakToPeak')}</span>
                         <TrendingUp className="w-4 h-4 text-hmi-muted group-hover:text-hmi-text-warning transition-colors" />
                       </div>
                       <div className="flex items-baseline justify-between">
-                        <span className="text-[10px] text-hmi-muted font-mono">Max − Min over selection</span>
+                        <span className="text-[10px] text-hmi-muted font-mono">{t('stats.maxMinSelection')}</span>
                         <span className="text-base font-mono font-bold text-hmi-text">
                           {metrics.statProps.p2p.toFixed(4)}°
                         </span>
@@ -1878,7 +2060,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     {/* SNR proxy */}
                     <Card className="border-hmi-grid bg-hmi-bg/40 backdrop-blur-sm p-3 flex flex-col justify-between h-20 hover:border-hmi-grid/80 transition-all group">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-bold uppercase tracking-wider">SNR Proxy</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">{t('stats.snrProxy')}</span>
                         <ShieldAlert className="w-4 h-4 text-hmi-muted group-hover:text-hmi-text-error transition-colors" />
                       </div>
                       <div className="flex items-baseline justify-between">
@@ -1895,35 +2077,35 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-hmi-bg text-hmi-muted border-b border-hmi-grid font-semibold">
-                          <th className="p-2 border-r border-hmi-grid font-sans w-[15%]">Metric</th>
-                          <th className="p-2 border-r border-hmi-grid font-sans w-[20%]">Formula</th>
-                          <th className="p-2 border-r border-hmi-grid font-sans w-[15%]">Value</th>
-                          <th className="p-2 font-sans w-[50%]">Why Useful</th>
+                          <th className="p-2 border-r border-hmi-grid font-sans w-[15%]">{t('stats.metric')}</th>
+                          <th className="p-2 border-r border-hmi-grid font-sans w-[20%]">{t('stats.formula')}</th>
+                          <th className="p-2 border-r border-hmi-grid font-sans w-[15%]">{t('stats.value')}</th>
+                          <th className="p-2 font-sans w-[50%]">{t('stats.whyUseful')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-hmi-grid font-mono text-hmi-text-secondary">
                         {/* Row Mean */}
                         <tr>
                           <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text">Mean μ</td>
-                          <td className="p-2 border-r border-hmi-grid text-hmi-muted">running average</td>
+                          <td className="p-2 border-r border-hmi-grid text-hmi-muted">{t('stats.runningAverage')}</td>
                           <td className="p-2 border-r border-hmi-grid text-hmi-text-success font-bold">{metrics.statProps.mean.toFixed(5)}°</td>
-                          <td className="p-2 font-sans text-hmi-muted text-[11px]">Confirms actual held position. Compare against the desired target of <strong className="text-hmi-text font-mono">{metrics.statProps.target.toFixed(2)}°</strong>.</td>
+                          <td className="p-2 font-sans text-hmi-muted text-[11px]">{t('stats.meanHelp')} <strong className="text-hmi-text font-mono">{metrics.statProps.target.toFixed(2)}°</strong>.</td>
                         </tr>
 
                         {/* Row Std Dev */}
                         <tr>
                           <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text">Std dev σ</td>
-                          <td className="p-2 border-r border-hmi-grid text-hmi-muted">running variance</td>
+                          <td className="p-2 border-r border-hmi-grid text-hmi-muted">{t('stats.runningVariance')}</td>
                           <td className="p-2 border-r border-hmi-grid text-hmi-text-cyan font-bold">{metrics.statProps.stdDev.toFixed(5)}°</td>
-                          <td className="p-2 font-sans text-hmi-muted text-[11px]">Quantifies position noise floor objectively. Lower is better.</td>
+                          <td className="p-2 font-sans text-hmi-muted text-[11px]">{t('stats.stdHelp')}</td>
                         </tr>
 
                         {/* Row Peak-to-Peak */}
                         <tr>
                           <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text">Peak-to-peak</td>
-                          <td className="p-2 border-r border-hmi-grid text-hmi-muted">max − min over window</td>
+                          <td className="p-2 border-r border-hmi-grid text-hmi-muted">{t('stats.maxMinWindow')}</td>
                           <td className="p-2 border-r border-hmi-grid text-hmi-text-warning font-bold">{metrics.statProps.p2p.toFixed(5)}°</td>
-                          <td className="p-2 font-sans text-hmi-muted text-[11px]">Catches the spike outliers and maximum deviation range.</td>
+                          <td className="p-2 font-sans text-hmi-muted text-[11px]">{t('stats.p2pHelp')}</td>
                         </tr>
 
                         {/* Row SNR Proxy */}
@@ -1931,7 +2113,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
                           <td className="p-2 border-r border-hmi-grid font-sans font-medium text-hmi-text">SNR proxy</td>
                           <td className="p-2 border-r border-hmi-grid text-hmi-muted">||μ − θd|| / σ</td>
                           <td className="p-2 border-r border-hmi-grid text-hmi-text-error font-bold">{metrics.statProps.snrProxy.toFixed(3)}</td>
-                          <td className="p-2 font-sans text-hmi-muted text-[11px]">Is steady-state error significant vs noise? If SNR &lt; 1, error is negligible. If SNR &gt; 3, error is significant.</td>
+                          <td className="p-2 font-sans text-hmi-muted text-[11px]">{t('stats.snrHelp')}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -1939,16 +2121,16 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
 
                   {/* Educational note at bottom */}
                   <div className="text-[10px] text-hmi-muted border-t border-hmi-grid/50 pt-2 font-sans italic leading-relaxed">
-                    Note: Statistical metrics analyze the selected range of position samples. Best used when the robot is commanded to a static target angle and has settled, to evaluate the controller&apos;s steady-state holding performance and noise floor.
+                    {t('stats.note')}
                   </div>
                 </div>
               )
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-hmi-grid p-6 text-center text-xs text-hmi-muted">
                 <HelpCircle className="w-8 h-8 text-hmi-dimmed mb-2" />
-                <p className="font-semibold text-hmi-text mb-1">Caliper Area Idle</p>
+                <p className="font-semibold text-hmi-text mb-1">{t('empty.title')}</p>
                 <p className="max-w-[280px]">
-                  Click and drag horizontally on the live chart to select an oscillation cycle and view ZN tuning recommendations.
+                  {t('empty.body')}
                 </p>
               </div>
             )}
@@ -1960,7 +2142,7 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
               onClick={() => setIsHintOpen(!isHintOpen)}
               className="flex items-center justify-between w-full text-xs font-bold uppercase tracking-wider text-hmi-muted cursor-pointer"
             >
-              <span className="flex items-center gap-1.5"><HelpCircle className="w-3.5 h-3.5" /> How to use ZN Procedure</span>
+              <span className="flex items-center gap-1.5"><HelpCircle className="w-3.5 h-3.5" /> {t('help.title')}</span>
               {isHintOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
 
@@ -1968,25 +2150,25 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
               <div className="mt-2.5 text-xs leading-relaxed text-hmi-muted border-t border-hmi-grid/50 pt-2.5 flex flex-col gap-2">
                 <ol className="list-decimal pl-4 flex flex-col gap-1.5 font-sans">
                   <li>
-                    Set <strong className="text-hmi-text">Ki = 0.0000</strong> and <strong className="text-hmi-text">Kd = 0.0000</strong> on the controls above.
+                    {t('help.step1')}
                   </li>
                   <li>
-                    Send a Step Target command (e.g. <strong className="text-hmi-text">t1,45.00</strong>) to trigger a step transition.
+                    {t('help.step2')}
                   </li>
                   <li>
-                    Slowly raise Kp (using the ▲ buttons) until the output enters a stable, sustained, constant-amplitude oscillation.
+                    {t('help.step3')}
                   </li>
                   <li>
-                    The Kp value at this state is the Ultimate Gain <strong className="text-hmi-text">Ku</strong>. Note this value.
+                    {t('help.step4')}
                   </li>
                   <li>
-                    Click and drag your mouse horizontally over <strong className="text-hmi-text">2–3 complete oscillation cycles</strong> on the chart to select them.
+                    {t('help.step5')}
                   </li>
                   <li>
-                    The advisor will automatically compute the ultimate period <strong className="text-hmi-text">Tu</strong> and display recommended gains.
+                    {t('help.step6')}
                   </li>
                   <li>
-                    Pick a tuning row (e.g., <strong className="text-hmi-text font-mono text-hmi-ideal">PID no-overshoot</strong>) and click each highlighted blue coefficient cell to apply the gain to the device.
+                    {t('help.step7')}
                   </li>
                 </ol>
               </div>
@@ -2001,13 +2183,13 @@ export function ZNTunerTab({ isActive }: { isActive: boolean }) {
       <footer className="w-full bg-hmi-panel border-t border-hmi-grid px-4 py-2 flex items-center justify-between text-xs font-mono shrink-0 select-none">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1">
-            <span className="text-hmi-muted">Port:</span>
+            <span className="text-hmi-muted">{t('footer.port')}:</span>
             <span className={cn(serialStatus === 'connected' ? 'text-emerald-400 font-bold' : 'text-amber-500')}>
-              {serialStatus === 'connected' ? (portName ?? 'Connected') : 'Disconnected'}
+              {serialStatus === 'connected' ? (portName ?? t('footer.connected')) : t('footer.disconnected')}
             </span>
           </span>
           <span className="flex items-center gap-1">
-            <span className="text-hmi-muted">Samples:</span>
+            <span className="text-hmi-muted">{t('footer.samples')}:</span>
             <span className="text-hmi-text">{sampleCount} / {MAX_BUFFER}</span>
           </span>
         </div>
