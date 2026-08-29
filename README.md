@@ -1,72 +1,110 @@
-# Alat Peraga Robot SCARA Dua Derajat Kebebasan
+# 2-DOF SCARA Robot — Final Year Project
 
-Repositori ini memuat firmware ESP32, HMI berbasis web, skema telemetri bersama, dokumentasi teknis, dan data eksperimen terpilih untuk alat peraga robot SCARA planar dua derajat kebebasan.
+A complete embedded-control and web-software stack for a planar **2-DOF SCARA robot** used as an educational control-system demonstrator.
 
-Sistem memakai motor DC pada Sendi 1 dan motor stepper pada Sendi 2. Firmware menjalankan PID, *tracking differentiator* (TD), pembentukan lintasan trapesium, serta kompensasi inersia, Coriolis, dan gravitasi yang dapat diaktifkan secara terpisah. HMI berkomunikasi dengan ESP32 melalui Web Serial pada 921600 baud.
+The repository contains ESP32 firmware, a browser-based HMI, shared telemetry definitions, experiment tooling, technical documentation, and selected datasets used to reproduce the project analysis.
 
-## Struktur repositori
+## System overview
+
+- **Joint 1:** DC motor with closed-loop control
+- **Joint 2:** stepper motor
+- **Controller:** ESP32 DevKit V1
+- **HMI:** Next.js application running in the browser
+- **Communication:** Web Serial at 921600 baud
+
+The firmware implements PID control, a tracking differentiator, trapezoidal trajectory generation, and independently switchable inertia, Coriolis, and gravity compensation.
+
+## Engineering highlights
+
+- Closed-loop joint control on embedded hardware
+- Cartesian trajectory generation for planar SCARA motion
+- Inverse-kinematics-driven motion workflow
+- Trapezoidal motion profiles
+- Tracking differentiator for signal processing
+- Dynamic-model compensation terms
+- Shared telemetry contract between firmware and web HMI
+- Browser-based control, tuning, monitoring, and experiment analysis
+- Reproducible experiment export pipeline
+
+## Architecture
+
+```text
+SCARA hardware
+ ├─ DC motor / Joint 1
+ ├─ Stepper / Joint 2
+ └─ Sensors
+       │
+       ▼
+     ESP32
+ ├─ PID control
+ ├─ trajectory generation
+ ├─ filtering / TD
+ └─ dynamic compensation
+       │
+       │ Web Serial
+       ▼
+   Browser HMI
+ ├─ operation
+ ├─ parameter tuning
+ ├─ live telemetry
+ ├─ experiment storage
+ └─ analysis / comparison
+```
+
+## Repository structure
 
 ```text
 code/
-├── analysis/                 # Program ekspor data eksperimen
-├── data/experiments/         # CSV terpilih untuk EXP-1 sampai EXP-5
-├── docs/                     # Dokumentasi firmware dan HMI
-├── firmware/                 # Firmware PlatformIO untuk ESP32 DevKit V1
-├── hmi/                      # Aplikasi Next.js untuk operasi dan analisis
-├── shared/telemetry/         # Skema paket serial dan pembangkit tipe
-├── .env.example              # Daftar variabel lingkungan tanpa rahasia
+├── analysis/                 # Experiment export utilities
+├── data/experiments/         # Selected CSV datasets for EXP-1 ... EXP-5
+├── docs/                     # Firmware and HMI documentation
+├── firmware/                 # PlatformIO firmware for ESP32 DevKit V1
+├── hmi/                      # Next.js operation and analysis interface
+├── shared/telemetry/         # Shared serial-packet schema and type generation
+├── .env.example              # Non-secret environment template
 ├── package-lock.json
 └── package.json
 ```
 
-Berkas desain PCB dipisahkan dari repositori perangkat lunak dan disimpan pada `../CAD/pcb`.
+PCB design files are intentionally kept outside the public software repository.
 
-## Kebutuhan
+## Requirements
 
-- Node.js 20 atau lebih baru dan npm.
-- Google Chrome atau Microsoft Edge yang mendukung Web Serial.
-- Python 3.10 atau lebih baru untuk mengekspor data SQLite.
-- PlatformIO dan kabel USB untuk membangun serta mengunggah firmware.
-- ESP32 DevKit V1 dan alat peraga SCARA.
+- Node.js 20+
+- npm
+- Google Chrome or Microsoft Edge with Web Serial support
+- Python 3.10+ for experiment export tooling
+- PlatformIO for ESP32 firmware build/upload
+- ESP32 DevKit V1 and the SCARA hardware for physical operation
 
-## Menjalankan HMI
+## Run the HMI
 
-1. Pasang dependensi dari folder ini.
+From the project directory:
 
-   ```powershell
-   npm install
-   ```
+```bash
+npm install
+npm run gen
+npm run dev
+```
 
-2. Salin `.env.example` menjadi `hmi/.env.local`, lalu isi layanan yang akan digunakan. Koneksi serial dan tampilan utama tetap dapat dipelajari tanpa mengaktifkan seluruh layanan daring.
+Copy `.env.example` to the HMI environment file when optional online services are needed. Core serial connectivity and the main HMI can still be inspected without enabling every external service.
 
-3. Bangkitkan tipe telemetri agar firmware dan HMI memakai urutan kolom yang sama.
+Open the local application in Chrome or Edge, select **Connect**, and choose the ESP32 serial port.
 
-   ```powershell
-   npm run gen
-   ```
+### Main HMI routes
 
-4. Jalankan HMI.
-
-   ```powershell
-   npm run dev
-   ```
-
-5. Buka `http://localhost:3000` dengan Chrome atau Edge. Hubungkan ESP32 melalui tombol **Connect** dan pilih porta serial yang sesuai.
-
-Jalur utama HMI adalah:
-
-| Jalur | Fungsi |
+| Route | Purpose |
 |---|---|
-| `/` | Operasi SCARA, pemantauan lintasan, dan analisis hasil gerak |
-| `/test` | Perubahan parameter, pemeriksaan sinyal mentah, dan diagnosis |
-| `/zn` | Pengujian respons langkah dan bantuan penalaan PID |
-| `/dashboard` | Perbandingan data yang telah disimpan |
+| `/` | SCARA operation, trajectory monitoring, and motion analysis |
+| `/test` | Parameter changes, raw-signal inspection, and diagnostics |
+| `/zn` | Step-response testing and PID-tuning support |
+| `/dashboard` | Comparison of stored experiment runs |
 
-## Membangun firmware
+## Build and upload firmware
 
-Firmware berada pada folder `firmware`. Cara paling sederhana adalah membuka folder tersebut dengan PlatformIO di Visual Studio Code, lalu menjalankan **Build** atau **Upload**.
+The firmware lives in `firmware/` and can be built or uploaded with PlatformIO.
 
-Perintah yang setara dari folder `firmware` adalah:
+Windows helper commands:
 
 ```powershell
 scara.bat compile
@@ -74,56 +112,48 @@ scara.bat upload
 scara.bat all
 ```
 
-`scara.bat all` membangun firmware, mengunggahnya, lalu membuka monitor serial pada 921600 baud. Pastikan alat berada pada posisi aman sebelum mengirim perintah gerak.
+`scara.bat all` builds the firmware, uploads it, and opens a serial monitor at 921600 baud.
 
-## Alur replikasi pengujian
+## Experiment design
 
-1. Bangun dan unggah firmware tanpa mengubah parameter bawaan.
-2. Jalankan HMI dan pastikan paket `G`, `K`, dan `P` diterima.
-3. Pilih titik awal `(140, 45)` mm dan titik akhir `(60, 155)` mm.
-4. Ubah hanya satu faktor untuk setiap kelompok eksperimen.
-5. Simpan semua *run* yang selesai beserta sampelnya.
-6. Ekspor basis data dengan program pada folder `analysis`.
-7. Periksa `dataset_manifest.csv` sebelum melakukan perbandingan.
+The selected datasets reproduce five controlled comparisons:
 
-Pemetaan perbandingan yang dipakai pada laporan adalah:
-
-| Eksperimen | Kondisi acuan | Kondisi uji |
+| Experiment | Baseline | Test condition |
 |---|---|---|
-| EXP-1 | TD mati | TD nyala |
-| EXP-2 | Semua kompensasi mati | Kompensasi inersia nyala |
-| EXP-3 | Inersia nyala, Coriolis mati | Inersia dan Coriolis nyala |
-| EXP-4 | Kompensasi gravitasi mati | Kompensasi gravitasi nyala |
-| EXP-5 | Profil trapesium mati | Profil trapesium nyala |
+| EXP-1 | Tracking differentiator off | Tracking differentiator on |
+| EXP-2 | Dynamic compensation off | Inertia compensation on |
+| EXP-3 | Inertia on, Coriolis off | Inertia + Coriolis on |
+| EXP-4 | Gravity compensation off | Gravity compensation on |
+| EXP-5 | Trapezoidal profile off | Trapezoidal profile on |
 
-BASELINE dipakai bersama sebagai kondisi acuan EXP-2 dan titik 0° EXP-4. Data EXP-2 dipakai sebagai kondisi Coriolis mati pada EXP-3 agar kompensasi inersia tetap sama pada kedua kondisi.
+A shared baseline is reused where appropriate so only the intended factor changes between experiment conditions.
 
-## Data eksperimen
+## Reproduce experiment exports
 
-CSV pada `data/experiments` hanya memuat data yang diperlukan untuk mereplikasi analisis laporan. Basis data asli tidak disertakan karena juga memuat data pengguna dan tabel internal HMI.
+Selected CSV files live in `data/experiments`. The original application database is excluded because it contains internal HMI data beyond the public experiment subset.
 
-Untuk membuat ulang CSV:
+To recreate the export:
 
 ```powershell
 python analysis/export_experiment_csv.py ..\results\tugasakhir.db
 ```
 
-Program tidak mengubah basis data sumber. Rincian kolom dan pemetaan data terdapat pada `data/README.md`.
+See `data/README.md` for dataset fields and experiment mapping.
 
-## Catatan parameter torsi
+## Technical documentation
 
-Snapshot firmware dipertahankan sesuai perangkat lunak yang menghasilkan data eksperimen. Nilai referensi normalisasi torsi Sendi 1 pada pengujian sekitar 0,32 N·m dan berbeda dari torsi *stall* fisik sekitar 1,608 N·m. Jangan mengubah nilai ini ketika mereplikasi hasil lama; lakukan identifikasi dan pengujian ulang jika model atau perangkat keras diubah.
+- `docs/firmware/readme.md` — pins, parameters, modes, commands, and telemetry
+- `docs/hmi/stack-and-architecture.md` — application architecture and serial flow
+- `docs/hmi/features-and-data-flow.md` — HMI features, data flow, and protocol
+- `docs/hmi/scara-hmi-context.md` — HMI component and internal-state context
 
-## Dokumentasi lanjutan
+## Safety
 
-- `docs/firmware/readme.md`: pin, parameter, mode operasi, perintah, dan telemetri firmware.
-- `docs/hmi/stack-and-architecture.md`: susunan aplikasi dan aliran koneksi serial.
-- `docs/hmi/features-and-data-flow.md`: fitur HMI, basis data, dan protokol serial.
-- `docs/hmi/scara-hmi-context.md`: rincian komponen dan keadaan internal HMI.
+- Never commit `.env`, `.env.local`, tokens, database credentials, or API keys.
+- Engage the hardware emergency stop before touching the mechanism or changing electrical connections.
+- Verify elbow direction and workspace limits before commanding motion.
+- Keep raw application databases outside the public repository.
 
-## Catatan keamanan
+## Context
 
-- Jangan memasukkan `.env`, `.env.local`, token Turso, rahasia autentikasi, atau kunci API ke Git.
-- Aktifkan `E-STOP` sebelum memegang lengan atau mengubah sambungan listrik.
-- Periksa arah siku dan batas ruang kerja sebelum memulai gerakan.
-- Simpan basis data mentah di luar repositori publik.
+This project was developed as a final-year engineering project combining control systems, embedded software, robotics, data acquisition, and full-stack web development.
