@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   hmi:
-    name: HMI build
+    name: HMI validation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,6 +28,9 @@ jobs:
 
       - name: Generate telemetry contract
         run: npm run gen
+
+      - name: Lint HMI
+        run: npm run lint -w hmi-ta
 
       - name: Build HMI
         run: npm run build
