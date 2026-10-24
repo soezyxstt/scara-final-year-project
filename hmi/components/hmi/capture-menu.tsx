@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
+import React, { useState, useEffect, useTransition, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { useHMI } from '@/lib/hmi-context'
@@ -39,9 +39,11 @@ import {
   Play,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getSavedRunCaptureSource, subscribeSavedRunCaptureSource } from '@/lib/capture-session'
 import {
   downloadSingleGraph,
   downloadAllGraphs,
+  getVisibleCaptureOptions,
 } from '@/lib/capture-utils'
 import {
   loadKeybindings,
@@ -74,7 +76,9 @@ export function CaptureMenu() {
   const isLive = state.recordingState === 'REC'
   const dBuf = isLive ? state.dBuffer : state.frozenD
   const tBuf = isLive ? state.tBuffer : state.frozenT
-  const hasData = dBuf.length > 0
+  const savedRuns = useSyncExternalStore(subscribeSavedRunCaptureSource, getSavedRunCaptureSource, () => null)
+  const hasData = savedRuns !== null ? savedRuns.some(run => run.samples.length > 0 || run.trajectoryPoints.length > 0) : dBuf.length > 0
+  const visibleOptions = isOpen && savedRuns !== null ? getVisibleCaptureOptions() : []
 
   // Keyboard Shortcuts settings state
   const [keybindings, setKeybindings] = useState<HotkeyBinding[]>([])
@@ -246,7 +250,7 @@ export function CaptureMenu() {
         </Button>
       </SheetTrigger>
 
-      <SheetContent side="right" className="flex flex-col h-full text-hmi-text bg-hmi-panel border-l border-hmi-grid overflow-y-auto">
+      <SheetContent side="right" className="capture-settings flex flex-col h-full text-hmi-text bg-hmi-panel border-l border-hmi-grid overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="text-xl font-bold tracking-tight text-hmi-text flex items-center gap-2">
             {t('hmiControlPanel')}
@@ -341,9 +345,7 @@ export function CaptureMenu() {
                     {t('degreesUnit')}
                   </button>
                 </div>
-                <span className="text-[9px] text-hmi-muted leading-normal">
-                  {t('unitDesc')}
-                </span>
+
               </div>
 
               {/* Ghost Trail Opacity Slider */}
@@ -397,7 +399,7 @@ export function CaptureMenu() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="border-t border-hmi-grid bg-hmi-bg/25 p-2 flex flex-col gap-1">
-                  {[
+                  {(savedRuns !== null ? visibleOptions : [
                     { id: 'xy' },
                     { id: 'cte' },
                     { id: 'ate' },
@@ -418,14 +420,14 @@ export function CaptureMenu() {
                     { id: 'loop' },
                     { id: 'params' },
                     { id: 'metrics' },
-                  ].map((graph) => (
+                  ].map(graph => ({ ...graph, name: t(`graphs.${graph.id}`) }))).map((graph) => (
                     <button
                       key={graph.id}
-                      onClick={() => handleCaptureSingle(graph.id, t(`graphs.${graph.id}`))}
+                      onClick={() => handleCaptureSingle(graph.id, graph.name)}
                       disabled={exportState !== null}
                       className="w-full flex items-center justify-between text-left text-xs px-3 py-2 rounded hover:bg-hmi-btn-hover text-hmi-text-secondary hover:text-hmi-text transition-colors cursor-pointer"
                     >
-                      <span>{t(`graphs.${graph.id}`)}</span>
+                      <span>{graph.name}</span>
                       <Download className="h-3.5 w-3.5 opacity-60 hover:opacity-100" />
                     </button>
                   ))}
@@ -442,7 +444,6 @@ export function CaptureMenu() {
                 <FolderArchive className="h-4.5 w-4.5 text-amber-500" />
                 <div className="text-left flex flex-col">
                   <span className="text-xs leading-none">{t('captureAllGraphs')}</span>
-                  <span className="text-[9px] text-hmi-muted font-normal">{t('captureAllDesc')}</span>
                 </div>
               </Button>
 
@@ -456,7 +457,6 @@ export function CaptureMenu() {
                 <FileSpreadsheet className="h-4.5 w-4.5 text-emerald-500" />
                 <div className="text-left flex flex-col">
                   <span className="text-xs leading-none">{t('captureAllCsv')}</span>
-                  <span className="text-[9px] text-hmi-muted font-normal">{t('captureAllCsvDesc')}</span>
                 </div>
               </Button>
             </div>
@@ -625,7 +625,7 @@ export function CaptureMenu() {
           <div className="flex flex-col gap-1">
             <h2 className="text-sm font-bold text-hmi-text">{t('nameZipFile')}</h2>
             <p className="text-[11px] text-hmi-text-secondary">
-              {zipPrompt.includeCSV ? t('imagesCsv') : t('imagesOnly')} · {t('chartsCount')}
+              {zipPrompt.includeCSV ? t('imagesCsv') : t('imagesOnly')}
             </p>
           </div>
           <div className="flex flex-col gap-1.5">

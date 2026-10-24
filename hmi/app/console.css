@@ -135,3 +135,53 @@
  .monitor-workspace #hmi-xy-trace > div:first-child > div:last-child { width: 100%; flex-wrap: wrap; }
  .monitor-workspace #hmi-xy-trace > div:last-child > .grid { grid-template-columns: auto minmax(0, 1fr); row-gap: 8px; }
 }
+
+/* Global appearance controls remain discoverable with either sidebar state. */
+.console-display-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-shrink: 0; }
+.console-language-control, .console-theme-control { height: 32px; padding-inline: 8px; gap: 7px; }
+
+/* Saved recordings share the same workspace and inspector structure. */
+.saved-runs-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.saved-runs-viewbar { display: flex; align-items: center; background: var(--hmi-panel); border-bottom: 1px solid var(--hmi-grid); min-width: 0; }
+.saved-runs-viewbar .console-tabs-root { flex: 1; min-width: 0; overflow: hidden; }
+.saved-runs-viewbar .console-tabs { border-bottom: 0; gap: 20px; }
+.saved-runs-body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: 0; }
+.saved-runs-main { min-height: 0; min-width: 0; overflow-y: auto; }
+.saved-runs-library { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--hmi-grid); background: var(--hmi-panel); }
+.saved-runs-account { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--hmi-grid); color: var(--hmi-muted); font-size: 12px; margin-top: auto; }
+.saved-runs-open-library { display: none; margin-inline: 12px; flex-shrink: 0; }
+.saved-runs-empty { min-height: 360px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--hmi-muted); font-size: 14px; }
+.saved-runs-selection, .saved-runs-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; font-size: 12px; }
+.saved-runs-error { margin: 16px; border: 1px solid var(--hmi-grid); background: var(--hmi-panel); border-radius: 6px; color: var(--hmi-text-error); }
+.saved-replay { height: 570px; min-height: 480px; }
+.saved-replay.saved-replay-focused { position: fixed; inset: 0; z-index: 100; height: 100dvh; border-radius: 0; }
+.saved-replay-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; padding: 8px 16px; border-bottom: 1px solid var(--hmi-grid); flex-shrink: 0; }
+.saved-replay-legend { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 5px; padding: 8px; background: var(--hmi-panel); border: 1px solid var(--hmi-grid); border-radius: 4px; font-size: 11px; color: var(--hmi-text-secondary); }
+.saved-replay-legend > span { display: flex; align-items: center; gap: 8px; }
+.saved-replay-legend i { width: 15px; }
+.saved-replay-coordinates { display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; padding: 12px 16px; border-top: 1px solid var(--hmi-grid); font-size: 12px; flex-shrink: 0; }
+.saved-replay-coordinates > div { display: flex; flex-direction: column; gap: 4px; }
+.saved-replay-coordinates dt { color: var(--hmi-muted); }
+.saved-replay-coordinates dd { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.saved-replay-transport { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px 20px; border-top: 1px solid var(--hmi-grid); flex-shrink: 0; }
+.saved-replay-timeline { flex-basis: 100%; margin-top: 10px; height: 16px; }
+@media (max-width: 1100px) {
+ .console-toolbar { flex-wrap: wrap; padding-block: 10px; }
+ .console-toolbar-actions { flex-basis: 100%; justify-content: flex-end; }
+ .console-page-heading { flex: 1; width: auto; }
+ .saved-runs-body { grid-template-columns: minmax(0, 1fr); }
+ .saved-runs-library { display: none; }
+ .saved-runs-open-library { display: inline-flex; }
+}
+@media (max-width: 600px) {
+ .console-toolbar-actions { justify-content: space-between; gap: 4px; }
+ .console-page-heading { flex: 1; width: auto; gap: 8px; }
+ .console-display-controls { margin-left: 0; }
+ .console-language-control, .console-theme-control { padding-inline: 5px; gap: 4px; }
+ .saved-runs-viewbar .console-tabs { gap: 16px; padding-inline: 16px; }
+ .saved-replay { height: 560px; }
+ .saved-replay-header { flex-wrap: wrap; padding-inline: 12px; }
+ .saved-replay-coordinates { gap: 8px; padding-inline: 12px; font-size: 11px; }
+ .saved-replay-transport { padding-inline: 12px; }
+ .saved-trajectory { padding: 12px; }
+}

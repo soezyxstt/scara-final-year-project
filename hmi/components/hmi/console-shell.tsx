@@ -132,7 +132,6 @@ function ConsoleFrame({ children }: { children: ReactNode }) {
             <SidebarMenu><SidebarMenuItem>
               <SidebarMenuButton tooltip={t('settings')} aria-label={t('settings')} onClick={() => closeDrawerThen(() => window.dispatchEvent(new Event('hmi_toggle_menu')))}><Settings2 /><span>{t('settings')}</span></SidebarMenuButton>
             </SidebarMenuItem></SidebarMenu>
-            <div className="console-utilities"><ThemeToggle /><LocaleToggle /></div>
           </SidebarFooter>
         </Sidebar>
 
@@ -144,10 +143,11 @@ function ConsoleFrame({ children }: { children: ReactNode }) {
               </Tooltip>
               <h1>{active ? t(active.key) : pathname === '/login' ? login('cardTitle') : 'SCARA'}</h1>
             </div>
+            <div className="console-display-controls"><LocaleToggle showLabel /><ThemeToggle /></div>
             <div className="console-toolbar-actions">
               <span className="console-connection" title={connected ? `${state.portName ?? 'Serial'} · ${state.currentMode ?? ''}` : header('connectTooltip')}><span className={connected ? 'is-connected' : ''} />{connected ? `${t('connected')}${state.currentMode ? ` · ${state.currentMode}` : ''}` : t('disconnected')}</span>
               {!state.online && <span role="status" className="text-xs text-hmi-warn" title={header('networkStatusTooltip')}>{t('offline')}</span>}
-              <Button id="hmi-connect-button" variant="outline" size="sm" onClick={() => connected ? serial.disconnect() : serial.connect()}><Usb size={15} />{connected ? common('disconnect') : common('connect')}</Button>
+              <Button id="hmi-connect-button" variant="outline" size="sm" aria-label={connected ? common('disconnect') : common('connect')} title={connected ? common('disconnect') : common('connect')} onClick={() => connected ? serial.disconnect() : serial.connect()}><Usb size={15} /><span className="console-connect-label">{connected ? common('disconnect') : common('connect')}</span></Button>
               <SerialMonitorButton id="hmi-serial-button" open={serialOpen} onToggle={() => setSerialOpen(value => !value)} serialConnected={connected} />
               <span className="console-toolbar-divider" />
               {canRun && <RunButton />}

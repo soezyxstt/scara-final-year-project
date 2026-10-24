@@ -1,12 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useId } from 'react'
+import { useEffect, useMemo, useRef, useState, useId, type RefObject, type Dispatch, type SetStateAction } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useHMI, useHMISlow } from '@/lib/hmi-context'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Tooltip as UiTooltip } from '@/components/ui/tooltip'
 import { Maximize2, Minimize2, ZoomIn, ZoomOut, Hand, RefreshCw, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -19,7 +18,10 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ReferenceLine, ResponsiveContainer, AreaChart, Area, LineChart, Line, ReferenceArea,
 } from 'recharts'
-import type { DSample, TPoint } from '@/lib/hmi-types'
+import type { DSample, TPoint, ESample, FSample } from '@/lib/hmi-types'
+import { peakPreservingDownsample } from '@/lib/chart-downsample'
+import { trajectoryTimes, nearestTimePoint } from '@/lib/monitor-chart-data'
+import { MathLabel, MathFormula } from '@/components/ui/math'
 import localLoess from '@/lib/localMean'
 import UniversalTimeSeriesChart, { ChartSeries } from './universal-time-series-chart'
 
@@ -27,7 +29,7 @@ const GRID = 'var(--color-hmi-grid-subtle)'
 const AT = {
   fill: 'var(--color-hmi-text-secondary)',
   fontSize: 11,
-  fontFamily: 'var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif',
+  fontFamily: 'var(--font-sans), ui-sans-serif, system-ui, sans-serif',
   fontWeight: 500,
 }
 const AL = { stroke: 'var(--color-hmi-grid)' } // Matches --color-hmi-grid
@@ -37,16 +39,16 @@ const TS = {
   border: '1px solid var(--color-hmi-grid)',
   borderRadius: '6px',
   color: 'var(--color-hmi-text)',
-  fontFamily: 'var(--font-geist-sans), sans-serif',
+  fontFamily: 'var(--font-sans), sans-serif',
   fontSize: '12px',
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
 }
 
 
-function downsample<T>(arr: T[], max = 500): T[] {
+function downsample<T extends object>(arr: T[], max = 500): T[] {
   if (arr.length <= max) return arr
-  const step = Math.ceil(arr.length / max)
-  return arr.filter((_, i) => i % step === 0)
+  const keys = Object.keys(arr[0]).filter(key => key !== 't' && key !== 'idx')
+  return peakPreservingDownsample(arr, max, keys)
 }
 
 /** EEF error purely from T packet — no DSample index pairing needed */
@@ -66,9 +68,8 @@ const L1 = 100, L2 = 70
 
 function computeEEFVelocityJacobian(dBuf: DSample[], max = 500) {
   if (dBuf.length === 0) return []
-  const sampled = downsample(dBuf, max)
-  const firstT = sampled[0].t
-  return sampled.map((d) => {
+  const firstT = dBuf[0].t
+  return downsample(dBuf.map((d) => {
     const t = (d.t - firstT) / 1000
 
     // Actual EEF velocity via J(th1, th2) * [dth1; dth2]
@@ -86,7 +87,7 @@ function computeEEFVelocityJacobian(dBuf: DSample[], max = 500) {
     const v_ideal = Math.sqrt(vx_i ** 2 + vy_i ** 2)
 
     return { t, v_actual, v_ideal, v_actual_smoothed: 0 }
-  })
+  }), max)
 }
 
 // ── Pure chart components for PID / J1 Ctrl / J2 Vel tabs ──────────────────
@@ -226,11 +227,7 @@ export function J1CtrlChart() {
 
       let ff1_contrib = 0
       if (frozenF && frozenF.length > 0) {
-        let bestF = frozenF[0], minDiff = Infinity
-        for (const f of frozenF) {
-          const diff = Math.abs(f.t - d.t)
-          if (diff < minDiff) { minDiff = diff; bestF = f } else break
-        }
+        const bestF = nearestTimePoint(frozenF, d.t)!
         ff1_contrib = bestF.ff1Contrib / u1max
       }
 
@@ -280,11 +277,7 @@ export function J2VelChart() {
     const firstT = state.frozenF[0].t
     const frozenD = state.frozenD
     return downsample(state.frozenF.map(f => {
-      let bestD = null, minDiff = Infinity
-      for (const d of frozenD) {
-        const diff = Math.abs(d.t - f.t)
-        if (diff < minDiff) { minDiff = diff; bestD = d } else break
-      }
+      const bestD = nearestTimePoint(frozenD, f.t)
       return {
         t: (f.t - firstT) / 1000,
         omega2_raw:     f.omega2Raw,
@@ -336,36 +329,38 @@ export function MetricsPanel() {
   }
 
   const computed = useMemo(() => {
-    if (!frozenD || frozenD.length === 0) return null
+    if (frozenD.length === 0 && frozenT.length === 0) return null
     const N = frozenD.length
     const r2d = 180 / Math.PI
-    let sq1 = 0, sq2 = 0, sqEEF = 0
-    for (let i = 0; i < N; i++) {
-      const d = frozenD[i]
-      const t = frozenT[i]
-      sq1   += (d.e1 * r2d) ** 2
-      sq2   += (d.e2 * r2d) ** 2
-      sqEEF += t ? (t.xi - t.xa) ** 2 + (t.yi - t.ya) ** 2 : 0
+    let sq1 = 0, sq2 = 0
+    for (const d of frozenD) {
+      sq1 += (d.e1 * r2d) ** 2
+      sq2 += (d.e2 * r2d) ** 2
     }
-    const pwms    = frozenD.map(d => d.pwm1)
-    const meanPwm = pwms.reduce((a, b) => a + b, 0) / N
-    const varPwm  = pwms.reduce((s, v) => s + (v - meanPwm) ** 2, 0) / N
-    let jitter = 0
-    if (N > 1) { let ds = 0; for (let i = 1; i < N; i++) ds += Math.abs(pwms[i] - pwms[i-1]); jitter = ds / (N - 1) }
-    const firstT  = frozenD[0].t
-    const times   = frozenD.map(d => (d.t - firstT) / 1000)
+    const pwms = frozenD.map(d => d.pwm1)
+    const meanPwm = N ? pwms.reduce((a, b) => a + b, 0) / N : 0
+    const varPwm = N ? pwms.reduce((sum, value) => sum + (value - meanPwm) ** 2, 0) / N : undefined
+    let jitter = N ? 0 : undefined
+    if (N > 1) {
+      let delta = 0
+      for (let i = 1; i < N; i++) delta += Math.abs(pwms[i] - pwms[i - 1])
+      jitter = delta / (N - 1)
+    }
+    const times = trajectoryTimes(frozenT, frozenD)
+    const validErrors = frozenT.map((point, index) => ({ error: eefErrFromT(point), time: times[index] }))
+      .filter(point => Number.isFinite(point.error) && Number.isFinite(point.time))
+    const sqEEF = validErrors.reduce((sum, point) => sum + point.error ** 2, 0)
     let settleIdx = -1
-    for (let i = N - 1; i >= 0; i--) {
-      const t = frozenT[i]
-      if (t && Math.sqrt((t.xi - t.xa) ** 2 + (t.yi - t.ya) ** 2) > 2.0) { settleIdx = i; break }
+    for (let i = validErrors.length - 1; i >= 0; i--) {
+      if (validErrors[i].error > 2) { settleIdx = i; break }
     }
     return {
-      rmseJ1:    Math.sqrt(sq1   / N),
-      rmseJ2:    Math.sqrt(sq2   / N),
-      rmseEEF:   Math.sqrt(sqEEF / N),
+      rmseJ1: N ? Math.sqrt(sq1 / N) : undefined,
+      rmseJ2: N ? Math.sqrt(sq2 / N) : undefined,
+      rmseEEF: validErrors.length ? Math.sqrt(sqEEF / validErrors.length) : undefined,
       varPwm,
       jitter,
-      settleTime: settleIdx >= 0 && settleIdx < N - 1 ? times[settleIdx + 1] : 0,
+      settleTime: validErrors.length && settleIdx < validErrors.length - 1 ? validErrors[Math.max(0, settleIdx + 1)].time : undefined,
     }
   }, [frozenD, frozenT])
 
@@ -383,7 +378,7 @@ export function MetricsPanel() {
       tooltip: t('runMetrics.aiTooltip'),
     },
     {
-      label: <span>ε<sub>max</sub></span>,
+      label: <MathFormula tex={"\\varepsilon_{\\max}"} />,
       value: <span className="text-hmi-text-error">{fmt(stats?.max_err, 2, 'mm')}</span>,
       tooltip: t('runMetrics.epsMaxTooltip'),
     },
@@ -398,7 +393,7 @@ export function MetricsPanel() {
       tooltip: t('runMetrics.rmsAteTooltip'),
     },
     {
-      label: <span>R<sub>ε</sub></span>,
+      label: <MathFormula tex={"R_{\\varepsilon}"} />,
       value: (
         <span className={cn(
           "font-semibold",
@@ -416,12 +411,12 @@ export function MetricsPanel() {
       tooltip: t('runMetrics.reTooltip'),
     },
     {
-      label: <span>ε<sub>f</sub></span>,
+      label: <MathFormula tex={"\\varepsilon_f"} />,
       value: <span className="text-hmi-text-neutral">{fmt(stats?.final_err, 2, 'mm')}</span>,
       tooltip: t('runMetrics.epsFinalTooltip'),
     },
     {
-      label: <span>T<sub>el</sub></span>,
+      label: <MathFormula tex={"T_{\\mathrm{el}}"} />,
       value: <span className="text-hmi-text-neutral">{stats?.elapsed_time !== undefined ? `${formatFloat(stats.elapsed_time, 3)} s` : dash}</span>,
       tooltip: t('runMetrics.telTooltip'),
     },
@@ -461,21 +456,20 @@ export function MetricsPanel() {
   }
 
   return (
-    <div className="h-full w-full bg-hmi-panel border border-hmi-grid rounded-lg flex flex-col overflow-hidden">
+    <div data-capture-chart="metrics" data-export-surface className="h-full w-full bg-hmi-panel flex flex-col overflow-hidden">
       <div className="px-3 py-1.5 border-b border-hmi-grid shrink-0 flex items-center gap-2">
         <span className="text-[11px] font-semibold text-hmi-text select-none">
           {t('runMetrics.title')}
         </span>
-        {!stats && (
-          <span className="text-[10px] text-hmi-muted italic">— {t('runMetrics.waitingForMoveData')}</span>
-        )}
         <Button
           variant="outline"
           size="sm"
+          data-export-ignore
           onClick={handleDownloadMetrics}
           disabled={!stats && (!computed)}
           className="ml-auto h-5 px-1.5 text-[10px] border-hmi-grid text-hmi-text-secondary bg-hmi-btn hover:bg-hmi-btn-hover hover:text-hmi-text"
           title={t('runMetrics.downloadTitle')}
+          aria-label={t('runMetrics.downloadTitle')}
         >
           <Download className="h-3 w-3" />
         </Button>
@@ -485,7 +479,7 @@ export function MetricsPanel() {
           <UiTooltip key={i} content={row.tooltip} align="center">
             <div className="flex flex-col justify-center px-4 py-2.5 bg-hmi-panel cursor-help hover:bg-hmi-elevated transition-colors">
               <span className="text-[10px] text-hmi-text-secondary font-normal leading-tight select-none">
-                {row.label}
+                {typeof row.label === 'string' ? <MathLabel>{row.label}</MathLabel> : row.label}
               </span>
               <span className="font-mono font-medium text-sm mt-0.5 leading-tight">
                 {row.value}
@@ -506,7 +500,7 @@ const XLABEL = (label: string) => ({
   offset: -6,
   fill: '#9CA3AF',
   fontSize: 12,
-  fontFamily: 'var(--font-geist-sans), sans-serif',
+  fontFamily: 'var(--font-sans), sans-serif',
   fontWeight: 600,
 })
 
@@ -517,7 +511,7 @@ const YLABEL = (label: string) => ({
   offset: 8,
   fill: '#9CA3AF',
   fontSize: 12,
-  fontFamily: 'var(--font-geist-sans), sans-serif',
+  fontFamily: 'var(--font-sans), sans-serif',
   fontWeight: 600,
 })
 
@@ -541,13 +535,8 @@ export function EEFErrChart({
   const t = useTranslations('ChartPanel')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const data = useMemo(() => {
-    const sampled = downsample(tBuf, 500)
-    const firstMs = dBuf?.[0]?.t ?? 0
-    const useDTime = dBuf && dBuf.length === tBuf.length
-    return sampled.map((pt, i) => ({
-      t: useDTime ? (dBuf![i].t - firstMs) / 1000 : i * 0.02,
-      err: eefErrFromT(pt),
-    }))
+    const times = trajectoryTimes(tBuf, dBuf)
+    return downsample(tBuf.map((pt, i) => ({ t: times[i], err: eefErrFromT(pt) })))
   }, [tBuf, dBuf])
 
   const maxY = useMemo(() => Math.max(...data.map(d => d.err), 0.1) * 1.4, [data])
@@ -585,15 +574,9 @@ export function CTEChart({
   const t = useTranslations('ChartPanel')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const data = useMemo(() => {
-    const ctes = computeCTEList(tBuf)
-    const sampled = downsample(tBuf, 500)
-    const sampledCtes = downsample(ctes, 500)
-    const firstMs = dBuf?.[0]?.t ?? 0
-    const useDTime = dBuf && dBuf.length === tBuf.length
-    return sampled.map((_, i) => ({
-      t: useDTime ? (dBuf![i].t - firstMs) / 1000 : i * 0.02,
-      cte: sampledCtes[i] ?? 0,
-    }))
+    const values = computeCTEList(tBuf)
+    const times = trajectoryTimes(tBuf, dBuf)
+    return downsample(tBuf.map((_, i) => ({ t: times[i], cte: values[i] ?? 0 })))
   }, [tBuf, dBuf])
 
   const maxY = useMemo(() => Math.max(...data.map(d => d.cte), 0.1) * 1.4, [data])
@@ -631,15 +614,9 @@ export function ATEChart({
   const t = useTranslations('ChartPanel')
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const data = useMemo(() => {
-    const ates = computeATEList(tBuf)
-    const sampled = downsample(tBuf, 500)
-    const sampledAtes = downsample(ates, 500)
-    const firstMs = dBuf?.[0]?.t ?? 0
-    const useDTime = dBuf && dBuf.length === tBuf.length
-    return sampled.map((_, i) => ({
-      t: useDTime ? (dBuf![i].t - firstMs) / 1000 : i * 0.02,
-      ate: sampledAtes[i] ?? 0,
-    }))
+    const values = computeATEList(tBuf)
+    const times = trajectoryTimes(tBuf, dBuf)
+    return downsample(tBuf.map((_, i) => ({ t: times[i], ate: values[i] ?? 0 })))
   }, [tBuf, dBuf])
 
   const minY = useMemo(() => Math.min(...data.map(d => d.ate), -0.1) * 1.4, [data])
@@ -724,8 +701,7 @@ export function PWMChart({
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const firstT = dBuf[0]?.t ?? 0
   const data = useMemo(() => {
-    const sampled = downsample(dBuf, 500)
-    return sampled.map(d => ({ t: (d.t - firstT) / 1000, pwm: d.pwm1 }))
+    return downsample(dBuf.map(d => ({ t: (d.t - firstT) / 1000, pwm: d.pwm1 })))
   }, [dBuf, firstT])
 
   const series: ChartSeries[] = [
@@ -769,14 +745,13 @@ export function PositionChart({
 
   const firstT = dBuf[0]?.t ?? 0
   const data = useMemo(() => {
-    const sampled = downsample(dBuf, 500)
-    return sampled.map(d => ({
+    return downsample(dBuf.map(d => ({
       t: (d.t - firstT) / 1000,
       th1: d.th1 * scale,
       th1d: d.th1d * scale,
       th2: d.th2 * scale,
       th2d: d.th2d * scale,
-    }))
+    })))
   }, [dBuf, firstT, scale])
 
   const series: ChartSeries[] = [
@@ -821,14 +796,13 @@ export function VelocityChart({
 
   const firstT = dBuf[0]?.t ?? 0
   const data = useMemo(() => {
-    const sampled = downsample(dBuf, 500)
-    return sampled.map(d => ({
+    return downsample(dBuf.map(d => ({
       t: (d.t - firstT) / 1000,
       v1: d.dth1 * scale,
       v1d: d.dth1d * scale,
       v2: d.dth2 * scale,
       v2d: d.dth2d * scale,
-    }))
+    })))
   }, [dBuf, firstT, scale])
 
   const series: ChartSeries[] = [
@@ -907,13 +881,12 @@ export function J1EncoderVelocityChart({
       filteredBuf = dBuf.filter(d => d.t <= cutoffMs)
     }
 
-    const sampled = downsample(filteredBuf, 500)
-    return sampled.map(d => ({
+    return downsample(filteredBuf.map(d => ({
       t: (d.t - firstT) / 1000,
       v1: d.dth1 * scale,
       v1_enc: (d.v1Enc ?? 0) * scale,
       enc_count: d.encCount ?? 0,
-    }))
+    })))
   }, [dBuf, firstT, scale, tf])
 
   const series: ChartSeries[] = [
@@ -1295,7 +1268,7 @@ function prepareAnalyzerData(
   yLabel: string
   defaultYDomain: [any, any]
 } {
-  if (dBuf.length === 0 && eBuf.length === 0 && fBuf.length === 0) {
+  if (dBuf.length === 0 && tBuf.length === 0 && eBuf.length === 0 && fBuf.length === 0) {
     return { rawData: [], series: [], yLabel: '', defaultYDomain: ['auto', 'auto'] as [any, any] }
   }
   const firstT = dBuf.length > 0 ? dBuf[0].t : (eBuf.length > 0 ? eBuf[0].t : (fBuf.length > 0 ? fBuf[0].t : 0))
@@ -1303,8 +1276,9 @@ function prepareAnalyzerData(
   switch (activeTab) {
     case 'cte': {
       const ctes = computeCTEList(tBuf)
+      const times = trajectoryTimes(tBuf, dBuf)
       const rawData = tBuf.map((pt, i) => ({
-        t: dBuf[i] ? (dBuf[i].t - firstT) / 1000 : i * 0.02,
+        t: times[i],
         cte: ctes[i] ?? 0,
       }))
       const series = [
@@ -1314,8 +1288,9 @@ function prepareAnalyzerData(
     }
     case 'ate': {
       const ates = computeATEList(tBuf)
+      const times = trajectoryTimes(tBuf, dBuf)
       const rawData = tBuf.map((pt, i) => ({
-        t: dBuf[i] ? (dBuf[i].t - firstT) / 1000 : i * 0.02,
+        t: times[i],
         ate: ates[i] ?? 0,
       }))
       const series = [
@@ -1439,11 +1414,7 @@ function prepareAnalyzerData(
 
         let ff1_contrib = 0
         if (fBuf && fBuf.length > 0) {
-          let bestF = fBuf[0], minDiff = Infinity
-          for (const f of fBuf) {
-            const diff = Math.abs(f.t - d.t)
-            if (diff < minDiff) { minDiff = diff; bestF = f } else break
-          }
+          const bestF = nearestTimePoint(fBuf, d.t)!
           ff1_contrib = bestF.ff1Contrib / u1max
         }
 
@@ -1473,11 +1444,7 @@ function prepareAnalyzerData(
       const kp2 = gains?.kp2 ?? 0
       const kd2 = gains?.kd2 ?? 0
       const rawData = fBuf.map(f => {
-        let bestD = null, minDiff = Infinity
-        for (const d of dBuf) {
-          const diff = Math.abs(d.t - f.t)
-          if (diff < minDiff) { minDiff = diff; bestD = d } else break
-        }
+        const bestD = nearestTimePoint(dBuf, f.t)
         return {
           t: (f.t - firstT) / 1000,
           omega2_raw: f.omega2Raw,
@@ -1530,7 +1497,7 @@ function AdvancedAnalyzer({
   const [cursorA, setCursorA] = useState<number | null>(null)
   const [cursorB, setCursorB] = useState<number | null>(null)
   const [activeCursor, setActiveCursor] = useState<'A' | 'B'>('A')
-  const [gridDensity, setGridDensity] = useState(0.05)
+  const [gridDensity, setGridDensity] = useState(0.5)
   const [hiddenSeries, setHiddenSeries] = useState<Record<string, boolean>>({})
 
   const [isPanning, setIsPanning] = useState(false)
@@ -1583,16 +1550,9 @@ function AdvancedAnalyzer({
   const caliperPoints = useMemo(() => {
     if (rawData.length === 0) return { ptA: null, ptB: null }
 
-    const findNearest = (tVal: number | null) => {
-      if (tVal === null) return null
-      return rawData.reduce((prev, curr) => {
-        return Math.abs(curr.t - tVal) < Math.abs(prev.t - tVal) ? curr : prev
-      })
-    }
-
     return {
-      ptA: findNearest(cursorA),
-      ptB: findNearest(cursorB)
+      ptA: nearestTimePoint(rawData, cursorA),
+      ptB: nearestTimePoint(rawData, cursorB)
     }
   }, [rawData, cursorA, cursorB])
 
@@ -1609,7 +1569,7 @@ function AdvancedAnalyzer({
 
   // Autoscales the Y axis to the visible/zoomed range of enabled series
   const yDomain = useMemo(() => {
-    if (displayData.length === 0) return defaultYDomain
+    if (filteredData.length === 0) return defaultYDomain
     
     let minVal = Infinity
     let maxVal = -Infinity
@@ -1617,7 +1577,7 @@ function AdvancedAnalyzer({
     const activeKeys = series.filter(s => !hiddenSeries[s.key]).map(s => s.key)
     if (activeKeys.length === 0) return defaultYDomain
     
-    for (const d of displayData) {
+    for (const d of filteredData) {
       for (const k of activeKeys) {
         const v = (d as any)[k]
         if (typeof v === 'number' && !isNaN(v)) {
@@ -1646,7 +1606,7 @@ function AdvancedAnalyzer({
     }
     
     return [computedMin, computedMax] as [number, number]
-  }, [displayData, series, hiddenSeries, defaultYDomain, yZoomFactor, activeTab])
+  }, [filteredData, series, hiddenSeries, defaultYDomain, yZoomFactor, activeTab])
 
   // Mouse interaction event routing
   const handleMouseDown = (e: any) => {
@@ -1786,11 +1746,11 @@ function AdvancedAnalyzer({
   return (
     <div className="flex flex-col h-full w-full min-h-0 overflow-hidden font-sans">
       {/* 1. Analyzer Toolbar Controls */}
-      <div className="flex flex-wrap items-center gap-3 py-2 border-b border-hmi-grid/60 bg-hmi-elevated/10 px-1 mb-3 text-xs shrink-0 select-none">
+      <div data-export-ignore className="flex flex-wrap items-center gap-3 py-2 border-b border-hmi-grid/60 bg-hmi-elevated/10 px-1 mb-3 text-xs shrink-0 select-none">
         
         {/* Interaction Tool Selector */}
         <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded border border-hmi-grid">
-          <span className="text-[10px] text-hmi-muted font-semibold px-1.5 mr-1">{t('toolLabel')}</span>
+
           <Button
             type="button"
             variant={activeTool === 'zoom' ? 'default' : 'ghost'}
@@ -1824,7 +1784,7 @@ function AdvancedAnalyzer({
 
         {/* Quick Zoom Fit & Scale Buttons */}
         <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded border border-hmi-grid">
-          <span className="text-[10px] text-hmi-muted font-semibold px-1.5 mr-1">{t('scalingLabel')}</span>
+
           <Button
             type="button"
             variant="ghost"
@@ -1932,8 +1892,9 @@ function AdvancedAnalyzer({
           <span className="select-none pl-1">Grid:</span>
           <input
             type="range"
+            aria-label="Grid opacity"
             min="0.01"
-            max="0.25"
+            max="1"
             step="0.01"
             value={gridDensity}
             onChange={(e) => setGridDensity(parseFloat(e.target.value))}
@@ -1944,10 +1905,10 @@ function AdvancedAnalyzer({
       </div>
 
       {/* 2. Main content area (Split layout with Recharts left and diagnostics panel right) */}
-      <div className="flex-1 min-h-0 w-full flex gap-4 overflow-hidden">
+      <div className="flex-1 min-h-0 w-full flex flex-col lg:flex-row gap-4 overflow-y-auto lg:overflow-hidden">
         
         {/* Left: Recharts interactive screen */}
-        <div className="flex-1 min-h-0 bg-hmi-bg/30 border border-hmi-grid rounded-lg p-4 relative flex flex-col justify-center select-none overflow-hidden">
+        <div className="flex-1 min-h-[260px] lg:min-h-0 p-1 relative flex flex-col justify-center select-none overflow-hidden">
           <UniversalTimeSeriesChart
             data={displayData}
             series={series.map(s => ({
@@ -1976,9 +1937,9 @@ function AdvancedAnalyzer({
         </div>
 
         {/* Right: Analyzer Diagnostics Panel Sidebar */}
-        <div className="w-80 shrink-0 flex flex-col gap-4 overflow-y-auto pr-1">
+        <div className="w-full lg:w-72 shrink-0 flex flex-col gap-1 lg:overflow-y-auto pr-1">
           {/* Signal visibility configuration checklist */}
-          <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
+          <div className="border-b border-hmi-grid py-3">
             <h3 className="text-xs font-semibold text-hmi-text mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
               Visible Signals
             </h3>
@@ -1991,15 +1952,15 @@ function AdvancedAnalyzer({
                     onChange={() => setHiddenSeries(prev => ({ ...prev, [s.key]: !prev[s.key] }))}
                     className="rounded border-hmi-grid bg-hmi-bg text-hmi-ideal focus:ring-hmi-ideal focus:ring-offset-hmi-bg"
                   />
-                  <span className="w-3 h-3 rounded-full shrink-0 animate-pulse" style={{ backgroundColor: s.stroke }} />
-                  <span className="font-medium truncate">{s.name}</span>
+                  <span className="w-2 h-2 shrink-0" style={{ backgroundColor: s.stroke }} />
+                  <MathLabel className="font-medium truncate">{s.name}</MathLabel>
                 </label>
               ))}
             </div>
           </div>
 
           {/* Caliper delta and amplitude measurements */}
-          <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
+          <div className="border-b border-hmi-grid py-3">
             <h3 className="text-xs font-semibold text-hmi-text mb-2 select-none border-b border-hmi-grid/50 pb-1.5 flex justify-between items-center">
               {t('caliperMeasurements')}
               {activeTool !== 'cursor' && (
@@ -2010,7 +1971,7 @@ function AdvancedAnalyzer({
               <div className="flex flex-col gap-3 font-mono text-[11px]">
                 
                 {/* Caliper Time values */}
-                <div className="grid grid-cols-2 gap-x-2 gap-y-1 bg-hmi-bg/40 p-2 rounded border border-hmi-grid/30">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 py-2">
                   <div>
                     <span className="text-[10px] text-hmi-muted font-sans block">{t('timeA')}</span>
                     <span className="text-hmi-j1 font-medium">
@@ -2052,7 +2013,7 @@ function AdvancedAnalyzer({
                     const diff = (valA !== null && valB !== null) ? (valB - valA) : null
  
                     return (
-                      <div key={s.key} className="p-2 rounded border border-hmi-grid/20 bg-hmi-elevated/30 flex flex-col gap-0.5 animate-tooltip-left">
+                      <div key={s.key} className="py-2 border-b border-hmi-grid/30 flex flex-col gap-0.5 animate-tooltip-left">
                         <span className="text-[10px] text-hmi-text-secondary font-sans truncate font-medium block">
                           {s.name}
                         </span>
@@ -2070,7 +2031,7 @@ function AdvancedAnalyzer({
                             </span>
                           </div>
                           <div className="text-right border-l border-hmi-grid/20">
-                            <span className="text-[9px] text-hmi-muted block">ΔY</span>
+                            <MathLabel className="text-[9px] text-hmi-muted block">ΔY</MathLabel>
                             <span className={cn(
                               "font-medium text-[10px]",
                               diff !== null && diff > 0 ? "text-hmi-text-success" : diff !== null && diff < 0 ? "text-hmi-text-error" : "text-hmi-text-secondary"
@@ -2093,7 +2054,7 @@ function AdvancedAnalyzer({
 
           {/* Context-aware Control Systems Analysis */}
           {caliperPoints.ptA && caliperPoints.ptB && caliperDiagnostics && (
-            <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
+            <div className="border-b border-hmi-grid py-3">
               <h3 className="text-xs font-bold text-hmi-ideal mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
                 {activeTab === 'pos' || activeTab === 'vel' ? t('controlSystemsAnalysis') :
                  activeTab === 'cte' || activeTab === 'ate' ? t('trackingPerformance') :
@@ -2109,7 +2070,7 @@ function AdvancedAnalyzer({
                     if (!m) return null
 
                     return (
-                      <div key={k} className="p-2 rounded border border-hmi-grid/20 bg-hmi-elevated/30 flex flex-col gap-1.5 animate-tooltip-left">
+                      <div key={k} className="py-2 border-b border-hmi-grid/30 flex flex-col gap-1.5 animate-tooltip-left">
                         <span className="text-[10px] text-hmi-text-secondary font-sans font-semibold block border-b border-hmi-grid/10 pb-0.5 mb-1 text-hmi-ideal">
                           {m.name}
                         </span>
@@ -2190,7 +2151,7 @@ function AdvancedAnalyzer({
                   if (!m) return null
 
                   return (
-                    <div className="p-2 rounded border border-hmi-grid/20 bg-hmi-elevated/30 flex flex-col gap-1.5 animate-tooltip-left">
+                    <div className="py-2 border-b border-hmi-grid/30 flex flex-col gap-1.5 animate-tooltip-left">
                       <span className="text-[10px] text-hmi-text-secondary font-sans font-semibold block border-b border-hmi-grid/10 pb-0.5 mb-1 text-hmi-ideal">
                         {m.name}
                       </span>
@@ -2229,7 +2190,7 @@ function AdvancedAnalyzer({
                     if (!m) return null
 
                     return (
-                      <div key={k} className="p-2 rounded border border-hmi-grid/20 bg-hmi-elevated/30 flex flex-col gap-1.5 animate-tooltip-left">
+                      <div key={k} className="py-2 border-b border-hmi-grid/30 flex flex-col gap-1.5 animate-tooltip-left">
                         <span className="text-[10px] text-hmi-text-secondary font-sans font-semibold block border-b border-hmi-grid/10 pb-0.5 mb-1 text-hmi-ideal">
                           {m.name}
                         </span>
@@ -2266,7 +2227,7 @@ function AdvancedAnalyzer({
           )}
 
           {/* Regional Window Statistics Dashboard */}
-          <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
+          <div className="border-b border-hmi-grid py-3">
             <h3 className="text-xs font-semibold text-hmi-text mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
               {t('visibleWindowStats')}
             </h3>
@@ -2277,7 +2238,7 @@ function AdvancedAnalyzer({
                 if (!stats) return null
 
                 return (
-                  <div key={s.key} className="p-2 rounded border border-hmi-grid/20 bg-hmi-elevated/30 animate-tooltip-left">
+                  <div key={s.key} className="py-2 border-b border-hmi-grid/30 animate-tooltip-left">
                     <span className="text-[10px] text-hmi-text-secondary font-sans truncate font-medium block border-b border-hmi-grid/10 pb-0.5 mb-1.5">
                       {s.name}
                     </span>
@@ -2320,10 +2281,49 @@ const TAB_LABELS: Record<string, string> = {
   j2vel: 'J2 Vel',
 }
 
+type ChartFrame = { d: DSample[]; t: TPoint[]; e: ESample[]; f: FSample[] }
+
+// Only this lightweight subscriber follows telemetry dispatches. Charts receive
+// the provider's immutable arrays at 5 Hz while their surface is visible.
+function ChartDataSampler({ onFrame, surface }: {
+  onFrame: Dispatch<SetStateAction<ChartFrame>>
+  surface: RefObject<HTMLDivElement | null>
+}) {
+  const { state } = useHMI()
+  const source = useRef<ChartFrame>({ d: state.dBuffer, t: state.tBuffer, e: state.eBuffer, f: state.fBuffer })
+  useEffect(() => {
+    source.current = { d: state.dBuffer, t: state.tBuffer, e: state.eBuffer, f: state.fBuffer }
+  }, [state.dBuffer, state.tBuffer, state.eBuffer, state.fBuffer])
+  const isLive = state.recordingState === 'REC'
+  useEffect(() => {
+    if (!isLive) return
+    let visible = true
+    const publish = () => {
+      if (!visible || document.hidden) return
+      const next = source.current
+      onFrame(previous => previous.d === next.d && previous.t === next.t && previous.e === next.e && previous.f === next.f ? previous : next)
+    }
+    const observer = new IntersectionObserver(entries => {
+      visible = entries.some(entry => entry.isIntersecting)
+      if (visible) publish()
+    })
+    if (surface.current) observer.observe(surface.current)
+    const timer = window.setInterval(publish, 200)
+    document.addEventListener('visibilitychange', publish)
+    publish()
+    return () => {
+      observer.disconnect()
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', publish)
+    }
+  }, [isLive, onFrame, surface])
+  return null
+}
+
 export function ChartPanel() {
   const t = useTranslations('ChartPanel')
   const consoleText = useTranslations('Console')
-  const { state } = useHMI()
+  const { state } = useHMISlow()
   const [isFocused, setIsFocused] = useState(false)
   const [angularUnit, setAngularUnit] = useState('radians')
 
@@ -2360,61 +2360,17 @@ export function ChartPanel() {
 
   const isLive = state.recordingState === 'REC'
 
-  // ── DOM throttle: accumulate data in refs, push to chart state at 5 Hz ────
-  // This prevents Recharts from re-rendering on every 50 Hz BATCH_SAMPLES
-  // dispatch while still keeping buffer data up-to-date for analysis.
-  const dBufRef = useRef<DSample[]>([])
-  const tBufRef = useRef<TPoint[]>([])
-  const eBufRef = useRef<any[]>([])
-  const fBufRef = useRef<any[]>([])
-  const [chartD, setChartD] = useState<DSample[]>(() =>
-    state.recordingState === 'REC' ? state.dBuffer : state.frozenD
-  )
-  const [chartT, setChartT] = useState<TPoint[]>(() =>
-    state.recordingState === 'REC' ? state.tBuffer : state.frozenT
-  )
-  const [chartE, setChartE] = useState<any[]>(() =>
-    state.recordingState === 'REC' ? state.eBuffer : state.frozenE
-  )
-  const [chartF, setChartF] = useState<any[]>(() =>
-    state.recordingState === 'REC' ? state.fBuffer : state.frozenF
-  )
-
-  // Always keep refs in sync with context (no re-render triggered)
-  const liveDSource = isLive ? state.dBuffer : state.frozenD
-  const liveTSource = isLive ? state.tBuffer : state.frozenT
-  const liveESource = isLive ? state.eBuffer : state.frozenE
-  const liveFSource = isLive ? state.fBuffer : state.frozenF
-  dBufRef.current = liveDSource
-  tBufRef.current = liveTSource
-  eBufRef.current = liveESource
-  fBufRef.current = liveFSource
-
-  useEffect(() => {
-    if (!isLive) {
-      // Frozen: update once immediately
-      setChartD(state.frozenD)
-      setChartT(state.frozenT)
-      setChartE(state.frozenE)
-      setChartF(state.frozenF)
-      return
-    }
-    // Live: throttle DOM updates to 5 Hz (200 ms)
-    const id = setInterval(() => {
-      setChartD([...dBufRef.current])
-      setChartT([...tBufRef.current])
-      setChartE([...eBufRef.current])
-      setChartF([...fBufRef.current])
-    }, 200)
-    return () => clearInterval(id)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLive, state.frozenD, state.frozenT, state.frozenE, state.frozenF])
-
-  // aliases used by focused AdvancedAnalyzer (not throttled — only shown when frozen)
-  const dBuf = isFocused ? liveDSource : chartD
-  const tBuf = isFocused ? liveTSource : chartT
-  const eBuf = isFocused ? liveESource : chartE
-  const fBuf = isFocused ? liveFSource : chartF
+  const surfaceRef = useRef<HTMLDivElement>(null)
+  const [frame, setFrame] = useState<ChartFrame>(() => ({
+    d: state.frozenD, t: state.frozenT, e: state.frozenE, f: state.frozenF,
+  }))
+  const dBuf = isLive ? frame.d : state.frozenD
+  const tBuf = isLive ? frame.t : state.frozenT
+  const eBuf = isLive ? frame.e : state.frozenE
+  const fBuf = isLive ? frame.f : state.frozenF
+  const captureState = useMemo(() => ({
+    ...state, dBuffer: dBuf, tBuffer: tBuf, eBuffer: eBuf, fBuffer: fBuf,
+  }), [state, dBuf, tBuf, eBuf, fBuf])
 
   // Listen for Escape key to close focus
   useEffect(() => {
@@ -2442,7 +2398,7 @@ export function ChartPanel() {
         const chartName = getChartName(activeTab)
 
         toast.promise(
-          downloadSingleGraph(activeTab, chartName, state),
+          downloadSingleGraph(activeTab, chartName, captureState),
           {
             loading: t('exportingChart', { name: chartName }),
             success: t('exportSuccess', { name: chartName }),
@@ -2453,30 +2409,29 @@ export function ChartPanel() {
     }
     window.addEventListener('hmi_download_graph', handleDownload)
     return () => window.removeEventListener('hmi_download_graph', handleDownload)
-  }, [isFocused, activeTab, state, t])
+  }, [isFocused, activeTab, captureState, t])
 
 
 
   return (
-    <Card 
+    <Card ref={surfaceRef} data-capture-chart={activeTab} data-export-surface
       className={cn(
         "flex flex-col flex-1 min-h-0 group/graph",
         isFocused 
-          ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
+          ? "fixed inset-0 z-[100] m-0 rounded-none p-2 sm:p-6 bg-hmi-bg"
           : "relative"
       )}
     >
+      <ChartDataSampler onFrame={setFrame} surface={surfaceRef} />
       {/* Focused mode header */}
       {isFocused && (
         <div className="flex items-center justify-between mb-2 border-b border-hmi-grid pb-2 shrink-0">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-hmi-text">{t('telemetryAnalyzerConsole')}</h2>
-            <Badge className="bg-hmi-bg border border-hmi-grid text-hmi-text-secondary">
-              {state.recordingState === 'REC' ? `🔴 ${t('liveStream')}` : `⏸ ${t('slicedRun')}`}
-            </Badge>
+            <h2 className="text-lg font-bold text-hmi-text">{consoleText('telemetry')}</h2>
+
           </div>
           
-          <div className="flex items-center gap-2">
+          <div data-export-ignore className="flex items-center gap-2">
             {/* Quick tab switcher inside full screen analyzer */}
             <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded-md border border-hmi-grid mr-4">
               {CHART_TABS.map(tab => (
@@ -2529,11 +2484,12 @@ export function ChartPanel() {
                 </TabsTrigger>
               ))}
             </div>
-            <div className="flex items-center gap-1.5 ml-auto">
+            <div data-export-ignore className="flex items-center gap-1.5 ml-auto">
               <UiTooltip content={isFocused ? t('collapseDesc') : t('expandDesc')} align="center">
                 <Button 
                   variant="outline" 
                   size="sm" 
+                  aria-label={isFocused ? t('collapseDesc') : t('expandDesc')}
                   onClick={(e) => { e.stopPropagation(); setIsFocused(!isFocused); }} 
                   className="h-7 px-1.5 text-[10px] text-hmi-text-secondary border-hmi-grid hover:bg-hmi-btn-hover hover:text-hmi-text cursor-pointer"
                 >
@@ -2559,10 +2515,10 @@ export function ChartPanel() {
           ) : (
             <>
               <TabsContent value="cte" className="h-full w-full relative overflow-hidden">
-                {activeTab === 'cte' && <CTEChart tBuf={chartT} dBuf={chartD} />}
+                {activeTab === 'cte' && <CTEChart tBuf={tBuf} dBuf={dBuf} />}
               </TabsContent>
               <TabsContent value="ate" className="h-full w-full relative overflow-hidden">
-                {activeTab === 'ate' && <ATEChart tBuf={chartT} dBuf={chartD} />}
+                {activeTab === 'ate' && <ATEChart tBuf={tBuf} dBuf={dBuf} />}
               </TabsContent>
               <TabsContent value="pos" className="h-full w-full relative overflow-hidden">
                 {activeTab === 'pos' && <PositionChart dBuf={dBuf} />}

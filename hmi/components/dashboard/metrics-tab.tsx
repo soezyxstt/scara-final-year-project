@@ -3,6 +3,7 @@
 import type { Run } from '@/lib/db/schema'
 import { cn } from '@/lib/utils'
 import { useTranslations, useLocale } from 'next-intl'
+import { MathLabel } from '@/components/ui/math'
 
 interface RunData {
   run: Run
@@ -22,7 +23,7 @@ function MetricRow({ label, runs, field, unit = '', decimals = 3 }: {
   const locale = useLocale()
   return (
     <tr className="border-b border-hmi-grid/50 hover:bg-hmi-grid/20 transition-colors">
-      <td className="py-1.5 px-3 text-[11px] text-hmi-muted font-medium">{label}</td>
+      <td className="px-2 py-1.5 text-[11px] font-medium text-hmi-muted sm:px-3"><MathLabel>{label}</MathLabel></td>
       {runs.map(({ run, color }) => {
         const val = run[field]
         const display = typeof val === 'number'
@@ -34,7 +35,7 @@ function MetricRow({ label, runs, field, unit = '', decimals = 3 }: {
             ? (val ? t('yes') : t('no'))
             : val ?? '—'
         return (
-          <td key={run.id} className="py-1.5 px-3 text-[11px] text-hmi-text font-mono text-right">
+          <td key={run.id} className="px-2 py-1.5 text-right font-mono text-[11px] text-hmi-text sm:px-3">
             <span style={{ borderBottom: `2px solid ${color}`, paddingBottom: 1 }}>{display}</span>
           </td>
         )
@@ -49,7 +50,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <tr>
         <td
           colSpan={100}
-          className="pt-4 pb-1 px-3 text-[10px] font-bold text-hmi-muted/70"
+          className="px-2 pt-3 pb-1 text-[11px] font-semibold text-hmi-muted sm:px-3 sm:pt-4"
         >
           {title}
         </td>
@@ -67,15 +68,16 @@ export function MetricsTab({ runs }: Props) {
   }
 
   return (
-    <div className="p-4 overflow-x-auto">
-      <table className="w-full border-collapse text-xs">
+    <div className="min-w-0 p-3 sm:p-4">
+      <div className="min-w-0 overflow-x-auto">
+        <table className="w-full min-w-[620px] border-collapse text-xs">
         <thead>
           <tr className="border-b border-hmi-grid">
-            <th className="py-2 px-3 text-left text-[10px] font-bold text-hmi-muted w-40">
+            <th className="w-40 px-2 py-2 text-left text-[11px] font-semibold text-hmi-muted sm:px-3">
               {t('metric')}
             </th>
             {runs.map(({ run, color }) => (
-              <th key={run.id} className="py-2 px-3 text-right text-[11px] font-semibold min-w-[140px]">
+              <th key={run.id} className="min-w-[100px] px-2 py-2 text-right text-[11px] font-semibold sm:px-3">
                 <span className="inline-flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
                   <span className="text-hmi-text truncate max-w-[120px]" title={run.name}>{run.name}</span>
@@ -110,24 +112,25 @@ export function MetricsTab({ runs }: Props) {
             <MetricRow label={t('labels.jitter')} runs={runs} field="jitter" decimals={4} />
           </Section>
         </tbody>
-      </table>
+        </table>
+      </div>
 
       {/* Gains & Params per run */}
-      <div className="mt-6 grid gap-4" style={{ gridTemplateColumns: `repeat(${runs.length}, minmax(0, 1fr))` }}>
+      <div className="mt-4 grid min-w-0 grid-cols-1 gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
         {runs.map(({ run, color }) => {
           const gains = run.gainsJson ? (() => { try { return JSON.parse(run.gainsJson) } catch { return null } })() : null
           const params = run.paramsJson ? (() => { try { return JSON.parse(run.paramsJson) } catch { return null } })() : null
           return (
-            <div key={run.id} className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
-              <div className="px-3 py-2 border-b border-hmi-grid flex items-center gap-2">
+            <section key={run.id} className="min-w-0 border-t border-hmi-grid py-3">
+              <div className="flex items-center gap-2 pb-2">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
                 <span className="text-[11px] font-semibold text-hmi-text truncate">{run.name}</span>
               </div>
 
               {gains && (
-                <div className="px-3 py-2 border-b border-hmi-grid/50">
-                  <p className="text-[10px] font-bold text-hmi-muted mb-1.5">{t('pidGains')}</p>
-                  <div className="grid grid-cols-3 gap-x-3 gap-y-0.5 text-[10px] font-mono">
+                <div className="border-t border-hmi-grid/50 py-2">
+                  <p className="mb-1.5 text-[11px] font-medium text-hmi-muted">{t('pidGains')}</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-mono sm:grid-cols-3">
                     {Object.entries(gains).map(([k, v]) => (
                       <div key={k} className="flex items-center justify-between gap-1">
                         <span className="text-hmi-muted">{k}</span>
@@ -139,9 +142,9 @@ export function MetricsTab({ runs }: Props) {
               )}
 
               {params && (
-                <div className="px-3 py-2">
-                  <p className="text-[10px] font-bold text-hmi-muted mb-1.5">{t('keyParameters')}</p>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] font-mono">
+                <div className="border-t border-hmi-grid/50 py-2">
+                  <p className="mb-1.5 text-[11px] font-medium text-hmi-muted">{t('keyParameters')}</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-mono">
                     {(['vmax', 'amax', 'cfreq', 'u1max', 'fzt', 'pwmDb', 'td1r', 'td2r', 'dben', 'dbrel'] as string[]).map(k => (
                       params[k] !== undefined && (
                         <div key={k} className="flex items-center justify-between gap-1">
@@ -155,7 +158,7 @@ export function MetricsTab({ runs }: Props) {
                   </div>
                 </div>
               )}
-            </div>
+            </section>
           )
         })}
       </div>

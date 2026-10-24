@@ -1,3 +1,5 @@
+import type { SavedRunDataset } from '@/components/dashboard/dashboard-xy-trace'
+
 export type CaptureScope = 'all' | string[]
 
 export const ALL_CAPTURE_CHART_KEYS = [
@@ -66,5 +68,24 @@ export async function withCaptureSession<T>(
   } finally {
     activeScope = null
     listener?.(null)
+  }
+}
+
+// A mounted Saved runs page owns its fetched data independently of the live HMI.
+let savedRunSource: readonly SavedRunDataset[] | null = null
+const savedRunListeners = new Set<() => void>()
+export function getSavedRunCaptureSource() { return savedRunSource }
+export function subscribeSavedRunCaptureSource(fn: () => void) {
+  savedRunListeners.add(fn)
+  return () => { savedRunListeners.delete(fn) }
+}
+export function registerSavedRunCaptureSource(runs: readonly SavedRunDataset[]) {
+  savedRunSource = runs
+  savedRunListeners.forEach(fn => fn())
+  return () => {
+    if (savedRunSource === runs) {
+      savedRunSource = null
+      savedRunListeners.forEach(fn => fn())
+    }
   }
 }

@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Copy, Check, BookOpen, Cpu, Eye, BarChart2, Book, ChevronDown, ChevronRight, TrendingUp, Compass, SlidersHorizontal } from 'lucide-react'
+import { Copy, Check, BookOpen, Cpu, Eye, BarChart2, Book, ChevronDown, ChevronRight, TrendingUp, Compass, SlidersHorizontal, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
 // ─── Custom Syntax Highlighting for C++/Arduino & Serial Logs ────────────────
 // Helper to convert index to letters to prevent matching numbers inside token placeholders
@@ -152,32 +153,12 @@ function Callout({
   type?: 'info' | 'warn' | 'tip' | 'danger'
   children: React.ReactNode
 }) {
-  const styles = {
-    info: 'border-sky-500 bg-sky-50/50 text-sky-800 dark:border-sky-500/50 dark:bg-sky-500/5 dark:text-sky-300',
-    warn: 'border-amber-500 bg-amber-50/50 text-amber-800 dark:border-amber-500/50 dark:bg-amber-500/5 dark:text-amber-300',
-    tip: 'border-emerald-500 bg-emerald-50/50 text-emerald-800 dark:border-emerald-500/50 dark:bg-emerald-500/5 dark:text-emerald-300',
-    danger: 'border-red-500 bg-red-50/50 text-red-800 dark:border-red-500/50 dark:bg-red-500/5 dark:text-red-300',
-  }
-  const icons = {
-    info: 'ℹ',
-    warn: '⚠',
-    tip: '💡',
-    danger: '🛑',
-  }
-  const titles = {
-    info: 'Information',
-    warn: 'Warning',
-    tip: 'Pro Tip',
-    danger: 'Important / Danger',
-  }
+  const urgent = type === 'warn' || type === 'danger'
   return (
-    <div className={cn('my-5 flex gap-3.5 rounded-lg border-l-4 p-4 text-xs leading-relaxed shadow-sm shadow-black/10', styles[type])}>
-      <span className="text-sm shrink-0 select-none mt-0.5">{icons[type]}</span>
-      <div className="flex flex-col gap-1">
-        <span className="font-semibold text-[11px] uppercase tracking-wider text-zinc-200">{titles[type]}</span>
-        <div className="text-zinc-300/90">{children}</div>
-      </div>
-    </div>
+    <aside className={cn('my-5 border-l-2 pl-4 text-sm leading-relaxed text-hmi-text-secondary', urgent ? 'border-hmi-error' : 'border-hmi-grid')}>
+      {urgent && <strong className="mb-1 block text-hmi-text">{type === 'danger' ? 'Emergency stop' : 'Warning'}</strong>}
+      {children}
+    </aside>
   )
 }
 
@@ -205,19 +186,9 @@ function Property({ name, type, description }: { name: string; type?: string; de
 
 // ─── Navigation links ────────────────────────────────────────────────────────
 
-interface SidebarLink {
-  href: string
-  label: string
-}
-
-interface SidebarGroup {
-  title: string
-  icon: React.ReactNode
-  links: SidebarLink[]
-}
-
 export function ReadmeTabEn() {
   const [activeId, setActiveId] = useState<string>('connect')
+  const [navigationOpen, setNavigationOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
 
   // Sidebar grouping structure
@@ -397,110 +368,96 @@ export function ReadmeTabEn() {
     handleScrollTo(firstLinkHref)
   }
 
-  return (
-    <div className="flex flex-row h-full overflow-hidden bg-hmi-bg readme-tab-container">
-      {/* ── Left Navigation Sidebar ────────────────────────────────────────── */}
-      <aside className="w-60 shrink-0 border-r border-hmi-grid bg-hmi-panel/30 flex flex-col px-4 py-6 overflow-y-auto">
-        <div className="px-2 mb-6">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Documentation</p>
-          <p className="text-xs text-zinc-400 font-medium mt-1">SCARA Robot Guide</p>
-        </div>
-
-        <nav className="flex flex-col gap-3">
-          {navigationGroups.map((group, groupIdx) => {
-            const isOpen = openGroups[group.id]
-            const isGroupActive = activeCategory === group.id
-
-            return (
-              <div key={groupIdx} className="flex flex-col gap-1">
-                {/* Group Header Button */}
-                <button
-                  onClick={() => handleToggleGroup(group.id, group.links[0].href)}
-                  className={cn(
-                    'flex items-center justify-between w-full px-2 py-1.5 rounded-lg text-left transition-all hover:bg-zinc-800/40 select-none active:scale-[0.98]',
-                    isGroupActive ? 'text-hmi-ideal font-semibold' : 'text-zinc-400 hover:text-zinc-200'
-                  )}
-                >
-                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
-                    {group.icon}
-                    <span>{group.title}</span>
-                  </div>
-                  {isOpen ? (
-                    <ChevronDown className="h-3 w-3 text-zinc-500 shrink-0" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3 text-zinc-500 shrink-0" />
-                  )}
-                </button>
-
-                {/* Sub-links (only shown if group is open) */}
-                {isOpen && (
-                  <div className="flex flex-col pl-2 border-l border-zinc-800/85 ml-3.5 mt-0.5 gap-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
-                    {group.links.map((link, linkIdx) => {
-                      const targetId = link.href.slice(1)
-                      const isActive = activeId === targetId
-                      return (
-                        <button
-                          key={linkIdx}
-                          onClick={() => handleScrollTo(link.href)}
-                          className={cn(
-                            'text-left text-xs py-1.5 px-2.5 rounded-md transition-all font-sans leading-relaxed active:scale-[0.98]',
-                            isActive
-                              ? 'bg-hmi-ideal/10 text-hmi-ideal font-semibold border-l-2 border-hmi-ideal pl-2 rounded-l-none'
-                              : 'text-zinc-500 hover:text-zinc-300'
-                          )}
-                        >
-                          {link.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
+  const renderNavigation = (onNavigate?: () => void) => (
+    <nav className="flex flex-col gap-2">
+      {navigationGroups.map((group) => {
+        const isOpen = openGroups[group.id]
+        const isGroupActive = activeCategory === group.id
+        return (
+          <div key={group.id} className="flex flex-col gap-1">
+            <button
+              type="button"
+              aria-expanded={isOpen}
+              onClick={() => handleToggleGroup(group.id, group.links[0].href)}
+              className={cn(
+                'flex items-center justify-between w-full px-2 py-2 rounded-lg text-left hover:bg-zinc-800/40',
+                isGroupActive ? 'text-hmi-ideal font-semibold' : 'text-zinc-400 hover:text-zinc-200'
+              )}
+            >
+              <span className="flex items-center gap-2 text-xs font-medium">
+                {group.icon}
+                <span>{group.title}</span>
+              </span>
+              {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
+            </button>
+            {isOpen && (
+              <div className="flex flex-col pl-2 border-l border-zinc-800/85 ml-3.5 gap-0.5">
+                {group.links.map((link) => {
+                  const targetId = link.href.slice(1)
+                  const isActive = activeId === targetId
+                  return (
+                    <button
+                      key={link.href}
+                      type="button"
+                      onClick={() => {
+                        handleScrollTo(link.href)
+                        onNavigate?.()
+                      }}
+                      className={cn(
+                        'text-left text-sm py-2 px-2.5 rounded-md leading-snug',
+                        isActive
+                          ? 'bg-hmi-ideal/10 text-hmi-ideal font-semibold border-l-2 border-hmi-ideal pl-2 rounded-l-none'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      )}
+                    >
+                      {link.label}
+                    </button>
+                  )
+                })}
               </div>
-            )
-          })}
-        </nav>
+            )}
+          </div>
+        )
+      })}
+    </nav>
+  )
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-hmi-bg readme-tab-container lg:flex-row">
+      <div className="shrink-0 border-b border-hmi-grid bg-hmi-panel/50 px-4 py-2 lg:hidden">
+        <Sheet open={navigationOpen} onOpenChange={setNavigationOpen}>
+          <SheetTrigger asChild>
+            <button type="button" className="flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-hmi-text hover:bg-hmi-elevated">
+              <Menu className="h-4 w-4 shrink-0" />
+              <span className="font-medium">Contents</span>
+              <span className="truncate text-hmi-muted">
+                {allLinks.find((link) => link.href === `#${activeId}`)?.label ?? allLinks[0]?.label}
+              </span>
+            </button>
+          </SheetTrigger>
+          <SheetContent side="left" className="overflow-y-auto p-4 max-w-[20rem]">
+            <SheetHeader>
+              <SheetTitle>Guide contents</SheetTitle>
+            </SheetHeader>
+            {renderNavigation(() => setNavigationOpen(false))}
+          </SheetContent>
+        </Sheet>
+      </div>
+      <aside className="hidden w-60 shrink-0 flex-col overflow-y-auto border-r border-hmi-grid bg-hmi-panel/30 px-4 py-5 lg:flex">
+        <p className="mb-3 px-2 text-xs font-semibold text-hmi-muted">Contents</p>
+        {renderNavigation()}
       </aside>
 
       {/* ── Center Main Content Column ────────────────────────────────────── */}
       <div
         ref={contentRef}
-        className="flex-1 overflow-y-auto scroll-smooth px-8 lg:px-12 py-10"
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto scroll-smooth px-4 py-5 sm:px-8 sm:py-8 lg:px-12 lg:py-10"
       >
         <article className="max-w-3xl mx-auto">
-          {/* Document Header */}
-          <div className="pb-8 border-b border-hmi-grid mb-8">
-            <h1 className="text-3xl font-extrabold text-hmi-text tracking-tight leading-none mb-3">
-              SCARA HMI — User Guide
+          <div className="pb-4 border-b border-hmi-grid mb-6">
+            <h1 className="text-xl sm:text-2xl font-semibold text-hmi-text tracking-tight">
+              SCARA HMI Guide
             </h1>
-            <p className="text-sm text-hmi-muted leading-relaxed max-w-2xl font-normal">
-              Real-time monitoring and control interface for the 2-DOF planar SCARA robot, developed for the Dynamic System Control (MS3201) course at Mechanical Engineering ITB.
-            </p>
-          </div>
-
-          {/* Project Context & Evolution */}
-          <div className="p-5 border border-hmi-grid bg-hmi-panel/50 rounded-xl mb-10 text-xs text-hmi-muted space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <span className="font-bold text-[11px] uppercase tracking-wider text-hmi-text block mb-1">Project Objective</span>
-                <p className="leading-relaxed">
-                  Modify the control algorithm of the 2-DOF SCARA robot by adding **dynamic compensation** (inertia, gravity, Coriolis, and centrifugal forces) and provide real-time HMI tools for parameter tuning (<InlineCode>Kp, Ki, Kd</InlineCode>).
-                </p>
-              </div>
-              <div>
-                <span className="font-bold text-[11px] uppercase tracking-wider text-zinc-200 block mb-1">Design Evolution (ITB Mechanical Engineering)</span>
-                <ul className="list-disc pl-4 space-y-0.5 mt-0.5 leading-relaxed">
-                  <li><strong className="text-zinc-300">Pandeka (2021)</strong>: Initial mechanical design</li>
-                  <li><strong className="text-zinc-300">Abdul (2023)</strong>: Drive system modification</li>
-                  <li><strong className="text-zinc-300">Al-Farabi (2024)</strong>: Portability (miniaturization)</li>
-                  <li><strong className="text-zinc-300">Mubarok (2025)</strong>: Basic control integration</li>
-                  <li><strong className="text-zinc-300">Adi Haditya (2026)</strong>: Dynamic compensation &amp; advanced diagnostic HMI</li>
-                </ul>
-              </div>
-            </div>
-            
-            <div className="pt-3 border-t border-zinc-800/80 text-[10.5px] italic text-zinc-500 font-serif leading-relaxed">
-              &ldquo;In the Mechanical Engineering curriculum at ITB, the Dynamic Systems Control course (MS3201) plays a vital role... This research aims to modify the control algorithm by incorporating dynamic compensation and developing a more comprehensive HMI feature to improve the quality of independent practical learning.&rdquo;
-            </div>
           </div>
 
           {/* 💡 SECTION: OVERVIEW */}
@@ -517,23 +474,10 @@ export function ReadmeTabEn() {
               <li>Flash the firmware to the ESP32 (see <InlineCode>docs/firmware/readme.md</InlineCode>).</li>
               <li>Open the live hosted HMI dashboard at <strong className="text-zinc-300">tugasakhir.adihnursyam.com</strong> (or run <InlineCode>npm run dev</InlineCode> locally and open <strong className="text-zinc-300">http://localhost:3000</strong>) in Chrome or Edge.</li>
               <li>Plug in the ESP32, click <InlineCode>Connect</InlineCode>, and select the COM port.</li>
-              <li>Confirm the <strong className="text-zinc-300">Mode Badge</strong> shows <InlineCode>SCARA</InlineCode> (the HMI switches modes automatically per page).</li>
+              <li>Wait for the connection status to show Connected. The HMI selects the robot mode for the current page.</li>
               <li>Go to the <strong className="text-zinc-300">Monitor</strong> tab, enter a target coordinate in the Control Panel, and click <InlineCode>Send Move</InlineCode>.</li>
               <li>After the move finishes, check <strong className="text-zinc-300">Run Metrics</strong> below the charts and open the <strong className="text-zinc-300">Analysis</strong> tab for deeper diagnostics.</li>
             </ol>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 my-4">
-              {[
-                { tab: 'Monitor', desc: 'Live XY trace, charts, metrics, Run+Save, and control panel' },
-                { tab: 'Analysis', desc: 'Post-run phase portrait, CTC torques, and data table' },
-                { tab: 'Step & Noise', desc: 'Step-response and rest-state telemetry analysis' },
-                { tab: 'README', desc: 'This guide — you are here' },
-              ].map((item, idx) => (
-                <div key={idx} className="p-3 border border-zinc-800 rounded-lg bg-hmi-elevated">
-                  <p className="text-[11px] font-bold text-hmi-ideal font-mono">{item.tab}</p>
-                  <p className="text-[9.5px] text-zinc-500 mt-1 leading-relaxed">{item.desc}</p>
-                </div>
-              ))}
-            </div>
             <Callout type="tip">
               Use the <strong>Command Palette (<kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-300 font-mono">Ctrl + K</kbd> or <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-300 font-mono">Cmd + K</kbd>)</strong> to switch between the Home dashboard, ZN Tuner (<InlineCode>/zn</InlineCode>), and Test Page (<InlineCode>/test</InlineCode>) without disconnecting serial.
             </Callout>
@@ -546,7 +490,7 @@ export function ReadmeTabEn() {
               <a href="#connect" onClick={(e) => { e.preventDefault(); handleScrollTo('#connect') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              The HMI communicates with your microcontroller (ESP32) directly over USB serial using the modern **Web Serial API** built into compatible web browsers. This provides a plug-and-play experience without installing extra bridge software.
+              The HMI communicates with your microcontroller (ESP32) directly over USB serial using the modern Web Serial API built into compatible web browsers. This provides a plug-and-play experience without installing extra bridge software.
             </p>
 
             <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">Step-by-step Connection Guide</h3>
@@ -554,7 +498,7 @@ export function ReadmeTabEn() {
               <li>Connect your ESP32 to your workstation via a standard micro-USB or USB-C cable.</li>
               <li>Ensure you are running the HMI in <strong className="text-zinc-300">Google Chrome</strong> or <strong className="text-zinc-300">Microsoft Edge</strong>, as Safari and Firefox do not currently support the Web Serial protocol.</li>
               <li>Click the <InlineCode>Connect</InlineCode> button located on the right side of the main header bar.</li>
-              <li>Select your microcontroller's COM port in the browser popup (often labeled <span className="italic">USB-to-UART Bridge</span> or <span className="italic">COMx</span>) and click **Connect**.</li>
+              <li>Select your microcontroller&apos;s COM port in the browser popup (often labeled <span className="italic">USB-to-UART Bridge</span> or <span className="italic">COMx</span>) and click Connect.</li>
               <li>Upon connection, the HMI sends <InlineCode>getgains</InlineCode> and <InlineCode>getparams</InlineCode>, then starts sending <InlineCode>ping</InlineCode> to keep the firmware watchdog alive.</li>
               <li>The <strong className="text-zinc-300">Mode Badge</strong> in the header shows the current firmware mode. The HMI auto-sends <InlineCode>mode,scara</InlineCode> when you are on the home page.</li>
             </ol>
@@ -604,8 +548,8 @@ export function ReadmeTabEn() {
 
             <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">Execution Protocol</h3>
             <ol className="list-decimal pl-5 space-y-2 text-xs text-zinc-400 mb-5 leading-relaxed">
-              <li>Navigate to the **Control Panel** pinned to the bottom of the Monitor tab.</li>
-              <li>Under the **Move target** card, enter the final coordinate targets <InlineCode>Xf</InlineCode> and <InlineCode>Yf</InlineCode> in millimetres.</li>
+              <li>Navigate to the Controls panel in the Monitor tab.</li>
+              <li>Under Move target, enter the final coordinate targets <InlineCode>Xf</InlineCode> and <InlineCode>Yf</InlineCode> in millimetres.</li>
               <li>Specify the Elbow direction. <InlineCode>Right (+1)</InlineCode> represents the standard elbow-up kinematics configuration; <InlineCode>Left (-1)</InlineCode> sets elbow-down.</li>
               <li>Click <InlineCode>Send Move</InlineCode> or press <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-300 font-mono">Enter</kbd> to transmit the command.</li>
               <li>Alternatively, use the <strong>Run + Save</strong> button in the header to capture the current target coordinates, trigger the move, and save the full telemetry to the Turso database (requires Google sign-in).</li>
@@ -729,7 +673,7 @@ export function ReadmeTabEn() {
               <a href="#xy-trace" onClick={(e) => { e.preventDefault(); handleScrollTo('#xy-trace') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              Positioned on the left of the Monitor tab, the **3D Workspace Visualizer** renders a real-time WebGL visualization (powered by React Three Fiber and Three.js) of the SCARA arm's workspace envelope, joint configuration, and trajectories.
+              Positioned on the left of the Monitor tab, the 3D Workspace Visualizer renders a real-time WebGL visualization (powered by React Three Fiber and Three.js) of the SCARA arm&apos;s workspace envelope, joint configuration, and trajectories.
             </p>
 
             <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">Visual Indicator Elements</h3>
@@ -875,7 +819,7 @@ export function ReadmeTabEn() {
               <a href="#advanced" onClick={(e) => { e.preventDefault(); handleScrollTo('#advanced') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              Expand the **Advanced Analysis** sub-panel on the Analysis tab to view system analysis tools:
+              Expand the Advanced Analysis sub-panel on the Analysis tab to view system analysis tools:
             </p>
 
             <PropertyList>
@@ -1208,7 +1152,7 @@ export function ReadmeTabEn() {
               <a href="#esp-telemetry" onClick={(e) => { e.preventDefault(); handleScrollTo('#esp-telemetry') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              The HMI processes comma-separated values (CSV) received over serial. Every message packet must start with a single-character **identification tag**, followed by data fields, and end with a newline character (<InlineCode>\n</InlineCode>).
+              The HMI processes comma-separated values (CSV) received over serial. Every message packet must start with a single-character identification tag, followed by data fields, and end with a newline character (<InlineCode>\n</InlineCode>).
             </p>
 
             <h3 className="text-sm font-semibold text-zinc-200 mt-6 mb-2">Required Serial Packets</h3>
@@ -1610,18 +1554,14 @@ void loop() {
             />
 
             <Callout type="warn">
-              Ensure telemetry cycle times stay under **50 ms** (20 ms recommended). Faster data transmission is required to capture fast system dynamics without buffer dropouts.
+              Ensure telemetry cycle times stay under 50 ms (20 ms recommended). Faster data transmission is required to capture fast system dynamics without buffer dropouts.
             </Callout>
 
             <Callout type="danger">
-              Ensure you implement the **estop** trigger. The E-STOP safety button in the HMI header transmits this string instantly. The device must shut down motor outputs rather than simply exiting the trajectory loop.
+              Ensure you implement the estop trigger. The E-STOP safety button in the HMI header transmits this string instantly. The device must shut down motor outputs rather than simply exiting the trajectory loop.
             </Callout>
           </section>
 
-          {/* Document Footer */}
-          <div className="mt-16 pt-8 border-t border-zinc-800/80 text-center text-xs text-zinc-500">
-            SCARA HMI • User Guide Documentation • TA 2 • 2026
-          </div>
         </article>
       </div>
 

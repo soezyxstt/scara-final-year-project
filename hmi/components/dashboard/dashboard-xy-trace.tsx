@@ -1,205 +1,134 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { Badge } from '@/components/ui/badge'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
+import { Maximize2, Minimize2, Pause, Play, RotateCcw, Info, Box } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Maximize2, Minimize2, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import type { Sample, TrajectoryPoint } from '@/lib/db/schema'
+import { Slider } from '@/components/ui/slider'
+import { Tooltip } from '@/components/ui/tooltip'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SCARA3DCanvas } from '@/components/hmi/scara-arm-3d'
+import { buildReplayRecording, replayFrameAt } from '@/lib/saved-run-replay'
+import type { Run, Sample, TrajectoryPoint } from '@/lib/db/schema'
+import { cn } from '@/lib/utils'
 
-
-
-export const L_OUTER = 170   // mm
-export const L_INNER = 70.7  // mm
-
-// Canvas margins
-const LM = 55, RM = 10, TM = 30, BM = 42
-const YMIN = -105, YMAX = 205
-const TICK = 50
-
-interface RunData {
+export interface SavedRunDataset {
   runId: string
   runName: string
   color: string
+  run: Run
   samples: Sample[]
   trajectoryPoints: TrajectoryPoint[]
 }
 
-interface Props {
-  runs: RunData[]
-}
+interface Props { runs: SavedRunDataset[]; autoPlay?: boolean; onPrimaryChange?: (id: string) => void }
+const timeLabel = (ms: number) => `${(ms / 1000).toFixed(2)} s`
 
-export function DashboardXYTrace({ runs }: Props) {
-  const wrapperRef = useRef<HTMLDivElement>(null)
-  const [isFocused, setIsFocused] = useState(false)
+/** Browser-only playback. This component never imports or calls the serial controller. */
+export function DashboardXYTrace({ runs, autoPlay = false, onPrimaryChange }: Props) {
+  const t = useTranslations('SavedRuns')
+  const xy = useTranslations('XYTrace')
+  const primary = runs[0]
+  const recording = useMemo(() => buildReplayRecording(primary), [primary])
+  const [position, setPosition] = useState(autoPlay ? 0 : recording.durationMs)
+  const [playing, setPlaying] = useState(autoPlay && recording.durationMs > 0)
+  const [speed, setSpeed] = useState('1')
+  const [focused, setFocused] = useState(false)
   const [showArm, setShowArm] = useState(true)
-  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   const [resetCounter, setResetCounter] = useState(0)
+  const wrapper = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ width: 0, height: 0 })
+  const clock = useRef(position)
+  const pose = useRef(replayFrameAt(recording, position, false).pose)
 
-  // Retrieves coordinates and angles for the 3D overlay posed models
-  const getCurrentAngles = useCallback(() => {
-    const primaryRun = runs[0]
-    if (!primaryRun || primaryRun.trajectoryPoints.length === 0) {
-      return { th1: 0, th2: 0, th1d: null, th2d: null }
-    }
-
-    const points = primaryRun.trajectoryPoints
-    const latestPoint = points[points.length - 1]
-    const samples = primaryRun.samples
-    const latestSample = samples.length > 0 ? samples[samples.length - 1] : null
-
-    let th1 = 0
-    let th2 = 0
-    let th1d: number | null = null
-    let th2d: number | null = null
-
-    const l1 = 100
-    if (latestSample && latestSample.th1 !== null && latestSample.th2 !== null) {
-      th1 = latestSample.th1
-      th2 = latestSample.th2
-      th1d = latestSample.th1d ?? latestSample.th1
-      th2d = latestSample.th2d ?? latestSample.th2
-    } else if (latestPoint) {
-      // Fallback using analytical SCARA IK
-      const l2 = 70
-      const getIK = (x: number, y: number) => {
-        const r2 = x * x + y * y
-        const r = Math.sqrt(r2)
-        if (r === 0) return { t1: 0, t2: 0 }
-        const cosAlpha = Math.max(-1, Math.min(1, (l1 * l1 + r2 - l2 * l2) / (2 * l1 * r)))
-        const alpha = Math.acos(cosAlpha)
-        const beta = Math.atan2(y, x)
-        const t1 = beta - alpha
-        const t2 = Math.atan2(y - l1 * Math.sin(t1), x - l1 * Math.cos(t1)) - t1
-        return { t1, t2 }
-      }
-
-      const act = getIK(latestPoint.xa ?? 0, latestPoint.ya ?? 0)
-      th1 = act.t1
-      th2 = act.t2
-
-      const idl = getIK(latestPoint.xi ?? 0, latestPoint.yi ?? 0)
-      th1d = idl.t1
-      th2d = idl.t2
-    }
-
-    return { th1, th2, th1d, th2d }
-  }, [runs])
-
-  // Observe resize to adjust backing store size
   useEffect(() => {
-    const wrapper = wrapperRef.current
-    if (!wrapper) return
-
-    const handleResize = () => {
-      setContainerSize({ width: wrapper.clientWidth, height: wrapper.clientHeight })
-    }
-
-    const ro = new ResizeObserver(handleResize)
-    ro.observe(wrapper)
-    handleResize()
-
-    return () => ro.disconnect()
+    const element = wrapper.current
+    if (!element) return
+    const observer = new ResizeObserver(() => setSize({ width: element.clientWidth, height: element.clientHeight }))
+    observer.observe(element)
+    return () => observer.disconnect()
   }, [])
 
-  const primaryRun = runs[0]
-  const lastPoint = primaryRun?.trajectoryPoints[primaryRun?.trajectoryPoints.length - 1]
-  const errMm = lastPoint ? Math.sqrt((lastPoint.xi! - lastPoint.xa!) ** 2 + (lastPoint.yi! - lastPoint.ya!) ** 2) : null
+  useEffect(() => {
+    if (!playing) return
+    let frame = 0
+    let previous: number | null = null
+    let paint = 0
+    const tick = (now: number) => {
+      if (previous !== null) clock.current = Math.min(recording.durationMs, clock.current + (now - previous) * Number(speed))
+      previous = now
+      pose.current = replayFrameAt(recording, clock.current, false).pose
+      if (now - paint >= 40 || clock.current >= recording.durationMs) {
+        setPosition(clock.current)
+        paint = now
+      }
+      if (clock.current >= recording.durationMs) setPlaying(false)
+      else frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    const onVisibilityChange = () => { if (document.hidden) setPlaying(false) }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => { cancelAnimationFrame(frame); document.removeEventListener('visibilitychange', onVisibilityChange) }
+  }, [playing, speed, recording])
+
+  useEffect(() => {
+    if (!focused) return
+    const onEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setFocused(false) }
+    window.addEventListener('keydown', onEscape)
+    return () => window.removeEventListener('keydown', onEscape)
+  }, [focused])
+
+  const seek = (time: number) => {
+    setPlaying(false)
+    clock.current = time
+    pose.current = replayFrameAt(recording, time, false).pose
+    setPosition(time)
+  }
+  const togglePlay = () => {
+    if (playing) { setPlaying(false); setPosition(clock.current); return }
+    if (clock.current >= recording.durationMs) seek(0)
+    setPlaying(true)
+  }
+  const getCurrentAngles = useCallback(() => pose.current ?? { th1: 0, th2: 0, th1d: null, th2d: null }, [])
+  const current = useMemo(() => replayFrameAt(recording, position), [recording, position])
+  const visibleRuns = useMemo(() => runs.map((run, index) => index === 0 ? { ...run, trajectoryPoints: current.trail } : run), [runs, current.trail])
+  const tip = current.point
+  const error = tip ? Math.hypot(tip.xa - tip.xi, tip.ya - tip.yi) : null
+  const hasData = current.pose !== null
+  const canReplay = recording.durationMs > 0 && hasData
+  const timingHint = recording.timing === 'snapshot' ? t('snapshotOnly') : recording.coordinatesOnly ? `${t('coordinatesOnly')} ${t('partialReplay')}` : recording.pathFrames.length > 1 ? t('partialReplay') : t('recordedTime')
 
   return (
-    <div
-      className={cn(
-        "bg-hmi-panel border rounded-lg overflow-hidden flex flex-col transition-all duration-300 relative border-hmi-grid shadow-lg",
-        isFocused ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" : "h-[320px] w-full"
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-hmi-grid shrink-0 bg-hmi-panel">
-        <div className="flex items-center gap-1.5">
-          <span className="w-1 h-3.5 rounded-full bg-hmi-ideal" />
-          <span className="text-xs font-semibold text-hmi-text">Workspace XY Trace</span>
+    <section className={cn('saved-replay bg-hmi-panel overflow-hidden flex flex-col', focused && 'saved-replay-focused')} data-capture-chart="xy" data-export-surface="" aria-label={t('workspace')} data-replay-run={primary.runId}>
+      <header className="saved-replay-header">
+        {runs.length > 1 && onPrimaryChange ? <Select value={primary.runId} onValueChange={onPrimaryChange}>
+          <SelectTrigger aria-label={t('run')} className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent>{runs.map(run => <SelectItem key={run.runId} value={run.runId}>{run.runName}</SelectItem>)}</SelectContent>
+        </Select> : <h2 className="font-semibold text-sm truncate">{primary.runName}</h2>}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-hmi-muted hidden sm:inline">{t('replayOnly')}</span>
+          <Tooltip content={timingHint}><Button variant="ghost" size="icon" aria-label={timingHint} className="size-8"><Info size={15} /></Button></Tooltip>
+          <Button variant="outline" size="sm" aria-pressed={showArm} onClick={() => setShowArm(value => !value)}><Box size={14} />{xy('armLinks')}</Button>
+          <Button variant="ghost" size="icon" aria-label={xy('resetZoomTooltip')} onClick={() => setResetCounter(value => value + 1)} className="size-8"><RotateCcw size={15} /></Button>
+          <Button variant="ghost" size="icon" aria-label={focused ? xy('collapseTooltip') : xy('expandTooltip')} onClick={() => setFocused(value => !value)} className="size-8">{focused ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</Button>
         </div>
-
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowArm(prev => !prev)}
-            className={cn(
-              "h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text",
-              showArm && "bg-hmi-actual/10 text-hmi-actual border-hmi-actual/30 hover:bg-hmi-actual/15"
-            )}
-          >
-            Arms {showArm ? 'on' : 'off'}
-          </Button>
-
-          <div className="flex items-center gap-1 border-l border-hmi-grid/60 pl-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setResetCounter(prev => prev + 1)}
-              className="h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
-            >
-              <RefreshCw className="h-2.5 w-2.5 mr-1" />
-              Reset
-            </Button>
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsFocused(!isFocused)}
-            className="h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
-          >
-            {isFocused ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-          </Button>
-        </div>
+      </header>
+      <div ref={wrapper} className="relative flex-1 min-h-0" data-replay-viewport>
+        {hasData ? <SCARA3DCanvas width={size.width} height={size.height} showArm={showArm} points={[]} runs={visibleRuns} getCurrentAngles={getCurrentAngles} resetTrigger={resetCounter} /> : <div className="h-full grid place-items-center text-sm text-hmi-muted">{t('noReplayData')}</div>}
+        {hasData && <div className="saved-replay-legend"><span><i className="border-t-2 border-dashed border-hmi-ideal" />{t('desired')}</span><span><i className="border-t-2" style={{ borderColor: primary.color }} />{t('actual')}</span></div>}
       </div>
-
-      {/* Canvas view */}
-      <div ref={wrapperRef} className="relative flex-1 min-h-0 w-full">
-        <SCARA3DCanvas
-          width={containerSize.width}
-          height={containerSize.height}
-          showArm={showArm}
-          points={[]}
-          runs={runs}
-          getCurrentAngles={getCurrentAngles}
-          resetTrigger={resetCounter}
-        />
-
-
-        {/* Legend */}
-        <div className="absolute top-2 right-2 bg-hmi-panel/85 backdrop-blur-md border border-hmi-grid p-1.5 rounded-lg shadow-lg flex flex-col gap-0.5 pointer-events-none select-none z-10">
-          <div className="flex items-center gap-1.5 text-[10px]">
-            <span className="w-2.5 h-0.5 border-t border-dashed border-hmi-ideal" />
-            <span className="text-hmi-text-secondary">Ideal Path</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px]">
-            <span className="w-2.5 h-0.5 bg-hmi-actual" />
-            <span className="text-hmi-text-secondary">Actual Path</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px]">
-            <span className="w-2.5 h-2.5 rounded-full border border-hmi-start flex items-center justify-center bg-transparent scale-75" />
-            <span className="text-hmi-text-secondary">Start Point</span>
-          </div>
-        </div>
-
-        {/* Telemetry data overlay */}
-        {lastPoint && (
-          <div className="absolute bottom-2 left-2 bg-hmi-panel/90 border border-hmi-grid/80 backdrop-blur-md px-2.5 py-1 rounded-md shadow-md flex flex-col gap-0.5 pointer-events-none select-none z-10">
-            <div className="grid grid-cols-2 gap-x-2 text-[10px] font-mono">
-              <span className="text-hmi-muted font-sans">Ideal Endpoint:</span>
-              <span className="text-hmi-ideal text-right">{(lastPoint.xi ?? 0).toFixed(1)}, {(lastPoint.yi ?? 0).toFixed(1)}</span>
-              <span className="text-hmi-muted font-sans">Actual Endpoint:</span>
-              <span className="text-hmi-pwm-pos text-right">{(lastPoint.xa ?? 0).toFixed(1)}, {(lastPoint.ya ?? 0).toFixed(1)}</span>
-              <span className="text-hmi-muted font-sans">End Error:</span>
-              <span className="text-hmi-error text-right font-semibold">{errMm ? `${errMm.toFixed(2)} mm` : '--'}</span>
-            </div>
-          </div>
-        )}
+      {tip && <dl className="saved-replay-coordinates">
+        <div><dt>{t('desired')} X/Y <span>(mm)</span></dt><dd>{tip.xi.toFixed(1)}, {tip.yi.toFixed(1)}</dd></div>
+        <div><dt>{t('actual')} X/Y <span>(mm)</span></dt><dd data-replay-coordinates>{tip.xa.toFixed(1)}, {tip.ya.toFixed(1)}</dd></div>
+        <div><dt>{t('error')}</dt><dd>{error?.toFixed(2)} <span className="text-hmi-muted">mm</span></dd></div>
+      </dl>}
+      <div className="saved-replay-transport">
+        <Button variant="outline" size="sm" disabled={!canReplay} aria-label={playing ? t('pause') : t('play')} onClick={togglePlay}>{playing ? <Pause size={15} /> : <Play size={15} />}{playing ? t('pause') : t('play')}</Button>
+        <Button variant="ghost" size="icon" disabled={!canReplay} aria-label={t('restart')} onClick={() => seek(0)} className="size-8"><RotateCcw size={15} /></Button>
+        <output className="font-mono text-xs tabular-nums text-hmi-text-secondary" data-replay-time>{timeLabel(position)} / {timeLabel(recording.durationMs)}</output>
+        <Select value={speed} onValueChange={setSpeed} disabled={!canReplay}><SelectTrigger aria-label={t('speed')} className="w-20 h-8 ml-auto"><SelectValue /></SelectTrigger><SelectContent>{['0.25', '0.5', '1', '2', '4'].map(value => <SelectItem key={value} value={value}>{value}×</SelectItem>)}</SelectContent></Select>
+        <Slider className="saved-replay-timeline" aria-label={t('replayTimeline')} value={[position]} min={0} max={recording.durationMs || 1} step={1} disabled={!canReplay} onValueChange={values => seek(values[0])} />
       </div>
-    </div>
+    </section>
   )
 }

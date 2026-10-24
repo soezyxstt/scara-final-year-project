@@ -1,6 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { MathFormula } from '@/components/ui/math'
+import { peakPreservingDownsample } from '@/lib/chart-downsample'
+import { useTranslations } from 'next-intl'
 import { useHMISlow } from '@/lib/hmi-context'
 import { Button } from '@/components/ui/button'
 import { Maximize2, Minimize2 } from 'lucide-react'
@@ -20,7 +23,7 @@ const GRID = 'var(--color-hmi-grid-subtle)'
 const AXIS_TICK = {
   fill: 'var(--color-hmi-text-secondary)',
   fontSize: 11,
-  fontFamily: 'var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif',
+  fontFamily: 'var(--font-sans), ui-sans-serif, system-ui, sans-serif',
   fontWeight: 500,
 }
 const AXIS_LINE = { stroke: 'var(--color-hmi-grid)' }
@@ -30,15 +33,9 @@ const TOOLTIP_STYLE = {
   border: '1px solid var(--color-hmi-grid)',
   borderRadius: '6px',
   color: 'var(--color-hmi-text)',
-  fontFamily: 'var(--font-geist-sans), sans-serif',
+  fontFamily: 'var(--font-sans), sans-serif',
   fontSize: '12px',
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
-}
-
-function downsample<T>(arr: T[], max: number): T[] {
-  if (arr.length <= max) return arr
-  const step = Math.ceil(arr.length / max)
-  return arr.filter((_, i) => i % step === 0)
 }
 
 interface PhasePortraitProps {
@@ -49,6 +46,7 @@ interface PhasePortraitProps {
 }
 
 export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
+  const t = useTranslations('AnalysisTab')
   const { state } = useHMISlow()
   const [isFocused, setIsFocused] = useState(false)
   const buf = frozenD ?? state.frozenD
@@ -65,10 +63,10 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isFocused])
 
-  const j1 = buf.map(d => ({ th: d.th1, dth: d.dth1 }))
-  const j2 = buf.map(d => ({ th: d.th2, dth: d.dth2 }))
-  const ds1 = downsample(j1, 400)
-  const ds2 = downsample(j2, 400)
+  const { ds1, ds2 } = useMemo(() => {
+    const points = peakPreservingDownsample(buf.map(point => ({ th1: point.th1, th2: point.th2, dth1: point.dth1, dth2: point.dth2 })), 800, ['th1', 'th2', 'dth1', 'dth2'])
+    return { ds1: points.map(point => ({ th: point.th1, dth: point.dth1 })), ds2: points.map(point => ({ th: point.th2, dth: point.dth2 })) }
+  }, [buf])
 
   const chart = (
     <LineChart margin={{ top: 4, right: 8, left: 4, bottom: 14 }} width={width} height={height}>
@@ -86,7 +84,7 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
           offset: -3, 
           fill: 'var(--color-hmi-text-secondary)', 
           fontSize: 11,
-          fontFamily: 'var(--font-geist-sans), sans-serif',
+          fontFamily: 'var(--font-sans), sans-serif',
           fontWeight: 600
         }} 
       />
@@ -104,7 +102,7 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
           offset: 8, 
           fill: 'var(--color-hmi-text-secondary)', 
           fontSize: 11,
-          fontFamily: 'var(--font-geist-sans), sans-serif',
+          fontFamily: 'var(--font-sans), sans-serif',
           fontWeight: 600
         }} 
       />
@@ -118,7 +116,7 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
         height={20}
         wrapperStyle={{
           fontSize: '11px',
-          fontFamily: 'var(--font-geist-sans), sans-serif',
+          fontFamily: 'var(--font-sans), sans-serif',
           fontWeight: 600,
           paddingBottom: '2px'
         }}
@@ -131,9 +129,11 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
   if (width !== undefined && height !== undefined) return chart
 
   return (
-    <div 
+    <div
+      data-export-surface
+      data-chart-panel
       className={cn(
-        "bg-hmi-panel border border-hmi-grid rounded-lg p-2 flex flex-col transition-all duration-300 group/graph",
+        "bg-hmi-panel p-3 flex flex-col transition-colors group/graph",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
           : "relative cursor-zoom-in hover:border-hmi-ideal/30 h-full w-full"
@@ -158,8 +158,7 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
       {isFocused ? (
         <div className="flex items-center justify-between mb-4 border-b border-hmi-grid pb-2 shrink-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-hmi-text">Phase Portrait (θ vs θ̇)</h2>
-            <span className="text-xs text-hmi-muted font-normal">(Press ESC to exit focus)</span>
+            <h2 className="text-lg font-bold text-hmi-text">{t('phasePortrait')} <MathFormula tex={'\\theta\\;\\text{vs.}\\;\\dot{\\theta}'} /></h2>
           </div>
           <Button
             variant="outline"
@@ -171,25 +170,25 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
             }}
           >
             <Minimize2 className="h-4 w-4" />
-            Exit Focus
+            {t('exitFocus')}
           </Button>
         </div>
       ) : (
-        <p className="text-xs font-bold text-hmi-text-secondary mb-1 px-1">Phase Portrait (θ vs θ̇)</p>
+        <p className="text-[13px] font-semibold text-hmi-text mb-2 pr-8">{t('phasePortrait')} <MathFormula tex={'\\theta\\;\\text{vs.}\\;\\dot{\\theta}'} /></p>
       )}
 
       {/* Maximize button overlay (visible on hover) */}
       {!isFocused && (
-        <button
-          className="absolute top-2 right-2 opacity-0 group-hover/graph:opacity-100 transition-opacity p-1.5 rounded-md bg-hmi-panel/80 border border-hmi-grid hover:bg-hmi-btn hover:text-hmi-ideal text-hmi-muted z-20 cursor-pointer"
+        <Button variant="ghost" size="icon" data-export-ignore
+          className="absolute top-2 right-2 size-8 text-hmi-muted z-20"
           onClick={(e) => {
             e.stopPropagation()
             setIsFocused(true)
           }}
-          title="Focus Graph"
+          aria-label={t('expandFullscreen')}
         >
           <Maximize2 className="h-4 w-4" />
-        </button>
+        </Button>
       )}
 
       {/* Charts container — flex-1 min-h-0 required so ResponsiveContainer gets a non-zero height */}

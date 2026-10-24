@@ -14,15 +14,15 @@ import {
   ReferenceLine,
   ReferenceArea,
 } from 'recharts'
+import { MathLabel } from '@/components/ui/math'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 
 // Styling configurations matching the Zinc/Slate theme
-const GRID_COLOR = 'rgba(255, 255, 255, 0.05)'
 const AXIS_TICK_STYLE = {
   fill: 'var(--color-hmi-text-secondary)',
   fontSize: 10,
-  fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
+  fontFamily: 'var(--font-mono), ui-monospace, monospace',
   fontWeight: 500,
 }
 const AXIS_LINE_STYLE = { stroke: 'var(--color-hmi-grid)' }
@@ -33,7 +33,7 @@ const TOOLTIP_BOX_STYLE = {
   border: '1px solid var(--color-hmi-grid)',
   borderRadius: '6px',
   color: 'var(--color-hmi-text)',
-  fontFamily: 'var(--font-geist-sans), sans-serif',
+  fontFamily: 'var(--font-sans), sans-serif',
   fontSize: '12px',
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
 }
@@ -114,7 +114,7 @@ export function ChartContainer({
     <div className="relative w-full h-full min-h-[160px]">
       {isEmpty && cleanedMsg && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          <span className="text-[10px] font-bold text-hmi-muted select-none bg-hmi-bg/85 px-4 py-2 border border-hmi-grid/50 rounded shadow-sm">
+          <span className="text-xs text-hmi-muted select-none px-4 py-2">
             {cleanedMsg}
           </span>
         </div>
@@ -138,7 +138,7 @@ export default function UniversalTimeSeriesChart({
   msg,
   width,
   height,
-  gridDensity = 0.05,
+  gridDensity = 0.5,
   tooltipValueFormatter = (v) => typeof v === 'number' ? (Math.abs(v) >= 1000 ? v.toExponential(1) : parseFloat(v.toPrecision(4)).toString()) : v,
   tooltipLabelFormatter = (label) => typeof label === 'number' ? `${label.toFixed(3)} s` : label,
   onMouseDown,
@@ -175,7 +175,7 @@ export default function UniversalTimeSeriesChart({
     offset: -6,
     fill: 'var(--color-hmi-text-secondary)',
     fontSize: 10,
-    fontFamily: 'var(--font-geist-sans), sans-serif',
+    fontFamily: 'var(--font-sans), sans-serif',
     fontWeight: 600,
   } : undefined
 
@@ -186,7 +186,7 @@ export default function UniversalTimeSeriesChart({
     offset: 8,
     fill: 'var(--color-hmi-text-secondary)',
     fontSize: 10,
-    fontFamily: 'var(--font-geist-sans), sans-serif',
+    fontFamily: 'var(--font-sans), sans-serif',
     fontWeight: 600,
   } : undefined
 
@@ -218,7 +218,7 @@ export default function UniversalTimeSeriesChart({
         })}
       </defs>
 
-      <CartesianGrid stroke={`rgba(255, 255, 255, ${gridDensity})`} strokeDasharray="2 2" />
+      <CartesianGrid stroke="var(--color-hmi-grid)" strokeOpacity={gridDensity} strokeDasharray="2 2" />
 
       <XAxis
         dataKey={xAxisKey}
@@ -261,7 +261,7 @@ export default function UniversalTimeSeriesChart({
             offset: -2,
             fill: 'var(--color-hmi-text-secondary)',
             fontSize: 10,
-            fontFamily: 'var(--font-geist-sans), sans-serif',
+            fontFamily: 'var(--font-sans), sans-serif',
             fontWeight: 600,
           } : undefined}
         />
@@ -279,9 +279,10 @@ export default function UniversalTimeSeriesChart({
         align="left"
         height={24}
         onClick={handleLegendClick}
+        formatter={(value) => <MathLabel>{String(value)}</MathLabel>}
         wrapperStyle={{
           fontSize: '10px',
-          fontFamily: 'var(--font-geist-sans), sans-serif',
+          fontFamily: 'var(--font-sans), sans-serif',
           fontWeight: 600,
           paddingBottom: '4px',
           cursor: 'pointer',

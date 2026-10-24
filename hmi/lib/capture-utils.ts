@@ -1,239 +1,131 @@
 import JSZip from 'jszip'
+import { toCanvas, getFontEmbedCSS } from 'html-to-image'
 import { drawTrace } from '@/components/hmi/xy-trace'
 import type { DSample, TPoint, HMIState } from '@/lib/hmi-types'
-import { withCaptureSession } from '@/lib/capture-session'
+import { withCaptureSession, getSavedRunCaptureSource, ALL_CAPTURE_CHART_KEYS } from '@/lib/capture-session'
 
 function flushPaint(): Promise<void> {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+}
+function backgroundFor(element: Element = document.documentElement): string {
+  let current: Element | null = element
+  while (current) {
+    const color = getComputedStyle(current).backgroundColor
+    if (color && color !== 'transparent' && color !== 'rgba(0, 0, 0, 0)') return color
+    current = current.parentElement
+  }
+  return getComputedStyle(document.documentElement).getPropertyValue('--hmi-bg').trim() || '#ffffff'
+}
+function isVisible(element: HTMLElement) {
+  if (element.closest('#hmi-capture-root')) return false
+  const rect = element.getBoundingClientRect()
+  if (rect.width < 10 || rect.height < 10) return false
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    const style = getComputedStyle(node)
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false
+  }
+  return true
+}
+export function getVisibleCaptureSurfaces(): HTMLElement[] {
+  const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-capture-chart], [data-export-surface]')).filter(isVisible)
+  return nodes.filter(node => !nodes.some(parent => parent !== node && parent.contains(node)))
+}
+export function getVisibleCaptureOptions() {
+  return getVisibleCaptureSurfaces().map((node, index) => ({
+    id: node.dataset.captureChart || `surface-${index}`,
+    name: node.querySelector('h2, h3, [data-chart-title]')?.textContent?.trim() || node.getAttribute('aria-label') || `Chart ${index + 1}`,
+  }))
+}
+function visibleSurface(type: string): HTMLElement | undefined {
+  const surfaces = getVisibleCaptureSurfaces()
+  return surfaces.find((node, index) => (node.dataset.captureChart || `surface-${index}`) === type)
+    || (type === 'xy' ? Array.from(document.querySelectorAll<HTMLElement>('#hmi-xy-trace, [data-replay-run]')).find(isVisible) : undefined)
+}
+function canvasBlob(canvas: HTMLCanvasElement, format: 'image/png' | 'image/jpeg'): Promise<Blob> {
+  return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Image generation failed.')), format, 0.95))
+}
+async function surfaceToBlob(node: HTMLElement, scale: number, format: 'image/png' | 'image/jpeg') {
+  await document.fonts.ready
+  await flushPaint()
+  const rect = node.getBoundingClientRect()
+  const canvas = await toCanvas(node, {
+    width: Math.ceil(rect.width), height: Math.ceil(rect.height), pixelRatio: scale,
+    backgroundColor: backgroundFor(node),
+    filter: child => !(child instanceof Element && child.matches('[data-export-ignore], [role="tooltip"]')),
   })
+  return canvasBlob(canvas, format)
 }
 
-/** Clone SVG and uniquify internal ids so gradient/mask refs survive standalone export. */
-function prepareSvgForExport(svgElement: SVGElement, width: number, height: number): SVGElement {
-  const clone = svgElement.cloneNode(true) as SVGElement
-
-  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-  clone.setAttribute('width', String(width))
-  clone.setAttribute('height', String(height))
-
-  const viewBox = svgElement.getAttribute('viewBox')
-  if (viewBox) {
-    clone.setAttribute('viewBox', viewBox)
-  } else {
-    clone.setAttribute('viewBox', `0 0 ${width} ${height}`)
-  }
-
-  const prefix = `exp_${Math.random().toString(36).slice(2, 9)}_`
-  const idMap = new Map<string, string>()
-
-  clone.querySelectorAll('[id]').forEach((node) => {
-    const oldId = node.id
-    if (!oldId) return
-    const newId = `${prefix}${oldId}`
-    idMap.set(oldId, newId)
-    node.id = newId
+/** Freeze computed SVG presentation before removing it from the page's CSS context. */
+function prepareSvgForExport(svg: SVGElement, width: number, height: number): SVGElement {
+  const clone = svg.cloneNode(true) as SVGElement
+  const originals = [svg, ...Array.from(svg.querySelectorAll('*'))]
+  const copies = [clone, ...Array.from(clone.querySelectorAll('*'))]
+  const properties = ['fill', 'stroke', 'color', 'font-family', 'font-size', 'font-weight', 'font-style', 'letter-spacing', 'text-anchor', 'dominant-baseline', 'stroke-width', 'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'fill-opacity', 'stroke-opacity', 'opacity', 'stop-color', 'stop-opacity', 'background-color']
+  const ids = new Map<string, string>()
+  const prefix = `exp_${Math.random().toString(36).slice(2)}_`
+  originals.forEach((original, index) => {
+    const copy = copies[index] as SVGElement
+    const style = getComputedStyle(original)
+    properties.forEach(property => copy.style.setProperty(property, style.getPropertyValue(property)))
+    if (copy.id) { const old = copy.id; copy.id = prefix + old; ids.set(old, copy.id) }
   })
-
-  const rewriteRefs = (value: string) => {
-    let out = value
-    idMap.forEach((newId, oldId) => {
-      out = out.replaceAll(`url(#${oldId})`, `url(#${newId})`)
-      out = out.replaceAll(`href="#${oldId}"`, `href="#${newId}"`)
-      out = out.replaceAll(`xlink:href="#${oldId}"`, `xlink:href="#${newId}"`)
+  copies.forEach(node => {
+    Array.from(node.attributes).forEach(attr => {
+      let value = attr.value
+      if ((attr.localName === 'href') && value.startsWith('#') && ids.has(value.slice(1))) value = `#${ids.get(value.slice(1))}`
+      value = value.replace(/url\(["']?([^)'"\s]+)["']?\)/g, (match, url: string) => {
+        const id = url.slice(url.lastIndexOf('#') + 1)
+        return ids.has(id) ? `url(#${ids.get(id)})` : match
+      })
+      node.setAttribute(attr.name, value)
     })
-    return out
-  }
-
-  clone.querySelectorAll('*').forEach((node) => {
-    for (const attr of Array.from(node.attributes)) {
-      if (attr.value.includes('#')) {
-        node.setAttribute(attr.name, rewriteRefs(attr.value))
-      }
-    }
   })
-
-  clone.querySelectorAll('[style]').forEach((node) => {
-    const style = node.getAttribute('style')
-    if (style?.includes('var(')) {
-      node.setAttribute(
-        'style',
-        style.replace(/var\([^)]+\)/g, 'ui-sans-serif, system-ui, sans-serif')
-      )
-    }
-  })
-
-  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-  styleEl.textContent = `
-    text, tspan {
-      font-family: ui-sans-serif, system-ui, sans-serif !important;
-      font-weight: 500;
-    }
-  `
-  clone.insertBefore(styleEl, clone.firstChild)
-
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+  clone.setAttribute('width', String(width)); clone.setAttribute('height', String(height))
+  if (!clone.hasAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${width} ${height}`)
   return clone
 }
-
-function findReadyChartSvg(type: string): SVGElement | null {
-  const container = document.querySelector(`#capture-chart-${type}`)
-  if (!container) return null
-
-  const svgs = Array.from(container.querySelectorAll('svg'))
-  if (svgs.length === 0) return null
-
-  const svg = svgs.reduce((best, current) => {
-    const bestRect = best.getBoundingClientRect()
-    const currentRect = current.getBoundingClientRect()
-    return currentRect.width * currentRect.height > bestRect.width * bestRect.height
-      ? current
-      : best
-  })
-
-  const rect = svg.getBoundingClientRect()
-  if (rect.width < 10 || rect.height < 10) return null
-
-  const hasChartGeometry = svg.querySelector(
-    '.recharts-curve, .recharts-area-area, .recharts-line-curve, .recharts-bar-rectangle, path[d]'
-  )
-  const hasStaticContent = svg.querySelector('rect, line, circle, text')
-  if (!hasChartGeometry && !hasStaticContent) return null
-
-  return svg
-}
-
-/**
- * Converts a Recharts SVG element to a PNG/JPEG Blob.
- * Supports configurable resolution scales and formats.
- */
-export async function svgToBlob(
-  svgElement: SVGElement,
-  width: number,
-  height: number,
-  bgCol: string = '#121212',
-  scale: number = 2,
-  format: 'image/png' | 'image/jpeg' = 'image/png'
-): Promise<Blob> {
-  const clonedSvg = prepareSvgForExport(svgElement, width, height)
-
-  // Convert SVG element to serialized XML string
-  const svgString = new XMLSerializer().serializeToString(clonedSvg)
-
-  // 3. Create blob URL
-  const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-  const url = URL.createObjectURL(svgBlob)
-
-  return new Promise((resolve, reject) => {
+export async function svgToBlob(svg: SVGElement, width: number, height: number, bgCol = backgroundFor(svg), scale = 2, format: 'image/png' | 'image/jpeg' = 'image/png'): Promise<Blob> {
+  await document.fonts.ready
+  const clone = prepareSvgForExport(svg, width, height)
+  const fontCSS = await getFontEmbedCSS(svg as unknown as HTMLElement)
+  if (fontCSS) {
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+    style.textContent = fontCSS; clone.prepend(style)
+  }
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml;charset=utf-8' }))
+  try {
     const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => {
-      // 4. Create a canvas with high-DPI scaling (configurable) for sharp charts
-      const canvas = document.createElement('canvas')
-      canvas.width = width * scale
-      canvas.height = height * scale
-      const ctx = canvas.getContext('2d')
-      if (!ctx) {
-        reject(new Error('Canvas context not available'))
-        return
-      }
-
-      // Draw background
-      ctx.fillStyle = bgCol
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-      // Scale coordinates
-      ctx.scale(scale, scale)
-
-      // Draw SVG onto canvas
-      ctx.drawImage(img, 0, 0, width, height)
-
-      // Clean up URL
-      URL.revokeObjectURL(url)
-
-      // 5. Convert to Blob
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(blob)
-        } else {
-          reject(new Error('Canvas blob generation failed'))
-        }
-      }, format)
-    }
-    img.onerror = (err) => {
-      URL.revokeObjectURL(url)
-      reject(err)
-    }
-    img.src = url
-  })
-}
-
-/**
- * Renders the XY Workspace Trace onto an off-screen canvas at custom scale
- * and returns it as a PNG/JPEG Blob.
- */
-export function renderXYTraceToBlob(
-  state: HMIState,
-  showArm: boolean,
-  scale: number = 2,
-  format: 'image/png' | 'image/jpeg' = 'image/png'
-): Promise<Blob> {
-  return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(new Error('SVG image could not be rendered.')); img.src = url })
     const canvas = document.createElement('canvas')
-    const size = 600
-    canvas.width = size * scale
-    canvas.height = size * scale
-    
-    // Temporarily mock window.devicePixelRatio during drawTrace to match requested scale
-    const originalDPR = typeof window !== 'undefined' ? window.devicePixelRatio : 1
-    if (typeof window !== 'undefined') {
-      Object.defineProperty(window, 'devicePixelRatio', {
-        value: scale,
-        writable: true,
-        configurable: true
-      })
-    }
-
-    try {
-      drawTrace(canvas, state, showArm)
-
-      // Restore window.devicePixelRatio
-      if (typeof window !== 'undefined') {
-        Object.defineProperty(window, 'devicePixelRatio', {
-          value: originalDPR,
-          writable: true,
-          configurable: true
-        })
-      }
-
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(blob)
-        } else {
-          reject(new Error('Canvas toBlob failed'))
-        }
-      }, format)
-    } catch (err) {
-      // Ensure restore is called even if drawing fails
-      if (typeof window !== 'undefined') {
-        Object.defineProperty(window, 'devicePixelRatio', {
-          value: originalDPR,
-          writable: true,
-          configurable: true
-        })
-      }
-      reject(err)
-    }
-  })
+    canvas.width = Math.ceil(width * scale); canvas.height = Math.ceil(height * scale)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas context not available.')
+    ctx.fillStyle = bgCol; ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.scale(scale, scale); ctx.drawImage(img, 0, 0, width, height)
+    return await canvasBlob(canvas, format)
+  } finally { URL.revokeObjectURL(url) }
 }
-
-/**
- * Generates the CSV telemetry data matching the ComparisonTable output format.
- */
+export async function renderXYTraceToBlob(state: HMIState, showArm: boolean, scale = 2, format: 'image/png' | 'image/jpeg' = 'image/png'): Promise<Blob> {
+  const source = document.createElement('canvas')
+  const dpr = window.devicePixelRatio || 1
+  source.width = Math.round(600 * dpr); source.height = Math.round(600 * dpr)
+  drawTrace(source, state, showArm)
+  const canvas = document.createElement('canvas')
+  canvas.width = 600 * scale; canvas.height = 600 * scale
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas context not available.')
+  ctx.fillStyle = backgroundFor(); ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.drawImage(source, 0, 0, canvas.width, canvas.height)
+  return canvasBlob(canvas, format)
+}
 export function generateCSVString(d: DSample[], t: TPoint[]): string {
   const r2d = 180 / Math.PI
+  const pointsByTime = new Map(t.map(point => [point.t, point]))
   const rows = d.map((s, i) => {
-    const tp = t[i]
-    const eef = tp ? Math.sqrt((tp.xi - tp.xa) ** 2 + (tp.yi - tp.ya) ** 2) : 0
+    const tp = pointsByTime.get(s.t) ?? (d.length === t.length ? t[i] : undefined)
+    const eef = tp ? Math.hypot(tp.xi - tp.xa, tp.yi - tp.ya) : undefined
     return {
       idx: s.idx,
       t: (s.t / 1000).toFixed(3),
@@ -250,7 +142,7 @@ export function generateCSVString(d: DSample[], t: TPoint[]): string {
       pwm1: s.pwm1,
       th1_raw: (s.th1raw * r2d).toFixed(3),
       th2_raw: (s.th2raw * r2d).toFixed(3),
-      eef: eef.toFixed(3),
+      eef: eef?.toFixed(3) ?? '',
     }
   })
 
@@ -265,167 +157,94 @@ export function generateCSVString(d: DSample[], t: TPoint[]): string {
   return header + body
 }
 
-/**
- * Utility to download a Blob to the browser.
- */
+
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  a.href = url; a.download = filename; a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
-
-/**
- * Retrieves the user's export preferences from localStorage.
- */
 export function getExportPreferences() {
-  if (typeof window === 'undefined') {
-    return {
-      exportFormat: 'image/png' as 'image/png' | 'image/jpeg',
-      resolutionScale: 2,
-      filenamePrefix: 'scara_hmi',
-    }
-  }
-  const exportFormat = (localStorage.getItem('hmi_export_format') as 'image/png' | 'image/jpeg') || 'image/png'
-  const resolutionScale = parseInt(localStorage.getItem('hmi_export_scale') || '2', 10)
-  const filenamePrefix = localStorage.getItem('hmi_filename_prefix') || 'scara_hmi'
+  const storedFormat = typeof window === 'undefined' ? null : localStorage.getItem('hmi_export_format')
+  const exportFormat: 'image/png' | 'image/jpeg' = storedFormat === 'image/jpeg' ? storedFormat : 'image/png'
+  const requestedScale = typeof window === 'undefined' ? 2 : Number(localStorage.getItem('hmi_export_scale') || 2)
+  const resolutionScale = Number.isFinite(requestedScale) ? Math.min(4, Math.max(1, requestedScale)) : 2
+  const filenamePrefix = typeof window === 'undefined' ? 'scara_hmi' : localStorage.getItem('hmi_filename_prefix') || 'scara_hmi'
   return { exportFormat, resolutionScale, filenamePrefix }
 }
-
-/**
- * Polls for a painted SVG inside a capture container, waiting up to `timeoutMs`
- * for the chart to finish rendering (React + useHMISlow can be async).
- */
-async function waitForChartSvg(type: string, timeoutMs = 5000): Promise<SVGElement> {
-  const started = Date.now()
-
-  while (Date.now() - started < timeoutMs) {
-    const svg = findReadyChartSvg(type)
-    if (svg) {
-      await flushPaint()
-      return svg
+async function hiddenChartBlob(type: string, scale: number, format: 'image/png' | 'image/jpeg') {
+  return withCaptureSession([type], async () => {
+    const started = Date.now()
+    while (Date.now() - started < 5000) {
+      const container = document.getElementById(`capture-chart-${type}`)
+      const svgs = Array.from(container?.querySelectorAll('svg') || [])
+      const svg = svgs.sort((a, b) => b.getBoundingClientRect().width * b.getBoundingClientRect().height - a.getBoundingClientRect().width * a.getBoundingClientRect().height)[0]
+      if (svg && svg.getBoundingClientRect().width >= 10 && svg.querySelector('path, rect, text')) {
+        await flushPaint()
+        const rect = svg.getBoundingClientRect()
+        return svgToBlob(svg, rect.width, rect.height, backgroundFor(svg), scale, format)
+      }
+      await new Promise(resolve => setTimeout(resolve, 50))
     }
-    await new Promise((resolve) => setTimeout(resolve, 50))
-  }
-
-  throw new Error(`Chart "${type}" did not render within ${timeoutMs}ms. Make sure telemetry data is loaded.`)
-}
-
-/**
- * Captures and downloads a single chart.
- */
-export async function downloadSingleGraph(
-  type: string,
-  name: string,
-  state: HMIState
-) {
-  const isLive = state.recordingState === 'REC'
-  const dBuf = isLive ? state.dBuffer : state.frozenD
-  const hasData = dBuf.length > 0
-
-  if (!hasData) {
-    throw new Error('No telemetry data available. Please run a trajectory move first.')
-  }
-
-  const { exportFormat, resolutionScale, filenamePrefix } = getExportPreferences()
-  let blob: Blob
-  const ext = exportFormat === 'image/png' ? 'png' : 'jpg'
-  const timestamp = Date.now()
-  const filename = `${filenamePrefix || 'scara'}_${type}_${timestamp}.${ext}`
-
-  if (type === 'xy') {
-    blob = await renderXYTraceToBlob(state, true, resolutionScale, exportFormat)
-  } else {
-    blob = await withCaptureSession([type], async () => {
-      const svgEl = await waitForChartSvg(type)
-      const chartH = type === 'params' ? 600 : type === 'metrics' ? 500 : 400
-      return svgToBlob(svgEl, 800, chartH, '#121212', resolutionScale, exportFormat)
-    })
-  }
-
-  downloadBlob(blob, filename)
-}
-
-/**
- * Packages and downloads all graphs inside a ZIP archive.
- */
-export async function downloadAllGraphs(
-  state: HMIState,
-  includeCSV = false,
-  onProgress?: (msg: string) => void,
-  customZipName?: string
-) {
-  const isLive = state.recordingState === 'REC'
-  const dBuf = isLive ? state.dBuffer : state.frozenD
-  const tBuf = isLive ? state.tBuffer : state.frozenT
-  const hasData = dBuf.length > 0
-
-  if (!hasData) {
-    throw new Error('No telemetry data available. Please run a trajectory move first.')
-  }
-
-  const { exportFormat, resolutionScale, filenamePrefix } = getExportPreferences()
-  const JSZipLib = (await import('jszip')).default
-  const zip = new JSZipLib()
-  const ext = exportFormat === 'image/png' ? 'png' : 'jpg'
-  const prefix = filenamePrefix || 'scara'
-  const timestamp = Date.now()
-
-  if (onProgress) onProgress('Rendering XY workspace...')
-  const xyBlob = await renderXYTraceToBlob(state, true, resolutionScale, exportFormat)
-  zip.file(`01_xy_workspace_trace.${ext}`, xyBlob)
-
-  const charts = [
-    { key: 'cte', label: 'cte_cross_track_error' },
-    { key: 'ate', label: 'ate_along_track_error' },
-    { key: 'eef', label: 'eef_error_chart' },
-    { key: 'eef-vel', label: 'eef_velocity_chart' },
-    { key: 'pwm', label: 'pwm_command_chart' },
-    { key: 'pos', label: 'joint_position_chart' },
-    { key: 'vel', label: 'joint_velocity_chart' },
-    { key: 'phase', label: 'phase_portrait' },
-    { key: 'fft-eef', label: 'fft_eef_error' },
-    { key: 'fft-th1', label: 'fft_joint1' },
-    { key: 'fft-th2', label: 'fft_joint2' },
-    { key: 'effort', label: 'control_effort_proxy' },
-    { key: 'ctc', label: 'ctc_feedforward_torques' },
-    { key: 'internal', label: 'j1_internal_control_signals' },
-    { key: 'stepper', label: 'j2_stepper_velocity_commands' },
-    { key: 'pid-breakdown', label: 'j1_pid_control_effort_breakdown' },
-    { key: 'loop', label: 'microcontroller_loop_execution_time' },
-    { key: 'params', label: 'system_parameters_report' },
-    { key: 'metrics', label: 'run_metrics_report' },
-  ] as const
-
-  await withCaptureSession('all', async () => {
-    for (let i = 0; i < charts.length; i++) {
-      const chart = charts[i]
-      if (onProgress) onProgress(`Rendering ${chart.label}...`)
-      const svgEl = await waitForChartSvg(chart.key)
-      const chartH = chart.key === 'params' ? 600 : chart.key === 'metrics' ? 500 : 400
-      const chartBlob = await svgToBlob(svgEl, 800, chartH, '#121212', resolutionScale, exportFormat)
-      const fileNum = String(i + 2).padStart(2, '0')
-      zip.file(`${fileNum}_${chart.label}.${ext}`, chartBlob)
-    }
+    throw new Error(`Chart "${type}" did not render.`)
   })
-
-  if (includeCSV) {
-    if (onProgress) onProgress('Generating telemetry CSV...')
-    const csvString = generateCSVString(dBuf, tBuf)
-    zip.file(`${prefix}_telemetry_data.csv`, csvString)
+}
+export async function downloadSingleGraph(type: string, _name: string, state: HMIState) {
+  const { exportFormat, resolutionScale, filenamePrefix } = getExportPreferences()
+  const visible = visibleSurface(type)
+  let blob: Blob
+  if (visible) blob = await surfaceToBlob(visible, resolutionScale, exportFormat)
+  else {
+    if (getSavedRunCaptureSource() !== null) throw new Error('Open the chart you want to download first.')
+    const data = state.recordingState === 'REC' ? state.dBuffer : state.frozenD
+    if (!data.length) throw new Error('No telemetry data available.')
+    blob = type === 'xy' ? await renderXYTraceToBlob(state, true, resolutionScale, exportFormat) : await hiddenChartBlob(type, resolutionScale, exportFormat)
   }
-
-  if (onProgress) onProgress('Packaging ZIP archive...')
-  const zipBlob = await zip.generateAsync({ type: 'blob' })
-
-  const safeName = customZipName ? customZipName.replace(/[^a-zA-Z0-9_-]/g, '_') : null
-  const zipFilename = safeName
-    ? `${safeName}.zip`
-    : includeCSV
-      ? `${prefix}_diagnostics_package_${timestamp}.zip`
-      : `${prefix}_graphs_${timestamp}.zip`
-
-  downloadBlob(zipBlob, zipFilename)
+  downloadBlob(blob, `${filenamePrefix}_${type}_${Date.now()}.${exportFormat === 'image/png' ? 'png' : 'jpg'}`)
+}
+function recordsCSV(rows: readonly object[]) {
+  if (!rows.length) return ''
+  const keys = [...new Set(rows.flatMap(row => Object.keys(row)))]
+  const field = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`
+  return [keys.map(field).join(','), ...rows.map(row => keys.map(key => field((row as Record<string, unknown>)[key])).join(','))].join('\n')
+}
+export async function downloadAllGraphs(state: HMIState, includeCSV = false, onProgress?: (msg: string) => void, customZipName?: string) {
+  const { exportFormat, resolutionScale, filenamePrefix } = getExportPreferences()
+  const savedRuns = getSavedRunCaptureSource()
+  const dBuf = state.recordingState === 'REC' ? state.dBuffer : state.frozenD
+  const tBuf = state.recordingState === 'REC' ? state.tBuffer : state.frozenT
+  const surfaces = getVisibleCaptureSurfaces()
+  if (!surfaces.length && (savedRuns !== null || !dBuf.length)) throw new Error('Open a chart with data to download.')
+  const zip = new JSZip()
+  const ext = exportFormat === 'image/png' ? 'png' : 'jpg'
+  const captured = new Set<string>()
+  let index = 0
+  const add = (key: string, blob: Blob) => { zip.file(`${String(++index).padStart(2, '0')}_${key}.${ext}`, blob); captured.add(key) }
+  for (const [i, node] of surfaces.entries()) {
+    const key = node.dataset.captureChart || `chart_${i + 1}`
+    onProgress?.(`Rendering ${key}…`)
+    add(key, await surfaceToBlob(node, resolutionScale, exportFormat))
+  }
+  // Saved runs must never fall back to unrelated live-controller buffers.
+  if (savedRuns === null && dBuf.length) {
+    if (!captured.has('xy')) add('xy', await renderXYTraceToBlob(state, true, resolutionScale, exportFormat))
+    for (const key of ALL_CAPTURE_CHART_KEYS) {
+      if (captured.has(key)) continue
+      onProgress?.(`Rendering ${key}…`)
+      add(key, await hiddenChartBlob(key, resolutionScale, exportFormat))
+    }
+  }
+  if (includeCSV) {
+    if (savedRuns !== null) {
+      savedRuns.forEach((dataset, i) => {
+        zip.file(`run_${i + 1}_samples.csv`, recordsCSV(dataset.samples))
+        zip.file(`run_${i + 1}_trajectory.csv`, recordsCSV(dataset.trajectoryPoints))
+        zip.file(`run_${i + 1}_metadata.json`, JSON.stringify(dataset.run, null, 2))
+      })
+    } else zip.file(`${filenamePrefix}_telemetry_data.csv`, generateCSVString(dBuf, tBuf))
+  }
+  onProgress?.('Packaging ZIP…')
+  const blob = await zip.generateAsync({ type: 'blob' })
+  const safeName = customZipName?.replace(/[^a-zA-Z0-9_-]/g, '_')
+  downloadBlob(blob, `${safeName || `${filenamePrefix}_${includeCSV ? 'diagnostics' : 'graphs'}_${Date.now()}`}.zip`)
 }

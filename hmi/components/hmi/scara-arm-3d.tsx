@@ -823,6 +823,7 @@ export function SCARA3DCanvas({
       j2: getCSSColor('--hmi-j2', isLight ? '#EA580C' : '#FB923C'),
       j2Des: getCSSColor('--hmi-j2-des', isLight ? '#F97316' : '#FDBA74'),
       base: getCSSColor('--hmi-robot-base', isLight ? '#52525B' : '#9CA3AF'),
+      ideal: getCSSColor('--hmi-ideal', isLight ? '#16796b' : '#79cbbb'),
       actual: getCSSColor('--hmi-actual', isLight ? '#DC2626' : '#F87171'),
       start: getCSSColor('--hmi-start', isLight ? '#16A34A' : '#34D399'),
       target: getCSSColor('--hmi-target', isLight ? '#EA580C' : '#FB923C'),
@@ -838,7 +839,7 @@ export function SCARA3DCanvas({
   return (
     <div ref={rootRef} className="absolute inset-0 w-full h-full select-none rounded-lg overflow-hidden border border-hmi-grid/50 bg-hmi-bg">
       <Canvas
-        gl={{ alpha: true, antialias: true }}
+        gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true }}
         style={{ width: '100%', height: '100%' }}
         frameloop={inView ? 'always' : 'never'}
       >
@@ -858,7 +859,11 @@ export function SCARA3DCanvas({
         <OrbitControls
           ref={controlsRef}
           makeDefault
-          enableDamping
+          enabled={!isPicking}
+          enableDamping={!isPicking}
+          enableRotate={!isPicking}
+          enablePan={!isPicking}
+          enableZoom={!isPicking}
           dampingFactor={0.05}
           minDistance={0.05}
           maxDistance={1.2}
@@ -885,6 +890,7 @@ export function SCARA3DCanvas({
                 key={r.runId}
                 points={mapped}
                 actualColor={r.color}
+                idealColor={colors.ideal}
                 targetX={isFirst ? targetX : null}
                 targetY={isFirst ? targetY : null}
                 colors={colors}
@@ -894,6 +900,7 @@ export function SCARA3DCanvas({
         ) : (
           <Trajectory3D
             points={points}
+            idealColor={colors.ideal}
             showGhost={showGhost}
             prevPoints={prevPoints}
             ghostOpacity={ghostOpacity}

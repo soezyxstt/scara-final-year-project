@@ -117,7 +117,7 @@ export function AdvancedTab({ runs }: Props) {
   if (runs.length === 0) return <Empty msg={t('selectRunsMessage')} />
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex min-w-0 flex-col gap-3 p-3 sm:gap-4 sm:p-4">
       <ChartCard
         title={t('phasePortraitTitle')}
         datasets={phaseDatasets}
@@ -145,7 +145,7 @@ export function AdvancedTab({ runs }: Props) {
         xKey="t" xLabel="ms" yLabel="mm" height={200} type="area"
       />
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
         <ChartCard
           title={t('j1RawVsFilteredTitle')}
           datasets={rawJ1Datasets}

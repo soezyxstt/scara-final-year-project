@@ -1,0 +1,18 @@
+{
+  "browser": "Steel",
+  "checks": [
+    "Compare renders independent run series and valid KaTeX",
+    "Comparison Brush remains interactive",
+    "Coordinate-only run replays with finite robot pose",
+    "Snapshot does not invent replay timing",
+    "Appearance controls stay visible while sidebar collapses",
+    "Dark theme uses neutral graphite palette",
+    "Mobile navigation closes after selecting destination",
+    "Mobile guide contents opens in Sheet",
+    "ID/EN changes visible interface copy",
+    "Camera remains static during mobile point-picking drag"
+  ],
+  "errors": [],
+  "fixture": "Isolated actual-component harness with synthetic data. Authentication and navigation adapters exist only in /tmp; production code and database were not bypassed.",
+  "captureNote": "Steel session expired after final picking assertion, before the final monitor screenshot. Earlier monitor screenshot retained."
+}

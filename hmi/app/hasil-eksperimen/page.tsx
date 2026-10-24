@@ -1,3 +1,5 @@
+import { auth } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import { experimentRuns } from '@/lib/db/schema/experiment'
 import { desc, eq } from 'drizzle-orm'
@@ -6,6 +8,8 @@ import { ResultsClient } from './results-client'
 export const dynamic = 'force-dynamic'
 
 export default async function HasilEksperimenPage() {
+  const session = await auth()
+  if (!session?.user?.googleId) redirect('/login?callbackUrl=/hasil-eksperimen')
   let runs: (typeof experimentRuns.$inferSelect)[] = []
   let initialLoadError: string | null = null
 

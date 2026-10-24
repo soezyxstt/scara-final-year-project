@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Copy, Check, BookOpen, Cpu, Eye, BarChart2, Book, ChevronDown, ChevronRight, TrendingUp, Compass, SlidersHorizontal } from 'lucide-react'
+import { Copy, Check, BookOpen, Cpu, Eye, BarChart2, Book, ChevronDown, ChevronRight, TrendingUp, Compass, SlidersHorizontal, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
 // ─── Custom Syntax Highlighting for C++/Arduino & Serial Logs ────────────────
 // Helper to convert index to letters to prevent matching numbers inside token placeholders
@@ -152,32 +153,12 @@ function Callout({
   type?: 'info' | 'warn' | 'tip' | 'danger'
   children: React.ReactNode
 }) {
-  const styles = {
-    info: 'border-sky-500 bg-sky-50/50 text-sky-800 dark:border-sky-500/50 dark:bg-sky-500/5 dark:text-sky-300',
-    warn: 'border-amber-500 bg-amber-50/50 text-amber-800 dark:border-amber-500/50 dark:bg-amber-500/5 dark:text-amber-300',
-    tip: 'border-emerald-500 bg-emerald-50/50 text-emerald-800 dark:border-emerald-500/50 dark:bg-emerald-500/5 dark:text-emerald-300',
-    danger: 'border-red-500 bg-red-50/50 text-red-800 dark:border-red-500/50 dark:bg-red-500/5 dark:text-red-300',
-  }
-  const icons = {
-    info: 'ℹ',
-    warn: '⚠',
-    tip: '💡',
-    danger: '🛑',
-  }
-  const titles = {
-    info: 'Information',
-    warn: 'Warning',
-    tip: 'Pro Tip',
-    danger: 'Important / Danger',
-  }
+  const urgent = type === 'warn' || type === 'danger'
   return (
-    <div className={cn('my-5 flex gap-3.5 rounded-lg border-l-4 p-4 text-xs leading-relaxed shadow-sm shadow-black/10', styles[type])}>
-      <span className="text-sm shrink-0 select-none mt-0.5">{icons[type]}</span>
-      <div className="flex flex-col gap-1">
-        <span className="font-semibold text-[11px] uppercase tracking-wider text-zinc-200">{titles[type]}</span>
-        <div className="text-zinc-300/90">{children}</div>
-      </div>
-    </div>
+    <aside className={cn('my-5 border-l-2 pl-4 text-sm leading-relaxed text-hmi-text-secondary', urgent ? 'border-hmi-error' : 'border-hmi-grid')}>
+      {urgent && <strong className="mb-1 block text-hmi-text">{type === 'danger' ? 'Penghentian darurat' : 'Perhatian'}</strong>}
+      {children}
+    </aside>
   )
 }
 
@@ -205,19 +186,9 @@ function Property({ name, type, description }: { name: string; type?: string; de
 
 // ─── Navigation links ────────────────────────────────────────────────────────
 
-interface SidebarLink {
-  href: string
-  label: string
-}
-
-interface SidebarGroup {
-  title: string
-  icon: React.ReactNode
-  links: SidebarLink[]
-}
-
 export function ReadmeTabId() {
   const [activeId, setActiveId] = useState<string>('connect')
+  const [navigationOpen, setNavigationOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
 
   // Sidebar grouping structure
@@ -397,110 +368,96 @@ export function ReadmeTabId() {
     handleScrollTo(firstLinkHref)
   }
 
-  return (
-    <div className="flex flex-row h-full overflow-hidden bg-hmi-bg readme-tab-container">
-      {/* ── Left Navigation Sidebar ────────────────────────────────────────── */}
-      <aside className="w-60 shrink-0 border-r border-hmi-grid bg-hmi-panel/30 flex flex-col px-4 py-6 overflow-y-auto">
-        <div className="px-2 mb-6">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Documentation</p>
-          <p className="text-xs text-zinc-400 font-medium mt-1">SCARA Robot Guide</p>
-        </div>
-
-        <nav className="flex flex-col gap-3">
-          {navigationGroups.map((group, groupIdx) => {
-            const isOpen = openGroups[group.id]
-            const isGroupActive = activeCategory === group.id
-
-            return (
-              <div key={groupIdx} className="flex flex-col gap-1">
-                {/* Group Header Button */}
-                <button
-                  onClick={() => handleToggleGroup(group.id, group.links[0].href)}
-                  className={cn(
-                    'flex items-center justify-between w-full px-2 py-1.5 rounded-lg text-left transition-all hover:bg-zinc-800/40 select-none active:scale-[0.98]',
-                    isGroupActive ? 'text-hmi-ideal font-semibold' : 'text-zinc-400 hover:text-zinc-200'
-                  )}
-                >
-                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
-                    {group.icon}
-                    <span>{group.title}</span>
-                  </div>
-                  {isOpen ? (
-                    <ChevronDown className="h-3 w-3 text-zinc-500 shrink-0" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3 text-zinc-500 shrink-0" />
-                  )}
-                </button>
-
-                {/* Sub-links (only shown if group is open) */}
-                {isOpen && (
-                  <div className="flex flex-col pl-2 border-l border-zinc-800/85 ml-3.5 mt-0.5 gap-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
-                    {group.links.map((link, linkIdx) => {
-                      const targetId = link.href.slice(1)
-                      const isActive = activeId === targetId
-                      return (
-                        <button
-                          key={linkIdx}
-                          onClick={() => handleScrollTo(link.href)}
-                          className={cn(
-                            'text-left text-xs py-1.5 px-2.5 rounded-md transition-all font-sans leading-relaxed active:scale-[0.98]',
-                            isActive
-                              ? 'bg-hmi-ideal/10 text-hmi-ideal font-semibold border-l-2 border-hmi-ideal pl-2 rounded-l-none'
-                              : 'text-zinc-500 hover:text-zinc-300'
-                          )}
-                        >
-                          {link.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
+  const renderNavigation = (onNavigate?: () => void) => (
+    <nav className="flex flex-col gap-2">
+      {navigationGroups.map((group) => {
+        const isOpen = openGroups[group.id]
+        const isGroupActive = activeCategory === group.id
+        return (
+          <div key={group.id} className="flex flex-col gap-1">
+            <button
+              type="button"
+              aria-expanded={isOpen}
+              onClick={() => handleToggleGroup(group.id, group.links[0].href)}
+              className={cn(
+                'flex items-center justify-between w-full px-2 py-2 rounded-lg text-left hover:bg-zinc-800/40',
+                isGroupActive ? 'text-hmi-ideal font-semibold' : 'text-zinc-400 hover:text-zinc-200'
+              )}
+            >
+              <span className="flex items-center gap-2 text-xs font-medium">
+                {group.icon}
+                <span>{group.title}</span>
+              </span>
+              {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
+            </button>
+            {isOpen && (
+              <div className="flex flex-col pl-2 border-l border-zinc-800/85 ml-3.5 gap-0.5">
+                {group.links.map((link) => {
+                  const targetId = link.href.slice(1)
+                  const isActive = activeId === targetId
+                  return (
+                    <button
+                      key={link.href}
+                      type="button"
+                      onClick={() => {
+                        handleScrollTo(link.href)
+                        onNavigate?.()
+                      }}
+                      className={cn(
+                        'text-left text-sm py-2 px-2.5 rounded-md leading-snug',
+                        isActive
+                          ? 'bg-hmi-ideal/10 text-hmi-ideal font-semibold border-l-2 border-hmi-ideal pl-2 rounded-l-none'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      )}
+                    >
+                      {link.label}
+                    </button>
+                  )
+                })}
               </div>
-            )
-          })}
-        </nav>
+            )}
+          </div>
+        )
+      })}
+    </nav>
+  )
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-hmi-bg readme-tab-container lg:flex-row">
+      <div className="shrink-0 border-b border-hmi-grid bg-hmi-panel/50 px-4 py-2 lg:hidden">
+        <Sheet open={navigationOpen} onOpenChange={setNavigationOpen}>
+          <SheetTrigger asChild>
+            <button type="button" className="flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-hmi-text hover:bg-hmi-elevated">
+              <Menu className="h-4 w-4 shrink-0" />
+              <span className="font-medium">Daftar isi</span>
+              <span className="truncate text-hmi-muted">
+                {allLinks.find((link) => link.href === `#${activeId}`)?.label ?? allLinks[0]?.label}
+              </span>
+            </button>
+          </SheetTrigger>
+          <SheetContent side="left" className="overflow-y-auto p-4 max-w-[20rem]">
+            <SheetHeader>
+              <SheetTitle>Daftar isi panduan</SheetTitle>
+            </SheetHeader>
+            {renderNavigation(() => setNavigationOpen(false))}
+          </SheetContent>
+        </Sheet>
+      </div>
+      <aside className="hidden w-60 shrink-0 flex-col overflow-y-auto border-r border-hmi-grid bg-hmi-panel/30 px-4 py-5 lg:flex">
+        <p className="mb-3 px-2 text-xs font-semibold text-hmi-muted">Daftar isi</p>
+        {renderNavigation()}
       </aside>
 
       {/* ── Center Main Content Column ────────────────────────────────────── */}
       <div
         ref={contentRef}
-        className="flex-1 overflow-y-auto scroll-smooth px-8 lg:px-12 py-10"
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto scroll-smooth px-4 py-5 sm:px-8 sm:py-8 lg:px-12 lg:py-10"
       >
         <article className="max-w-3xl mx-auto">
-          {/* Document Header */}
-          <div className="pb-8 border-b border-hmi-grid mb-8">
-            <h1 className="text-3xl font-extrabold text-hmi-text tracking-tight leading-none mb-3">
-              SCARA HMI — Panduan Pengguna
+          <div className="pb-4 border-b border-hmi-grid mb-6">
+            <h1 className="text-xl sm:text-2xl font-semibold text-hmi-text tracking-tight">
+              Panduan SCARA HMI
             </h1>
-            <p className="text-sm text-hmi-muted leading-relaxed max-w-2xl font-normal">
-              Antarmuka monitoring dan kontrol real-time untuk robot SCARA planar 2-DOF, dikembangkan untuk mata kuliah Pengendalian Sistem Dinamik (MS3201) Teknik Mesin ITB.
-            </p>
-          </div>
-
-          {/* Project Context & Evolution */}
-          <div className="p-5 border border-hmi-grid bg-hmi-panel/50 rounded-xl mb-10 text-xs text-hmi-muted space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <span className="font-bold text-[11px] uppercase tracking-wider text-hmi-text block mb-1">Tujuan Proyek</span>
-                <p className="leading-relaxed">
-                  Memodifikasi algoritma kontrol robot SCARA 2-DOF dengan menambahkan **kompensasi dinamik** (inersia, gravitasi, Coriolis, dan gaya sentrifugal) serta menyediakan alat HMI real-time untuk tuning parameter (<InlineCode>Kp, Ki, Kd</InlineCode>).
-                </p>
-              </div>
-              <div>
-                <span className="font-bold text-[11px] uppercase tracking-wider text-zinc-200 block mb-1">Evolusi Desain (Teknik Mesin ITB)</span>
-                <ul className="list-disc pl-4 space-y-0.5 mt-0.5 leading-relaxed">
-                  <li><strong className="text-zinc-300">Pandeka (2021)</strong>: Desain mekanik awal</li>
-                  <li><strong className="text-zinc-300">Abdul (2023)</strong>: Modifikasi sistem penggerak</li>
-                  <li><strong className="text-zinc-300">Al-Farabi (2024)</strong>: Portabilitas (miniaturisasi)</li>
-                  <li><strong className="text-zinc-300">Mubarok (2025)</strong>: Integrasi kontrol dasar</li>
-                  <li><strong className="text-zinc-300">Adi Haditya (2026)</strong>: Kompensasi dinamik &amp; HMI diagnostik lanjutan</li>
-                </ul>
-              </div>
-            </div>
-            
-            <div className="pt-3 border-t border-zinc-800/80 text-[10.5px] italic text-zinc-500 font-serif leading-relaxed">
-              &ldquo;Dalam kurikulum Teknik Mesin ITB, mata kuliah Pengendalian Sistem Dinamik (MS3201) memainkan peran penting... Penelitian ini bertujuan untuk memodifikasi algoritma kontrol dengan menggabungkan kompensasi dinamik dan mengembangkan fitur HMI yang lebih komprehensif guna meningkatkan kualitas pembelajaran praktikum mandiri.&rdquo;
-            </div>
           </div>
 
           {/* 💡 SECTION: OVERVIEW */}
@@ -517,23 +474,10 @@ export function ReadmeTabId() {
               <li>Unggah firmware ke ESP32 (lihat <InlineCode>docs/firmware/readme.md</InlineCode>).</li>
               <li>Buka dashboard HMI di <strong className="text-zinc-300">tugasakhir.adihnursyam.com</strong> (atau jalankan <InlineCode>npm run dev</InlineCode> secara lokal dan buka <strong className="text-zinc-300">http://localhost:3000</strong>) di Chrome atau Edge.</li>
               <li>Hubungkan ESP32 ke komputer, klik <InlineCode>Connect</InlineCode> (Hubungkan), dan pilih port COM.</li>
-              <li>Pastikan <strong className="text-zinc-300">Mode Badge</strong> menampilkan <InlineCode>SCARA</InlineCode> (HMI akan mengganti mode secara otomatis sesuai halaman).</li>
+              <li>Tunggu hingga status koneksi menunjukkan Terhubung. HMI memilih mode robot sesuai halaman yang dibuka.</li>
               <li>Buka tab <strong className="text-zinc-300">Monitor</strong>, masukkan koordinat target di Panel Kontrol, dan klik <InlineCode>Send Move</InlineCode> (Kirim Gerakan).</li>
               <li>Setelah gerakan selesai, periksa <strong className="text-zinc-300">Metrik Run</strong> di bawah grafik dan buka tab <strong className="text-zinc-300">Analisis</strong> untuk diagnostik yang lebih mendalam.</li>
             </ol>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 my-4">
-              {[
-                { tab: 'Monitor', desc: 'Trace XY langsung, grafik, metrik, Run+Save, dan panel kontrol' },
-                { tab: 'Analisis', desc: 'Phase portrait pasca-gerakan, torsi CTC, dan tabel data' },
-                { tab: 'Step & Noise', desc: 'Analisis telemetri respons-langkah dan keadaan-diam' },
-                { tab: 'README', desc: 'Panduan ini — Anda berada di sini' },
-              ].map((item, idx) => (
-                <div key={idx} className="p-3 border border-zinc-800 rounded-lg bg-hmi-elevated">
-                  <p className="text-[11px] font-bold text-hmi-ideal font-mono">{item.tab}</p>
-                  <p className="text-[9.5px] text-zinc-500 mt-1 leading-relaxed">{item.desc}</p>
-                </div>
-              ))}
-            </div>
             <Callout type="tip">
               Gunakan <strong>Command Palette (<kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-300 font-mono">Ctrl + K</kbd> atau <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-300 font-mono">Cmd + K</kbd>)</strong> untuk berpindah antara dashboard Utama, ZN Tuner (<InlineCode>/zn</InlineCode>), dan Halaman Pengujian (<InlineCode>/test</InlineCode>) tanpa memutuskan koneksi serial.
             </Callout>
@@ -546,7 +490,7 @@ export function ReadmeTabId() {
               <a href="#connect" onClick={(e) => { e.preventDefault(); handleScrollTo('#connect') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              HMI berkomunikasi dengan mikrokontroler (ESP32) secara langsung melalui serial USB menggunakan **Web Serial API** modern yang terintegrasi di dalam browser web yang kompatibel. Ini memberikan pengalaman plug-and-play tanpa menginstal perangkat lunak perantara tambahan.
+              HMI berkomunikasi dengan mikrokontroler (ESP32) secara langsung melalui serial USB menggunakan Web Serial API modern yang terintegrasi di dalam browser web yang kompatibel. Ini memberikan pengalaman plug-and-play tanpa menginstal perangkat lunak perantara tambahan.
             </p>
 
             <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">Panduan Koneksi Langkah Demi Langkah</h3>
@@ -554,7 +498,7 @@ export function ReadmeTabId() {
               <li>Hubungkan ESP32 Anda ke komputer via kabel micro-USB atau USB-C standar.</li>
               <li>Pastikan Anda menjalankan HMI di <strong className="text-zinc-300">Google Chrome</strong> atau <strong className="text-zinc-300">Microsoft Edge</strong>, karena Safari dan Firefox saat ini belum mendukung protokol Web Serial.</li>
               <li>Klik tombol <InlineCode>Connect</InlineCode> yang terletak di sisi kanan bar header utama.</li>
-              <li>Pilih port COM mikrokontroler Anda pada popup browser (sering kali berlabel <span className="italic">USB-to-UART Bridge</span> atau <span className="italic">COMx</span>) dan klik **Connect**.</li>
+              <li>Pilih port COM mikrokontroler Anda pada popup browser (sering kali berlabel <span className="italic">USB-to-UART Bridge</span> atau <span className="italic">COMx</span>) dan klik Connect.</li>
               <li>Setelah terhubung, HMI akan mengirim perintah <InlineCode>getgains</InlineCode> dan <InlineCode>getparams</InlineCode>, kemudian mulai mengirim <InlineCode>ping</InlineCode> untuk menjaga watchdog firmware tetap aktif.</li>
               <li>Status <strong className="text-zinc-300">Mode Badge</strong> di header menunjukkan mode firmware saat ini. HMI secara otomatis mengirimkan <InlineCode>mode,scara</InlineCode> ketika Anda berada di halaman utama.</li>
             </ol>
@@ -604,8 +548,8 @@ export function ReadmeTabId() {
 
             <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">Protokol Eksekusi</h3>
             <ol className="list-decimal pl-5 space-y-2 text-xs text-zinc-400 mb-5 leading-relaxed">
-              <li>Buka **Control Panel** yang tersemat di bagian bawah tab Monitor.</li>
-              <li>Pada kartu **Move target**, masukkan target koordinat akhir <InlineCode>Xf</InlineCode> dan <InlineCode>Yf</InlineCode> dalam milimeter.</li>
+              <li>Buka Control Panel yang tersemat di bagian bawah tab Monitor.</li>
+              <li>Pada kartu Move target, masukkan target koordinat akhir <InlineCode>Xf</InlineCode> dan <InlineCode>Yf</InlineCode> dalam milimeter.</li>
               <li>Tentukan arah Elbow (Siku). <InlineCode>Right (+1)</InlineCode> mewakili konfigurasi kinematika siku-ke-atas (elbow-up) standar; <InlineCode>Left (-1)</InlineCode> mengatur siku-ke-bawah (elbow-down).</li>
               <li>Klik <InlineCode>Send Move</InlineCode> atau tekan <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-300 font-mono">Enter</kbd> untuk mengirimkan perintah.</li>
               <li>Sebagai alternatif, gunakan tombol <strong>Run + Save</strong> di header untuk menangkap koordinat target saat ini, memicu gerakan, dan menyimpan telemetri lengkap ke basis data Turso (memerlukan masuk Google).</li>
@@ -729,7 +673,7 @@ export function ReadmeTabId() {
               <a href="#xy-trace" onClick={(e) => { e.preventDefault(); handleScrollTo('#xy-trace') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              Diposisikan di sisi kiri tab Monitor, **Visualisasi Ruang Kerja 3D** merender visualisasi WebGL real-time (didukung oleh React Three Fiber dan Three.js) dari amplop ruang kerja lengan SCARA, konfigurasi sendi, dan trajektori.
+              Diposisikan di sisi kiri tab Monitor, Visualisasi Ruang Kerja 3D merender visualisasi WebGL real-time (didukung oleh React Three Fiber dan Three.js) dari amplop ruang kerja lengan SCARA, konfigurasi sendi, dan trajektori.
             </p>
 
             <h3 className="text-sm font-semibold text-zinc-200 mt-5 mb-2">Elemen Indikator Visual</h3>
@@ -875,7 +819,7 @@ export function ReadmeTabId() {
               <a href="#advanced" onClick={(e) => { e.preventDefault(); handleScrollTo('#advanced') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              Buka sub-panel **Analisis Lanjutan** pada tab Analisis untuk melihat alat analisis sistem:
+              Buka sub-panel Analisis Lanjutan pada tab Analisis untuk melihat alat analisis sistem:
             </p>
 
             <PropertyList>
@@ -1208,7 +1152,7 @@ export function ReadmeTabId() {
               <a href="#esp-telemetry" onClick={(e) => { e.preventDefault(); handleScrollTo('#esp-telemetry') }} className="ml-2 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity font-mono font-normal text-sm select-none">#</a>
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              HMI memproses nilai yang dipisahkan koma (CSV) yang diterima melalui serial. Setiap paket pesan harus dimulai dengan satu karakter **tag identifikasi**, diikuti oleh kolom data, dan diakhiri dengan karakter baris baru (<InlineCode>\n</InlineCode>).
+              HMI memproses nilai yang dipisahkan koma (CSV) yang diterima melalui serial. Setiap paket pesan harus dimulai dengan satu karakter tag identifikasi, diikuti oleh kolom data, dan diakhiri dengan karakter baris baru (<InlineCode>\n</InlineCode>).
             </p>
 
             <h3 className="text-sm font-semibold text-zinc-200 mt-6 mb-2">Paket Serial yang Diperlukan</h3>
@@ -1618,10 +1562,6 @@ void loop() {
             </Callout>
           </section>
 
-          {/* Document Footer */}
-          <div className="mt-16 pt-8 border-t border-zinc-800/80 text-center text-xs text-zinc-500">
-            SCARA HMI • Dokumentasi Panduan Pengguna • TA 2 • 2026
-          </div>
         </article>
       </div>
 

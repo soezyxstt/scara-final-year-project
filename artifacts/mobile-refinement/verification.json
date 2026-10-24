@@ -1,0 +1,14 @@
+{
+  "browser": "Steel",
+  "checks": [
+    "Saved run replay advances using recorded time",
+    "Pause holds playback",
+    "Timeline supports exact start/end seeking",
+    "390px saved runs has no document overflow",
+    "Mobile guide fits viewport",
+    "375px toolbar fits",
+    "Mobile monitor renders original robot canvas"
+  ],
+  "errors": [],
+  "fixture": "Synthetic samples with physical 100/70 mm links; authenticated UI uses a temporary local preview harness. No hardware or database writes."
+}

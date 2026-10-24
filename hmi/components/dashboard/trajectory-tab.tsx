@@ -1,41 +1,20 @@
 'use client'
 
+import { buildReplayRecording } from '@/lib/saved-run-replay'
 import { useMemo } from 'react'
 import { ChartCard } from './chart-card'
 import type { Sample, TrajectoryPoint } from '@/lib/db/schema'
-import { DashboardXYTrace } from './dashboard-xy-trace'
+import { DashboardXYTrace, type SavedRunDataset } from './dashboard-xy-trace'
 import { useTranslations } from 'next-intl'
 
-interface RunData {
-  runId: string
-  runName: string
-  color: string
-  samples: Sample[]
-  trajectoryPoints: TrajectoryPoint[]
-}
-
 interface Props {
-  runs: RunData[]
+  runs: SavedRunDataset[]
+  replayRequest?: { runId: string; token: number } | null
+  onPrimaryChange?: (id: string) => void
 }
 
-export function TrajectoryTab({ runs }: Props) {
+export function TrajectoryTab({ runs, replayRequest, onPrimaryChange }: Props) {
   const t = useTranslations('DashboardTrajectoryTab')
-
-  // Build XY scatter data (unused but kept/aligned in case of future usage)
-  const xyDatasets = useMemo(() =>
-    runs.map(r => {
-      const t0 = r.samples[0]?.t ?? 0
-      return {
-        runId: r.runId,
-        runName: r.runName,
-        color: r.color,
-        data: r.trajectoryPoints.map(p => ({
-          xi: p.xi ?? 0, yi: p.yi ?? 0,
-          xa: p.xa ?? 0, ya: p.ya ?? 0,
-          t: p.seq, // keep original sequence index for scatter
-        })),
-      }
-    }), [runs])
 
   // Build joint position data from samples
   const posDatasets = useMemo(() =>
@@ -47,8 +26,8 @@ export function TrajectoryTab({ runs }: Props) {
         color: r.color,
         data: r.samples.map(s => ({
           t: s.t - t0,
-          th1: s.th1 ?? 0, th2: s.th2 ?? 0,
-          th1d: s.th1d ?? 0, th2d: s.th2d ?? 0,
+          th1: s.th1, th2: s.th2,
+          th1d: s.th1d, th2d: s.th2d,
         })),
       }
     }), [runs])
@@ -63,36 +42,26 @@ export function TrajectoryTab({ runs }: Props) {
         color: r.color,
         data: r.samples.map(s => ({
           t: s.t - t0,
-          e1: s.e1 ?? 0,
-          e2: s.e2 ?? 0,
+          e1: s.e1,
+          e2: s.e2,
         })),
       }
     }), [runs])
 
-  // XY trace as actual path (xa vs ya) - using canvas-like scatter with line chart
-  const xyActual = useMemo(() =>
-    runs.map(r => {
-      const t0 = r.samples[0]?.t ?? 0
-      return {
-        runId: r.runId,
-        runName: r.runName,
-        color: r.color,
-        data: r.trajectoryPoints.map((p, i) => {
-          const sample = r.samples[i]
-          const tRel = sample ? (sample.t - t0) : i * 10
-          return { t: tRel, xa: p.xa ?? 0, ya: p.ya ?? 0, xi: p.xi ?? 0, yi: p.yi ?? 0 }
-        }),
-      }
-    }), [runs])
+  // Use the same independent trajectory clock as visual replay.
+  const xyActual = useMemo(() => runs.map(run => ({
+    runId: run.runId, runName: run.runName, color: run.color,
+    data: buildReplayRecording(run).pathFrames.map(frame => ({ t: frame.time, ...frame.value })),
+  })), [runs])
 
   if (runs.length === 0) {
     return <Empty />
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="saved-trajectory flex flex-col gap-4 p-4">
       {/* 2D XY Robot Workspace and Arm Visualizer */}
-      <DashboardXYTrace runs={runs} />
+      <DashboardXYTrace key={`${runs[0].runId}:${replayRequest?.runId === runs[0].runId ? replayRequest.token : 0}`} runs={runs} autoPlay={replayRequest?.runId === runs[0].runId} onPrimaryChange={onPrimaryChange} />
 
       {/* XY Cartesian path */}
       <ChartCard

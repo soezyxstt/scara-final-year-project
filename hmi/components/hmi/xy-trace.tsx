@@ -759,8 +759,10 @@ export function XYTrace() {
   return (
     <div 
       id="hmi-xy-trace"
+      data-capture-chart="xy"
+      data-export-surface=""
       className={cn(
-        "bg-hmi-panel border rounded-lg overflow-hidden flex-1 min-h-0 flex flex-col transition-all duration-300 group/graph",
+        "workspace-surface bg-hmi-panel overflow-hidden flex-1 min-h-0 flex flex-col transition-all duration-300 group/graph",
         "border-hmi-grid",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg border-0 shadow-none" 
@@ -768,7 +770,7 @@ export function XYTrace() {
       )}
     >
       <div className={cn(
-        "flex items-center justify-between border-b shrink-0 bg-hmi-panel",
+        "workspace-toolbar flex items-center justify-between border-b shrink-0 bg-hmi-panel",
         isLive ? "border-amber-500/30" : "border-hmi-grid/50",
         isFocused ? "mb-4 pb-3 px-2 pt-1" : "px-4 py-2.5"
       )}>
@@ -783,7 +785,7 @@ export function XYTrace() {
               <p className="text-sm font-semibold text-hmi-text">{t('title')}</p>
             </div>
           )}
-          <Tooltip 
+          {isLive && <Tooltip
             content={
               state.recordingState === 'REC'
                 ? t('recordingTooltip')
@@ -799,23 +801,25 @@ export function XYTrace() {
                 isLive && "text-hmi-warn"
               )}
             >{recLabel}</Badge>
-          </Tooltip>
+          </Tooltip>}
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="workspace-actions flex items-center gap-1.5" data-export-ignore>
           <Tooltip content={isPicking ? t('pickPointCancelTooltip') : t('pickPointTooltip')} align="center">
             <Button 
               id="hmi-pick-point-button"
+              aria-pressed={isPicking}
+              aria-label={t('pickPoint')}
               variant="outline" 
               size="sm" 
               onClick={(e) => { e.stopPropagation(); setIsPicking(prev => !prev); if (isPicking) setHoverPoint(null); }} 
               className={cn(
                 "h-7 px-2 text-xs border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text",
-                isPicking && "bg-amber-500 text-slate-950 font-bold border-amber-400 hover:bg-amber-400 hover:text-slate-950 shadow-[0_0_8px_rgba(245,158,11,0.3)]"
+                isPicking && "bg-hmi-text text-hmi-bg border-hmi-text hover:bg-hmi-text/90 hover:text-hmi-bg"
               )}
             >
               <Crosshair className="h-3 w-3 mr-1" />
-              {t('pickPoint')} {isPicking ? t('active') : ''}
+              {t('pickPoint')}
             </Button>
           </Tooltip>
           <Tooltip content={t('ghostModeTooltip')} align="center">
@@ -853,6 +857,7 @@ export function XYTrace() {
               <Button 
                 variant="outline" 
                 size="sm" 
+                aria-label={t('resetZoomTooltip')}
                 onClick={(e) => { 
                   e.stopPropagation()
                   setResetCounter(prev => prev + 1)
@@ -860,7 +865,7 @@ export function XYTrace() {
                 className="h-7 px-2 text-xs border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
               >
                 <RefreshCw className="h-2.5 w-2.5 mr-1" />
-                {t('resetBtn')}
+                <span className="workspace-reset-label">{t('resetBtn')}</span>
               </Button>
             </Tooltip>
           </div>
@@ -870,6 +875,7 @@ export function XYTrace() {
             <Button
               variant="outline"
               size="sm"
+              aria-label={isFocused ? t('collapseTooltip') : t('expandTooltip')}
               onClick={(e) => { e.stopPropagation(); setIsFocused(!isFocused); }}
               className="h-7 px-2 text-xs border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
             >
@@ -927,20 +933,6 @@ export function XYTrace() {
             <span className="w-3.5 h-0.5 bg-hmi-actual" />
             <span className="text-hmi-text font-medium text-[11px]">{t('legend.actualPath')}</span>
           </div>
-          {showArm && (
-            <div className="flex items-center gap-2 text-xs">
-              <div className="flex items-center gap-0.5">
-                <span className="w-2.5 h-1.5 rounded-sm bg-blue-500/20 border border-blue-500/40 relative flex items-center">
-                  <span className="absolute inset-x-0 h-0.5 bg-blue-500" />
-                </span>
-                <span className="w-1 h-1 rounded-full bg-orange-500 shrink-0" />
-                <span className="w-2 h-1.2 rounded-sm bg-orange-500/20 border border-orange-500/40 relative flex items-center">
-                  <span className="absolute inset-x-0 h-0.5 bg-orange-500" />
-                </span>
-              </div>
-              <span className="text-hmi-text font-medium text-[11px]">{t('legend.armLinks')}</span>
-            </div>
-          )}
           <div className="flex items-center gap-2 text-xs">
             <span className="w-3.5 h-3.5 rounded-full border-2 border-hmi-start flex items-center justify-center bg-transparent scale-75" />
             <span className="text-hmi-text font-medium text-[11px]">{t('legend.startPoint')}</span>
@@ -952,32 +944,15 @@ export function XYTrace() {
             </svg>
             <span className="text-hmi-text font-medium text-[11px]">{t('legend.target')}</span>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="w-3.5 h-0.5 border-t-2 border-dashed border-cyan-400" />
-            <span className="text-hmi-text font-medium text-[11px]">{t('legend.workEnvelope')}</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="w-3.5 h-3.5 rounded bg-red-500/10 border border-red-500/25 scale-75" />
-            <span className="text-hmi-text font-medium text-[11px]">{t('legend.deadZone')}</span>
-          </div>
+
         </div>
 
       </div>
 
       {/* Coordinate readout */}
         <div className="bg-hmi-panel font-sans text-xs text-hmi-text px-4 py-3 flex flex-col gap-2 shrink-0 border-t border-hmi-grid">
-          <div className="flex justify-between items-center border-b border-hmi-grid/55 pb-1 mb-0.5">
-            <div className="flex items-center gap-1.5">
-              <span className={cn(
-                "w-1.5 h-1.5 rounded-full shrink-0",
-                isLive ? "bg-amber-500 animate-pulse" : "bg-hmi-muted"
-              )} />
-              <span className="font-medium text-hmi-text text-xs">{t('telemetry')}</span>
-            </div>
-            <span className="text-[10px] bg-hmi-elevated px-1.5 py-0.5 rounded text-hmi-text-secondary font-normal">{t('moveCount', { count: state.moveCount })}</span>
-          </div>
           {last ? (
-            <div className="grid grid-cols-[auto_1fr_auto_1fr_auto_1fr] gap-x-3 gap-y-1 font-mono text-xs">
+            <div className="workspace-coordinate-grid grid grid-cols-[auto_1fr_auto_1fr_auto_1fr] gap-x-3 gap-y-1 font-mono text-xs">
               <span className="text-hmi-muted font-sans text-left">{t('idealXY')}</span>
               <span className="text-hmi-ideal text-right font-medium">{fmt(last.xi)}, {fmt(last.yi)}</span>
               <span className="text-hmi-muted font-sans text-left">{t('actualXY')}</span>
@@ -986,7 +961,7 @@ export function XYTrace() {
               <span className="text-hmi-error font-bold text-right">{Number.isFinite(errMm as number) ? `${(errMm as number).toFixed(2)} mm` : '--'}</span>
             </div>
           ) : state.bootPose ? (
-            <div className="grid grid-cols-[auto_1fr_auto_1fr_auto_1fr] gap-x-3 gap-y-1 font-mono text-xs">
+            <div className="workspace-coordinate-grid grid grid-cols-[auto_1fr_auto_1fr_auto_1fr] gap-x-3 gap-y-1 font-mono text-xs">
               <span className="text-hmi-muted font-sans text-left">{t('idealXY')}</span>
               <span className="text-hmi-ideal text-right font-medium">{fmt(state.bootPose.x)}, {fmt(state.bootPose.y)}</span>
               <span className="text-hmi-muted font-sans text-left">{t('actualXY')}</span>

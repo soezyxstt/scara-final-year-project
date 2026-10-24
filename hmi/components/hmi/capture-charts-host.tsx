@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useEffect, useState } from 'react'
-import { useHMISlow } from '@/lib/hmi-context'
+import { useHMI } from '@/lib/hmi-context'
 import {
   registerCaptureSessionListener,
   type CaptureScope,
@@ -32,9 +32,9 @@ const W = 800
 const CH = (h: number) => ({ width: W, height: h, overflow: 'hidden' as const })
 
 const HiddenCaptureCharts = memo(function HiddenCaptureCharts({ scope }: { scope: CaptureScope }) {
-  const { state } = useHMISlow()
-  const frozenD = state.frozenD
-  const frozenT = state.frozenT
+  const { state } = useHMI()
+  const frozenD = state.recordingState === 'REC' ? state.dBuffer : state.frozenD
+  const frozenT = state.recordingState === 'REC' ? state.tBuffer : state.frozenT
   const keys = scope === 'all' ? ALL_CAPTURE_CHART_KEYS : scope
   const show = (key: string) => (keys as readonly string[]).includes(key)
 

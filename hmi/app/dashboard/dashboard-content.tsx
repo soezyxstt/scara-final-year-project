@@ -1,9 +1,14 @@
 'use client'
 
-import { ConsoleTabs } from '@/components/hmi/console-shell'
-
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { signOut } from 'next-auth/react'
+import { registerSavedRunCaptureSource } from '@/lib/capture-session'
+import { useTranslations } from 'next-intl'
+import { FolderClock, LogOut, X, RefreshCw } from 'lucide-react'
+import { ConsoleTabs } from '@/components/hmi/console-shell'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { RunSelector, RUN_COLORS } from '@/components/dashboard/run-selector'
 import { TrajectoryTab } from '@/components/dashboard/trajectory-tab'
 import { VelocityTab } from '@/components/dashboard/velocity-tab'
@@ -12,182 +17,114 @@ import { FeedforwardTab } from '@/components/dashboard/feedforward-tab'
 import { MetricsTab } from '@/components/dashboard/metrics-tab'
 import { AdvancedTab } from '@/components/dashboard/advanced-tab'
 import { GroupCompareTab } from '@/components/dashboard/group-compare-tab'
+import type { SavedRunDataset } from '@/components/dashboard/dashboard-xy-trace'
 import type { Run, Sample, TrajectoryPoint } from '@/lib/db/schema'
-import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
-import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
-import { ThemeToggle } from '@/components/hmi/theme-toggle'
-import { LocaleToggle } from '@/components/hmi/locale-toggle'
-import { useTranslations } from 'next-intl'
 
 type TabId = 'trajectory' | 'velocity' | 'pid' | 'feedforward' | 'metrics' | 'advanced' | 'groupCompare'
-
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'trajectory', label: 'Trajectory' },
-  { id: 'velocity', label: 'Velocity & Control' },
-  { id: 'pid', label: 'PID, CTE & ATE' },
-  { id: 'feedforward', label: 'Feedforward' },
-  { id: 'metrics', label: 'Metrics' },
-  { id: 'advanced', label: 'Advanced' },
-  { id: 'groupCompare', label: 'Group Compare' },
-]
-
-interface LoadedRun {
-  run: Run
-  samples: Sample[]
-  trajectoryPoints: TrajectoryPoint[]
-}
-
-interface Props {
-  initialRuns: Run[]
-  userName: string
-  userEmail: string
-}
+const TABS: TabId[] = ['trajectory', 'velocity', 'pid', 'feedforward', 'metrics', 'advanced', 'groupCompare']
+interface LoadedRun { run: Run; samples: Sample[]; trajectoryPoints: TrajectoryPoint[] }
+interface Props { initialRuns: Run[]; userName: string; userEmail: string }
 
 export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
   const t = useTranslations('Dashboard')
-  const [runs, setRuns] = useState<Run[]>(initialRuns)
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [loadedData, setLoadedData] = useState<Record<string, LoadedRun>>({})
+  const saved = useTranslations('SavedRuns')
+  const [runs, setRuns] = useState(initialRuns)
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => initialRuns[0] ? [initialRuns[0].id] : [])
+  const [loaded, setLoaded] = useState<Record<string, LoadedRun>>({})
+  const cache = useRef<Record<string, LoadedRun>>({})
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set())
+  const [errors, setErrors] = useState<string[]>([])
+  const [retry, setRetry] = useState(0)
   const [tab, setTab] = useState<TabId>('trajectory')
+  const [libraryOpen, setLibraryOpen] = useState(false)
+  const [replayRequest, setReplayRequest] = useState<{ runId: string; token: number } | null>(null)
 
-  // Load run data when selection changes
   useEffect(() => {
-    const toLoad = selectedIds.filter(id => !loadedData[id] && !loadingIds.has(id))
-    if (toLoad.length === 0) return
-
-    setLoadingIds(prev => new Set([...prev, ...toLoad]))
-
-    Promise.all(
-      toLoad.map(async id => {
+    const ids = selectedIds.filter(id => !cache.current[id])
+    const controller = new AbortController()
+    let active = true
+    // Selection starts a bounded request batch; failures require an explicit retry.
+    void Promise.resolve().then(async () => {
+      if (!active) return
+      setLoadingIds(new Set(ids))
+      setErrors([])
+      const results = await Promise.all(ids.map(async id => {
         try {
-          const res = await fetch(`/api/runs/${id}`)
-          if (!res.ok) throw new Error('Failed to load run')
-          return { id, data: await res.json() as LoadedRun }
-        } catch {
-          toast.error(`Failed to load run ${id}`)
-          return null
-        }
-      })
-    ).then(results => {
-      const newData: Record<string, LoadedRun> = {}
-      for (const r of results) {
-        if (r) newData[r.id] = r.data
-      }
-      setLoadedData(prev => ({ ...prev, ...newData }))
-      setLoadingIds(prev => {
-        const next = new Set(prev)
-        toLoad.forEach(id => next.delete(id))
-        return next
-      })
+          const response = await fetch(`/api/runs/${encodeURIComponent(id)}`, { signal: controller.signal })
+          if (!response.ok) throw new Error('Run request failed')
+          const data: LoadedRun = await response.json()
+          if (data.run?.id !== id || !Array.isArray(data.samples) || !Array.isArray(data.trajectoryPoints)) throw new Error('Invalid recording')
+          return { id, data }
+        } catch { return { id, data: null } }
+      }))
+      if (!active) return
+      const successful: Record<string, LoadedRun> = {}
+      for (const result of results) if (result.data) successful[result.id] = result.data
+      cache.current = { ...cache.current, ...successful }
+      setLoaded(previous => ({ ...previous, ...successful }))
+      setErrors(results.filter(result => !result.data).map(result => result.id))
+      setLoadingIds(new Set())
     })
-  }, [selectedIds, loadedData, loadingIds])
+    return () => { active = false; controller.abort() }
+  }, [selectedIds, retry])
 
-  const handleRunDeleted = useCallback((id: string) => {
-    setRuns(prev => prev.filter(r => r.id !== id))
-    setLoadedData(prev => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
+  const handleDeleted = useCallback((id: string) => {
+    setRuns(previous => previous.filter(run => run.id !== id))
+    setSelectedIds(previous => previous.filter(selected => selected !== id))
+    delete cache.current[id]
+    setLoaded(previous => { const next = { ...previous }; delete next[id]; return next })
+    setReplayRequest(previous => previous?.runId === id ? null : previous)
   }, [])
 
-  // Build datasets for current selection
-  const activeRunData = selectedIds
-    .map((id, idx) => {
-      const data = loadedData[id]
-      if (!data) return null
-      return {
-        runId: id,
-        runName: data.run.name,
-        color: RUN_COLORS[idx % RUN_COLORS.length],
-        run: data.run,
-        samples: data.samples,
-        trajectoryPoints: data.trajectoryPoints,
-      }
-    })
-    .filter(Boolean) as Array<{
-      runId: string; runName: string; color: string;
-      run: Run; samples: Sample[]; trajectoryPoints: TrajectoryPoint[]
-    }>
-
+  const replay = (id: string) => {
+    setSelectedIds(previous => [id, ...previous.filter(selected => selected !== id)])
+    setReplayRequest(previous => ({ runId: id, token: (previous?.token ?? 0) + 1 }))
+    setTab('trajectory')
+    setLibraryOpen(false)
+  }
+  const selectPrimary = (id: string) => {
+    setSelectedIds(previous => [id, ...previous.filter(selected => selected !== id)])
+    setReplayRequest(null)
+  }
+  const activeData = useMemo(() => selectedIds.flatMap((id, index): SavedRunDataset[] => {
+    const data = loaded[id]
+    return data ? [{ ...data, runId: id, runName: data.run.name, color: RUN_COLORS[index % RUN_COLORS.length] }] : []
+  }), [selectedIds, loaded])
+  useEffect(() => registerSavedRunCaptureSource(activeData), [activeData])
+  const primaryLoading = !!selectedIds[0] && !loaded[selectedIds[0]] && !errors.includes(selectedIds[0])
   const isLoading = selectedIds.some(id => loadingIds.has(id))
+  const library = <RunSelector runs={runs} selectedIds={selectedIds} onSelectionChange={ids => { setSelectedIds(ids); setReplayRequest(null) }} onRunDeleted={handleDeleted} onReplay={replay} />
+  const account = <div className="saved-runs-account"><span className="truncate" title={userEmail}>{userName}</span><Button size="icon" variant="ghost" aria-label={saved('signOut')} title={saved('signOut')} onClick={() => signOut({ callbackUrl: '/login' })} className="size-8 shrink-0"><LogOut size={15} /></Button></div>
 
   return (
-    <div className="flex h-full bg-hmi-bg text-hmi-text overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-56 shrink-0 border-r border-hmi-grid bg-hmi-panel flex flex-col">
-        {/* Sidebar header */}
-        <div className="px-3 py-3 border-b border-hmi-grid">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-hmi-bg border border-hmi-grid flex items-center justify-center">
-              <svg viewBox="0 0 24 24" fill="none" className="w-3.5 h-3.5">
-                <path d="M12 3L3 8.5V15.5L12 21L21 15.5V8.5L12 3Z" stroke="#2196F3" strokeWidth={1.5} strokeLinejoin="round" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-[11px] font-bold text-hmi-text">{t('title')}</p>
-              <p className="text-[10px] text-hmi-muted">{t('subtitle')}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Run list */}
-        <div className="flex-1 overflow-y-auto">
-          <RunSelector
-            runs={runs}
-            selectedIds={selectedIds}
-            onSelectionChange={setSelectedIds}
-            onRunDeleted={handleRunDeleted}
-          />
-        </div>
-
-        {/* User info + actions */}
-        <div className="border-t border-hmi-grid px-3 py-2 flex flex-col gap-1.5">
-          <div className="text-[10px] text-hmi-muted truncate" title={userEmail}>{userName}</div>
-          <div className="flex items-center gap-1.5">
-            <a
-              href="/"
-              className="flex-1 text-center text-[10px] py-1 rounded border border-hmi-grid text-hmi-muted hover:text-hmi-text hover:border-hmi-grid/80 transition-colors"
-            >
-              ← {t('backToHmi')}
-            </a>
-            <button
-              className="flex-1 text-[10px] py-1 rounded border border-hmi-grid text-hmi-muted hover:text-red-400 hover:border-red-400/50 transition-colors"
-              onClick={() => signOut({ callbackUrl: '/login' })}
-            >
-              {t('signOut')}
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main area */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <ConsoleTabs label="Run views" value={tab} items={TABS.map(item => ({ value: item.id, label: t(item.id) }))} onChange={value => setTab(value as typeof tab)} />
-
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto">
-          {tab === 'trajectory' && <TrajectoryTab runs={activeRunData} />}
-          {tab === 'velocity' && <VelocityTab runs={activeRunData} />}
-          {tab === 'pid' && <PidTab runs={activeRunData} />}
-          {tab === 'feedforward' && <FeedforwardTab runs={activeRunData} />}
-          {tab === 'metrics' && (
-            <MetricsTab runs={activeRunData.map(r => ({ run: r.run, color: r.color }))} />
-          )}
-          {tab === 'advanced' && <AdvancedTab runs={activeRunData} />}
-          {tab === 'groupCompare' && (
-            <GroupCompareTab
-              runs={activeRunData}
-              allRuns={runs}
-              onSelectRuns={setSelectedIds}
-              selectedIds={selectedIds}
-            />
-          )}
-
-        </div>
+    <div className="saved-runs-page" data-export-group="saved-runs">
+      <div className="saved-runs-viewbar">
+        <ConsoleTabs label="Run views" value={tab} items={TABS.map(id => ({ value: id, label: t(id) }))} onChange={value => { setTab(value as TabId); if (value !== 'trajectory') setReplayRequest(null) }} />
+        <Button variant="outline" size="sm" onClick={() => setLibraryOpen(true)} className="saved-runs-open-library"><FolderClock size={15} />{saved('count', { count: runs.length })}</Button>
       </div>
+      <div className="saved-runs-body">
+        <div className="saved-runs-main">
+          {selectedIds.length > 1 && <div className="saved-runs-selection"><span>{saved('selectedCount', { count: selectedIds.length })}</span><Button size="sm" variant="ghost" onClick={() => { setSelectedIds([]); setReplayRequest(null) }}><X size={14} />{saved('clearSelection')}</Button></div>}
+          {errors.length > 0 && <div role="alert" className="saved-runs-error"><span>{saved('loadError')}</span><Button size="sm" variant="outline" onClick={() => setRetry(value => value + 1)}><RefreshCw size={14} />{saved('retry')}</Button></div>}
+          {isLoading && !primaryLoading && <div className="px-4 pt-3 text-xs text-hmi-muted" role="status">{saved('loading')}</div>}
+          {primaryLoading ? <div className="p-4" role="status" aria-label={saved('loading')}><Skeleton className="h-[520px] w-full" /></div> : selectedIds.length === 0 ? <div className="saved-runs-empty"><FolderClock size={28} /><p>{saved('noSelection')}</p><Button variant="outline" className="saved-runs-open-library" onClick={() => setLibraryOpen(true)}>{saved('chooseRun')}</Button></div> : <>
+            {tab === 'trajectory' && !!loaded[selectedIds[0]] && <TrajectoryTab runs={activeData} replayRequest={replayRequest} onPrimaryChange={selectPrimary} />}
+            {tab === 'velocity' && <VelocityTab runs={activeData} />}
+            {tab === 'pid' && <PidTab runs={activeData} />}
+            {tab === 'feedforward' && <FeedforwardTab runs={activeData} />}
+            {tab === 'metrics' && <MetricsTab runs={activeData.map(data => ({ run: data.run, color: data.color }))} />}
+            {tab === 'advanced' && <AdvancedTab runs={activeData} />}
+            {tab === 'groupCompare' && <GroupCompareTab runs={activeData} allRuns={runs} onSelectRuns={ids => { setSelectedIds(ids); setReplayRequest(null) }} selectedIds={selectedIds} />}
+          </>}
+        </div>
+        <aside className="saved-runs-library" aria-label={saved('run')}>{library}{account}</aside>
+      </div>
+      <Sheet open={libraryOpen} onOpenChange={setLibraryOpen}>
+        <SheetContent className="p-0 flex flex-col">
+          <SheetHeader className="px-5 pt-5 pb-3 mb-0"><SheetTitle>{saved('count', { count: runs.length })}</SheetTitle><SheetDescription className="sr-only">{saved('chooseRun')}</SheetDescription></SheetHeader>
+          {library}{account}
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

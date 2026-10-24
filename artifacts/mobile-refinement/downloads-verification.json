@@ -1,0 +1,10 @@
+{
+  "browser": "Steel",
+  "checks": [
+    "Downloaded workspace-light.png",
+    "Downloaded workspace-light.jpg",
+    "Downloaded saved-runs.zip",
+    "Downloaded workspace-dark.png"
+  ],
+  "errors": []
+}

@@ -1,0 +1,213 @@
+/* Neutral graphite surfaces with readable text and a quiet gray accent. */
+:root:not(.light) {
+  color-scheme: dark;
+  /* Preserve the existing Tailwind font alias while loading Inter from next/font. */
+  --font-geist-sans: var(--font-inter);
+  --sidebar: #191c20;
+  --sidebar-accent: #2b3036;
+  --hmi-bg: #111315;
+  --hmi-panel: #191c20;
+  --hmi-elevated: #22262b;
+  --hmi-grid: #353b42;
+  --hmi-grid-subtle: #252a2f;
+  --hmi-text: #f2f4f6;
+  --hmi-text-secondary: #c3c9d0;
+  --hmi-muted: #9aa2ac;
+  --hmi-dimmed: #7b848f;
+  --hmi-btn: #262b31;
+  --hmi-btn-hover: #333941;
+  --hmi-tab-active: #262b31;
+  --hmi-ideal: #66717d;
+  --hmi-ideal-dark: #505a65;
+  --hmi-ideal-dim: #272d33;
+}
+
+:root.light {
+  color-scheme: light;
+  --font-geist-sans: var(--font-inter);
+  --sidebar: #ffffff;
+  --sidebar-accent: #eef0f2;
+  --hmi-bg: #f4f5f6;
+  --hmi-panel: #ffffff;
+  --hmi-elevated: #f0f2f4;
+  --hmi-grid: #d5d9de;
+  --hmi-grid-subtle: #e7eaed;
+  --hmi-text: #181b1f;
+  --hmi-text-secondary: #404750;
+  --hmi-muted: #5b646e;
+  --hmi-dimmed: #707984;
+  --hmi-btn: #eceff2;
+  --hmi-btn-hover: #e1e5e9;
+  --hmi-tab-active: #eef0f2;
+  --hmi-ideal: #46515d;
+  --hmi-ideal-dark: #343e48;
+  --hmi-ideal-dim: #e5e8eb;
+}
+
+.console-frame {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+.console-frame [class*="rounded-xl"][class*="border"],
+.console-frame [class*="rounded-lg"][class*="border"] {
+  border-radius: 6px;
+}
+
+.console-frame [class*="shadow-"] {
+  box-shadow: none !important;
+}
+
+@media (max-width: 600px) {
+  .console-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 36px 36px;
+    align-content: center;
+    align-items: center;
+    gap: 8px 6px;
+    min-height: 0;
+    padding: 8px 10px;
+  }
+
+  .console-page-heading {
+    grid-column: 1;
+    grid-row: 1;
+    width: auto;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .console-page-heading h1 {
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .console-display-controls {
+    grid-column: 2;
+    grid-row: 1;
+    margin-left: 0;
+    gap: 2px;
+  }
+
+  .console-language-control,
+  .console-theme-control {
+    height: 36px;
+    padding-inline: 7px;
+    gap: 5px;
+  }
+
+  .console-toolbar-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: auto;
+    min-width: 0;
+    justify-content: space-between;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .console-toolbar-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .console-toolbar #hmi-connect-button {
+    min-width: 36px;
+    gap: 4px;
+    padding-inline: 6px;
+  }
+
+  .console-toolbar #hmi-serial-button {
+    display: inline-flex;
+    width: 36px;
+    min-width: 36px;
+    justify-content: center;
+    gap: 0;
+    padding-inline: 0;
+    font-size: 0;
+  }
+
+  .console-toolbar #hmi-estop-button {
+    min-width: 52px;
+    padding-inline: 8px;
+  }
+
+  .console-toolbar #hmi-hamburger-button {
+    width: 36px;
+    min-width: 36px;
+  }
+}
+
+@media (max-width: 360px) {
+  .console-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 2px;
+    padding-inline: 8px;
+  }
+
+  .console-toolbar #hmi-connect-button {
+    width: 36px;
+    padding-inline: 0;
+  }
+
+  .console-toolbar #hmi-connect-button .console-connect-label {
+    display: none;
+  }
+
+  .console-toolbar .console-display-controls {
+    gap: 0;
+  }
+
+  .console-language-control,
+  .console-theme-control {
+    padding-inline: 5px;
+    gap: 3px;
+  }
+}
+
+/* Workspace and recordings are continuous surfaces, divided by rules. */
+.saved-runs-main, .saved-trajectory, .monitor-workspace { background: var(--hmi-panel); }
+.saved-trajectory { gap: 20px; }
+.saved-trajectory [data-chart-panel] { border-radius: 0; border-width: 0 0 1px; }
+.saved-replay { border-bottom: 1px solid var(--hmi-grid); }
+.workspace-toolbar { gap: 8px; flex-wrap: wrap; }
+.workspace-actions { margin-left: auto; }
+@media (max-width: 600px) {
+  .workspace-toolbar { padding: 10px 12px; }
+  .workspace-actions { width: 100%; margin-left: 0; gap: 6px; }
+  .workspace-actions button { min-height: 34px; }
+  .workspace-actions > div:last-child { margin-left: auto; }
+  .saved-trajectory { padding: 12px; }
+  .saved-replay { height: 540px; min-height: 540px; }
+  .saved-replay-header { flex-wrap: wrap; padding-inline: 0; gap: 8px; }
+  .saved-replay-coordinates { gap: 10px; padding-inline: 0; }
+  .saved-replay-coordinates dd { font-size: 12px; }
+  .saved-replay-transport { padding-inline: 0; }
+}
+@media (max-width: 600px) {
+  .workspace-coordinate-grid { grid-template-columns: auto 1fr; gap: 5px 12px; }
+  .workspace-surface > div:has(> .workspace-coordinate-grid) { padding: 10px 12px; }
+}
+
+.readme-tab-container article p,
+.readme-tab-container article li { font-size: 14px; line-height: 1.65; }
+.readme-tab-container article h2 { font-size: 18px; font-weight: 600; }
+.readme-tab-container article > section > div[class*="rounded"]:not(:has(pre)) {
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  background: transparent;
+}
+.capture-settings > div > div[class*="bg-hmi-elevated"] {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding-inline: 0;
+}
+:root:not(.light) .text-hmi-ideal { color: #b4bdc7; }
+:root:not(.light) .console-tabs [data-state="active"] { color: var(--hmi-text); }
+@media (max-width: 600px) {
+  .workspace-reset-label { display: none; }
+  .workspace-actions button:has(.workspace-reset-label) { width: 32px; padding-inline: 6px; }
+  .workspace-actions button:has(.workspace-reset-label) svg { margin: 0; }
+}

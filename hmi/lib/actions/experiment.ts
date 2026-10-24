@@ -1,9 +1,15 @@
 'use server'
 
+import { auth } from '../auth'
 import { db } from '../db'
 import { experimentRuns, experimentMetrics, experimentSamples } from '../db/schema/experiment'
 import { backupRun, backupMetrics, backupSamples } from '../db/backup'
 import { SHARED_BASELINE_ID, usesSharedBaseline } from '../experiment-protocol'
+
+async function requireExperimentSession() {
+  const session = await auth()
+  if (!session?.user?.googleId) throw new Error('Unauthorized')
+}
 
 export async function saveExperimentRun(payload: {
   run: typeof experimentRuns.$inferInsert
@@ -11,6 +17,7 @@ export async function saveExperimentRun(payload: {
   samples: Omit<typeof experimentSamples.$inferInsert, 'id' | 'runId'>[]
 }) {
   try {
+    await requireExperimentSession()
     const runId = payload.run.id
 
     // 1. Insert experiment run row
@@ -56,6 +63,7 @@ export async function markExperimentRunsAsBaseline(runIds: string[]): Promise<{ 
   if (uniqueIds.length === 0) return { ok: false, updatedCount: 0, error: 'Pilih minimal satu run.' }
 
   try {
+    await requireExperimentSession()
     const selectedRuns = await db
       .select()
       .from(experimentRuns)
@@ -94,6 +102,7 @@ export async function markExperimentRunsAsBaseline(runIds: string[]): Promise<{ 
  */
 export async function deleteExperimentRun(runId: string): Promise<{ ok: boolean; error?: string }> {
   try {
+    await requireExperimentSession()
     // 1. Delete samples first (FK dependency)
     await db.delete(experimentSamples).where(eq(experimentSamples.runId, runId))
     // 2. Delete metrics
@@ -113,6 +122,7 @@ export async function deleteExperimentRun(runId: string): Promise<{ ok: boolean;
  */
 export async function deleteExperiment(experimentId: string): Promise<{ ok: boolean; deletedCount: number; error?: string }> {
   try {
+    await requireExperimentSession()
     // Find all matching run IDs
     let runsList
     if (experimentId === 'EXP-4') {
@@ -145,6 +155,7 @@ export async function deleteExperiment(experimentId: string): Promise<{ ok: bool
 
 export async function getExperimentRunDetails(runId: string) {
   try {
+    await requireExperimentSession()
     const run = await db.select().from(experimentRuns).where(eq(experimentRuns.id, runId)).limit(1)
     const metrics = await db.select().from(experimentMetrics).where(eq(experimentMetrics.runId, runId)).limit(1)
     
@@ -164,6 +175,7 @@ export async function getExperimentRunDetails(runId: string) {
 
 export async function getExperimentData(experimentId: string) {
   try {
+    await requireExperimentSession()
     let runsList
     if (experimentId === 'EXP-4') {
       runsList = await db

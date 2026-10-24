@@ -12,6 +12,7 @@ import type { TPoint } from '@/lib/hmi-types'
 import { cn } from '@/lib/utils'
 import JSZip from 'jszip'
 import { useTranslations, useLocale } from 'next-intl'
+import { MathLabel } from '@/components/ui/math'
 
 // Interfaces
 interface Subgroup {
@@ -1982,14 +1983,14 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
   const isGroupConfigured = activeGroup && activeGroup.subgroups.some(s => s.runIds.length > 0)
 
   return (
-    <div className="flex flex-col gap-5 p-4 bg-hmi-bg text-hmi-text">
+    <div className="flex min-w-0 flex-col gap-4 p-3 text-hmi-text sm:gap-5 sm:p-4">
       {/* Header Panel */}
-      <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <header className="flex min-w-0 flex-col gap-3 border-b border-hmi-grid pb-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-bold text-hmi-text">{t('title')}</h2>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div className="relative">
             <select
               value={activeGroupId}
@@ -1997,7 +1998,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 changeActiveGroupId(e.target.value)
                 setSelectedJointSgId('')
               }}
-              className="appearance-none bg-hmi-bg border border-hmi-grid rounded px-3 py-1.5 pr-8 text-xs font-semibold text-hmi-text focus:outline-none focus:border-hmi-ideal"
+              className="max-w-full appearance-none bg-hmi-bg border border-hmi-grid rounded px-3 py-1.5 pr-8 text-xs font-semibold text-hmi-text focus:outline-none focus:border-hmi-ideal"
             >
               {groups.length === 0 && <option value="">{t('noGroups')}</option>}
               {groups.map(g => (
@@ -2048,20 +2049,20 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
             </>
           )}
         </div>
-      </div>
+      </header>
 
       {/* Warnings & Sync section */}
       {activeGroup && (
         <div className="flex flex-col gap-2">
           {unassignedSelectedRuns.length > 0 && (
-            <div className="bg-amber-500/10 border border-amber-500/30 text-amber-500 rounded-lg px-3 py-2 text-[10px] flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-start justify-between gap-2 border-l-2 border-amber-500 px-3 py-2 text-xs text-amber-500 sm:items-center">
+              <span className="flex min-w-0 flex-1 items-center gap-1.5">
                 <Info className="h-3.5 w-3.5 shrink-0" />
                 <span>{t.rich('unassignedWarning', { count: unassignedSelectedRuns.length, strong: (chunks) => <strong>{chunks}</strong> })}</span>
               </span>
               <button
                 onClick={handleSyncSelectedRuns}
-                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-bold transition-colors cursor-pointer"
+                className="shrink-0 px-2 py-1 text-xs font-medium text-amber-500 underline underline-offset-2 hover:text-amber-400 cursor-pointer"
               >
                 {t('syncIntoGroup')}
               </button>
@@ -2069,8 +2070,8 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
           )}
 
           {unloadedGroupRuns.length > 0 && (
-            <div className="bg-blue-500/10 border border-blue-500/30 text-blue-500 rounded-lg px-3 py-2 text-[10px] flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-start justify-between gap-2 border-l-2 border-blue-500 px-3 py-2 text-xs text-blue-500 sm:items-center">
+              <span className="flex min-w-0 flex-1 items-center gap-1.5">
                 <Info className="h-3.5 w-3.5 shrink-0" />
                 <span>
                   {t.rich('unloadedWarning', { count: unloadedGroupRuns.length, strong: (chunks) => <strong>{chunks}</strong> })}
@@ -2078,7 +2079,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
               </span>
               <button
                 onClick={handleLoadMissingRuns}
-                className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-500 border border-blue-500/30 px-2 py-0.5 rounded text-[9px] font-bold transition-colors cursor-pointer"
+                className="shrink-0 px-2 py-1 text-xs font-medium text-blue-500 underline underline-offset-2 hover:text-blue-400 cursor-pointer"
               >
                 {t('selectAndLoadRuns')}
               </button>
@@ -2089,20 +2090,20 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
 
       {/* Collapsible Group Editor */}
       {activeGroup && editorExpanded && (
-        <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-4 flex flex-col gap-4 animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="flex items-center gap-3 border-b border-hmi-grid pb-2">
-            <span className="text-[10px] font-bold text-hmi-muted">{t('groupEditor')}</span>
+        <section className="flex flex-col gap-4 border-y border-hmi-grid py-4 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex flex-wrap items-center gap-3 border-b border-hmi-grid pb-2">
+            <h3 className="text-sm font-semibold text-hmi-text">{t('groupEditor')}</h3>
             <input
               type="text"
               value={activeGroup.name}
               onChange={(e) => handleUpdateGroupName(e.target.value)}
-              className="bg-hmi-bg border border-hmi-grid rounded px-2 py-1 text-xs font-semibold text-hmi-text focus:outline-none focus:border-hmi-ideal w-72"
+              className="w-full max-w-72 bg-hmi-bg border border-hmi-grid rounded px-2 py-1 text-xs font-semibold text-hmi-text focus:outline-none focus:border-hmi-ideal sm:w-72"
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {activeGroup.subgroups.map((sg) => (
-              <div key={sg.id} className="border border-hmi-grid rounded-lg p-3 bg-hmi-bg/40 flex flex-col gap-3">
+              <div key={sg.id} className="min-w-0 border-t border-hmi-grid/70 py-3 flex flex-col gap-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-1">
                     <input
@@ -2140,7 +2141,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 {/* Subgroup assigned runs list */}
                 <div className="flex flex-col gap-1">
                   <div className="text-[9px] font-bold text-hmi-muted mb-1">{t('assignedRuns', { count: sg.runIds.length })}</div>
-                  <div className="flex flex-wrap gap-1.5 min-h-[30px] p-2 bg-hmi-bg/60 border border-hmi-grid/50 rounded-lg">
+                  <div className="flex min-h-[30px] min-w-0 flex-wrap gap-x-3 gap-y-1 border-t border-hmi-grid/50 py-2">
                     {sg.runIds.length === 0 ? (
                       <span className="text-[10px] text-hmi-muted italic">{t('noRunsAssigned')}</span>
                     ) : (
@@ -2152,7 +2153,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                         return (
                           <span
                             key={runId}
-                            className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-hmi-panel border border-hmi-grid rounded text-hmi-text"
+                            className="inline-flex min-w-0 items-center gap-1.5 border-b border-hmi-grid/50 py-1 text-xs text-hmi-text"
                           >
                             <span className="w-1 h-1 rounded-full" style={{ backgroundColor: sg.color }} />
                             <span>{displayName}</span>
@@ -2181,7 +2182,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                           e.target.value = ''
                         }
                       }}
-                      className="bg-hmi-bg border border-hmi-grid rounded px-2 py-0.5 text-[10px] text-hmi-text focus:outline-none flex-1 cursor-pointer"
+                      className="min-w-0 bg-hmi-bg border border-hmi-grid rounded px-2 py-1 text-xs text-hmi-text focus:outline-none flex-1 cursor-pointer"
                     >
                       <option value="">{t('selectLoadedRun')}</option>
                       {runs
@@ -2203,12 +2204,12 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
               <span className="text-xs font-semibold">{t('addSubgroup')}</span>
             </button>
           </div>
-        </div>
+        </section>
       )}
 
       {/* Main Content Area */}
       {!isGroupConfigured ? (
-        <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-12 text-center text-xs text-hmi-muted flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-3 border-y border-hmi-grid py-8 text-center text-sm text-hmi-muted">
           <Info className="h-6 w-6 text-hmi-muted" />
           <div>
             <p className="font-semibold text-hmi-text">{t('noAssignedRunsWarning')}</p>
@@ -2228,19 +2229,19 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
       ) : (
         <>
           {/* Distribution Box Plots */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-4">
             {/* Metric pill list wrapper for dynamic stretch height */}
-            <div className="lg:col-span-1 relative min-h-[350px]">
+            <div className="relative min-h-[350px] min-w-0 lg:col-span-1">
               {/* Inner container that dynamically fits the absolute bounds of the parent cell */}
-              <div className="lg:absolute lg:inset-0 bg-hmi-panel border border-hmi-grid rounded-lg p-3 flex flex-col gap-2 overflow-y-auto">
-                <span className="text-[9px] font-bold text-hmi-muted px-2 mb-1">{t('selectMetric')}</span>
+              <div className="flex max-h-[28rem] flex-col gap-2 overflow-y-auto border-b border-hmi-grid py-3 lg:absolute lg:inset-0 lg:max-h-none lg:border-r lg:border-b-0 lg:pr-3">
+                <span className="px-1 pb-1 text-xs font-medium text-hmi-muted">{t('selectMetric')}</span>
                 
                 {/* CTE Group */}
                 <div className="flex flex-col gap-1">
                   <button
                     type="button"
                     onClick={() => setCteCollapsed(!cteCollapsed)}
-                    className="w-full flex items-center justify-between px-2 py-1 text-[10px] font-bold text-hmi-muted hover:text-hmi-text transition-colors select-none text-left"
+                    className="flex w-full items-center justify-between px-1 py-1.5 text-xs font-medium text-hmi-muted hover:text-hmi-text transition-colors select-none text-left"
                   >
                     <span>Cross-Track Error (CTE)</span>
                     {cteCollapsed ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
@@ -2252,14 +2253,13 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                           key={m.key}
                           onClick={() => setSelectedMetric(m.key)}
                           className={cn(
-                            "w-full text-left px-2 py-1.5 rounded text-xs transition-all flex flex-col gap-0.5 cursor-pointer",
+                            "w-full border-l-2 py-2 pl-2 pr-1 text-left text-sm transition-colors cursor-pointer",
                             selectedMetric === m.key
-                              ? "bg-hmi-ideal/10 border border-hmi-ideal text-hmi-text font-semibold"
-                              : "border border-transparent hover:bg-hmi-grid/10 text-hmi-muted hover:text-hmi-text"
+                              ? "border-hmi-ideal bg-hmi-ideal/5 text-hmi-text font-medium"
+                              : "border-transparent text-hmi-muted hover:bg-hmi-grid/10 hover:text-hmi-text"
                           )}
                         >
-                          <span>{t(`metrics.${m.key}.label` as any)} ({m.unit})</span>
-                          <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{t(`metrics.${m.key}.desc` as any)}</span>
+                          <MathLabel>{`${t(`metrics.${m.key}.label` as any)} (${m.unit})`}</MathLabel>
                         </button>
                       ))}
                     </div>
@@ -2271,7 +2271,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                   <button
                     type="button"
                     onClick={() => setAteCollapsed(!ateCollapsed)}
-                    className="w-full flex items-center justify-between px-2 py-1 text-[10px] font-bold text-hmi-muted hover:text-hmi-text transition-colors select-none text-left"
+                    className="flex w-full items-center justify-between px-1 py-1.5 text-xs font-medium text-hmi-muted hover:text-hmi-text transition-colors select-none text-left"
                   >
                     <span>Along-Track Error (ATE)</span>
                     {ateCollapsed ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
@@ -2283,14 +2283,13 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                           key={m.key}
                           onClick={() => setSelectedMetric(m.key)}
                           className={cn(
-                            "w-full text-left px-2 py-1.5 rounded text-xs transition-all flex flex-col gap-0.5 cursor-pointer",
+                            "w-full border-l-2 py-2 pl-2 pr-1 text-left text-sm transition-colors cursor-pointer",
                             selectedMetric === m.key
-                              ? "bg-hmi-ideal/10 border border-hmi-ideal text-hmi-text font-semibold"
-                              : "border border-transparent hover:bg-hmi-grid/10 text-hmi-muted hover:text-hmi-text"
+                              ? "border-hmi-ideal bg-hmi-ideal/5 text-hmi-text font-medium"
+                              : "border-transparent text-hmi-muted hover:bg-hmi-grid/10 hover:text-hmi-text"
                           )}
                         >
-                          <span>{t(`metrics.${m.key}.label` as any)} ({m.unit})</span>
-                          <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{t(`metrics.${m.key}.desc` as any)}</span>
+                          <MathLabel>{`${t(`metrics.${m.key}.label` as any)} (${m.unit})`}</MathLabel>
                         </button>
                       ))}
                     </div>
@@ -2299,7 +2298,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
 
                 {/* Other Metrics Group */}
                 <div className="flex flex-col gap-1 mt-1">
-                  <span className="px-2 py-1 text-[10px] font-bold text-hmi-muted block select-none">
+                  <span className="px-1 py-1.5 text-xs font-medium text-hmi-muted block select-none">
                     {t('otherMetrics')}
                   </span>
                   <div className="flex flex-col gap-1 pl-1 border-l border-hmi-grid/40 ml-2">
@@ -2308,14 +2307,13 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                         key={m.key}
                         onClick={() => setSelectedMetric(m.key)}
                         className={cn(
-                          "w-full text-left px-2 py-1.5 rounded text-xs transition-all flex flex-col gap-0.5 cursor-pointer",
+                          "w-full border-l-2 py-2 pl-2 pr-1 text-left text-sm transition-colors cursor-pointer",
                           selectedMetric === m.key
-                            ? "bg-hmi-ideal/10 border border-hmi-ideal text-hmi-text font-semibold"
-                            : "border border-transparent hover:bg-hmi-grid/10 text-hmi-muted hover:text-hmi-text"
+                            ? "border-hmi-ideal bg-hmi-ideal/5 text-hmi-text font-medium"
+                            : "border-transparent text-hmi-muted hover:bg-hmi-grid/10 hover:text-hmi-text"
                         )}
                       >
-                        <span>{t(`metrics.${m.key}.label` as any)} ({m.unit})</span>
-                        <span className="text-[9px] text-hmi-muted font-normal truncate max-w-[150px]">{t(`metrics.${m.key}.desc` as any)}</span>
+                        <MathLabel>{`${t(`metrics.${m.key}.label` as any)} (${m.unit})`}</MathLabel>
                       </button>
                     ))}
                   </div>
@@ -2324,12 +2322,12 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
             </div>
 
             {/* Custom SVG Box Plots */}
-            <div className="lg:col-span-3 flex flex-col gap-4">
-              <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-4 relative min-h-[220px]">
+              <div className="min-w-0 flex flex-col gap-4 lg:col-span-3">
+              <section className="relative min-h-[220px] min-w-0 border-b border-hmi-grid py-4">
                 <div className="flex items-center justify-between border-b border-hmi-grid pb-2 mb-4">
                   <div>
-                    <h3 className="text-xs font-bold text-hmi-text">
-                      {t('distributionTitle', { metric: t(`metrics.${selectedMetric}.label` as any), unit: METRICS.find(m => m.key === selectedMetric)?.unit ?? '' })}
+                    <h3 className="text-sm font-semibold text-hmi-text">
+                      <MathLabel>{t('distributionTitle', { metric: t(`metrics.${selectedMetric}.label` as any), unit: METRICS.find(m => m.key === selectedMetric)?.unit ?? '' })}</MathLabel>
                     </h3>
                     <p className="text-[10px] text-hmi-muted mt-0.5">
                       {t('distributionDesc')}
@@ -2564,15 +2562,15 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                     })}
                   </svg>
                 </div>
-              </div>
+              </section>
 
               {/* Box plot Stats Table */}
-              <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
+              <div className="min-w-0 overflow-x-auto border-t border-hmi-grid">
                 {(() => {
                   const metricUnit = METRICS.find(m => m.key === selectedMetric)?.unit ?? ''
                   const unitStr = metricUnit ? ` (${metricUnit})` : ''
                   return (
-                    <table className="w-full text-[11px] border-collapse text-left">
+                    <table className="w-full min-w-[620px] text-[11px] border-collapse text-left">
                       <thead>
                         <tr className="bg-hmi-bg/50 border-b border-hmi-grid text-[10px] text-hmi-muted font-bold">
                           <th className="py-2 px-3">Subgroup</th>
@@ -2610,7 +2608,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
           </div>
 
           {/* Aligned Resampled Averages */}
-          <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-4 mt-2">
+          <section className="border-y border-hmi-grid py-4 mt-2">
             <div>
               <h3 className="text-xs font-bold text-hmi-text">{t('relativeTimeTitle')}</h3>
               <p className="text-[10px] text-hmi-muted mt-0.5">
@@ -2618,9 +2616,9 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
               </p>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
-              <div className="bg-hmi-bg/30 border border-hmi-grid rounded-lg p-3">
-                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">{t('avgCartesianError')}</p>
+            <div className="grid min-w-0 grid-cols-1 gap-4 mt-4 xl:grid-cols-2">
+              <div className="min-w-0 border-t border-hmi-grid/70 pt-3">
+                <p className="mb-2 text-center text-sm font-medium text-hmi-text"><MathLabel>{t('avgCartesianError')}</MathLabel></p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
@@ -2650,8 +2648,8 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 </div>
               </div>
 
-              <div className="bg-hmi-bg/30 border border-hmi-grid rounded-lg p-3">
-                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">{t('avgCte')}</p>
+              <div className="min-w-0 border-t border-hmi-grid/70 pt-3">
+                <p className="mb-2 text-center text-sm font-medium text-hmi-text"><MathLabel>{t('avgCte')}</MathLabel></p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
@@ -2681,8 +2679,8 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 </div>
               </div>
 
-              <div className="bg-hmi-bg/30 border border-hmi-grid rounded-lg p-3">
-                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">{t('avgAte')}</p>
+              <div className="min-w-0 border-t border-hmi-grid/70 pt-3">
+                <p className="mb-2 text-center text-sm font-medium text-hmi-text"><MathLabel>{t('avgAte')}</MathLabel></p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
@@ -2713,8 +2711,8 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 </div>
               </div>
 
-              <div className="bg-hmi-bg/30 border border-hmi-grid rounded-lg p-3">
-                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">{t('avgJ1Error')}</p>
+              <div className="min-w-0 border-t border-hmi-grid/70 pt-3">
+                <p className="mb-2 text-center text-sm font-medium text-hmi-text"><MathLabel>{t('avgJ1Error')}</MathLabel></p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
@@ -2745,8 +2743,8 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 </div>
               </div>
 
-              <div className="bg-hmi-bg/30 border border-hmi-grid rounded-lg p-3">
-                <p className="text-[11px] font-semibold text-hmi-text mb-2 text-center">{t('avgJ2Error')}</p>
+              <div className="min-w-0 border-t border-hmi-grid/70 pt-3">
+                <p className="mb-2 text-center text-sm font-medium text-hmi-text"><MathLabel>{t('avgJ2Error')}</MathLabel></p>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={averageChartData} margin={{ top: 10, right: 15, left: 10, bottom: 20 }}>
@@ -2779,11 +2777,10 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
             </div>
 
             {/* Joint Positions (Actual vs Desired) per subgroup */}
-            <div className="border border-hmi-grid/80 rounded-lg p-4 mt-4 bg-hmi-bg/25">
+            <div className="border-t border-hmi-grid py-4 mt-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-hmi-grid/50 pb-3 mb-4">
                 <div>
                   <h4 className="text-xs font-bold text-hmi-text">{t('avgJointTrajectories')}</h4>
-                  <p className="text-[10px] text-hmi-muted mt-0.5">{t('jointTrajectoriesDesc')}</p>
                 </div>
                 
                 <div className="flex items-center gap-2">
@@ -2808,7 +2805,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
               ) : (
                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Joint 1 Position Chart */}
-                  <div className="bg-hmi-panel/50 border border-hmi-grid/60 rounded-lg p-3">
+                  <div className="border-t border-hmi-grid/70 py-3">
                     <p className="text-[10px] font-bold text-hmi-muted text-center mb-1.5">{t('j1Position')}</p>
                     <div className="h-44">
                       <ResponsiveContainer width="100%" height="100%">
@@ -2830,7 +2827,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                   </div>
 
                   {/* Joint 2 Position Chart */}
-                  <div className="bg-hmi-panel/50 border border-hmi-grid/60 rounded-lg p-3">
+                  <div className="border-t border-hmi-grid/70 py-3">
                     <p className="text-[10px] font-bold text-hmi-muted text-center mb-1.5">{t('j2Position')}</p>
                     <div className="h-44">
                       <ResponsiveContainer width="100%" height="100%">
@@ -2853,10 +2850,10 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 </div>
               )}
             </div>
-          </div>
+          </section>
 
           {/* Statistical Testing Section (Welch's t-test / Cohen's d) */}
-          <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-4">
+          <section className="border-y border-hmi-grid py-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-hmi-grid pb-3 mb-4">
               <div>
                 <h3 className="text-xs font-bold text-hmi-text">{t('welchTitle')}</h3>
@@ -2903,7 +2900,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
             ) : (
               <div className="flex flex-col gap-4">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left border-collapse">
+                  <table className="w-full min-w-[720px] text-xs text-left border-collapse">
                     <thead>
                       <tr className="bg-hmi-bg/50 border-b border-hmi-grid text-[10px] text-hmi-muted font-bold">
                         <th className="py-2.5 px-3">{t('table.metric')}</th>
@@ -2929,7 +2926,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                     <tbody>
                       {statisticalComparisons.map((c) => (
                         <tr key={c.metricKey} className="border-b border-hmi-grid/40 hover:bg-hmi-grid/10 transition-colors">
-                          <td className="py-2 px-3 font-medium text-hmi-text">{t(`metrics.${c.metricKey}.label` as any)} ({c.unit})</td>
+                          <td className="py-2 px-3 font-medium text-hmi-text"><MathLabel>{`${t(`metrics.${c.metricKey}.label` as any)} (${c.unit})`}</MathLabel></td>
                           <td className="py-2 px-3 text-right font-mono">
                             {formatFloat(c.meanA, 4)} <span className="text-[10px] text-hmi-muted">±{formatFloat(c.sdA, 3)}</span>
                           </td>
@@ -2950,10 +2947,10 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                           </td>
                           <td className="py-2 px-3 text-center">
                             <span className={cn(
-                              "inline-block text-[9px] px-2 py-0.5 rounded font-bold ",
-                              c.significance === 'Highly Significant' ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30" :
-                              c.significance === 'Significant' ? "bg-amber-500/10 text-amber-400 border border-amber-500/30" :
-                              "bg-hmi-grid/55 text-hmi-muted border border-hmi-grid/80"
+                              "inline-block border-l-2 px-2 py-1 text-xs font-semibold",
+                              c.significance === 'Highly Significant' ? "border-emerald-400 text-emerald-400" :
+                              c.significance === 'Significant' ? "border-amber-400 text-amber-400" :
+                              "border-hmi-grid text-hmi-muted"
                             )}>
                               {c.significance === 'Highly Significant' ? t('significanceHighly') : c.significance === 'Significant' ? t('significanceSig') : t('significanceNotSig')}
                             </span>
@@ -2975,7 +2972,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                   </table>
                 </div>
 
-                <div className="bg-hmi-bg/40 border border-hmi-grid rounded-lg p-3 text-[10px] text-hmi-muted flex items-start gap-2 leading-relaxed">
+                <div className="flex items-start gap-2 border-l-2 border-hmi-grid px-3 py-2 text-xs leading-relaxed text-hmi-muted">
                   <Info className="h-4 w-4 text-hmi-ideal mt-0.5 shrink-0" />
                   <div>
                     <span className="font-bold text-hmi-text">{t('refGuideTitle')}</span>
@@ -2998,7 +2995,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
 
                 {/* Geometrical XY Trace Comparison with Confidence Corridor */}
                 {referencePoints.length > 0 && (
-                  <div className="bg-hmi-bg/25 border border-hmi-grid/80 rounded-lg p-4 mt-2">
+                  <div className="border-t border-hmi-grid pt-4 mt-2">
                     <div className="border-b border-hmi-grid pb-2 mb-4">
                       <h4 className="text-xs font-bold text-hmi-text">{t('geometricalTitle')}</h4>
                       <p className="text-[10px] text-hmi-muted mt-0.5">
@@ -3194,7 +3191,7 @@ export function GroupCompareTab({ runs, allRuns, onSelectRuns, selectedIds }: Pr
                 )}
               </div>
             )}
-          </div>
+          </section>
         </>
       )}
     </div>
