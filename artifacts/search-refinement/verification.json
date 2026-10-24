@@ -1,0 +1,13 @@
+{
+  "browser": "Steel",
+  "checks": [
+    "Ctrl+K opens search and focuses input",
+    "Empty results safely handle keyboard navigation",
+    "Results is searchable with stable active selection",
+    "Enter navigates to selected result",
+    "Mobile search fits viewport, opens from sidebar and dismisses with Escape",
+    "Indonesian search uses translated navigation labels"
+  ],
+  "errors": [],
+  "fixture": "Actual UI components in isolated local harness; synthetic saved recordings; no hardware/database writes."
+}

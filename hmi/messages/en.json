@@ -718,19 +718,19 @@
   "CommandPalette": {
     "pageNavigation": "Page Navigation",
     "hmiQuickActions": "HMI Quick Actions",
-    "searchPlaceholder": "Type to search pages or robot actions... (e.g. 'monitor', 'estop')",
+    "searchPlaceholder": "Search…",
     "noResults": "No search results for \"{query}\"",
     "navigationKey": "Navigation",
     "closeKey": "Close",
     "connectionStatus": "Connection Status:",
-    "triggerTitle": "Open Command Palette",
-    "estopSent": "🛑 E-STOP Sent!",
+    "triggerTitle": "Search",
+    "estopSent": "E-STOP Sent.",
     "estopFailed": "Failed to send E-STOP",
-    "statusRecovered": "🔄 Status recovered.",
+    "statusRecovered": "Status recovered.",
     "statusRecoverFailed": "Failed to recover status",
-    "attemptConnect": "🔌 Attempting to connect...",
+    "attemptConnect": "Attempting to connect...",
     "connectFailed": "Failed to connect port",
-    "portDisconnected": "🔌 Port disconnected.",
+    "portDisconnected": "Port disconnected.",
     "disconnectFailed": "Failed to disconnect port",
     "commands": {
       "nav-monitor": {
@@ -766,19 +766,19 @@
         "subtitle": "Hardware documentation for the custom ESP32 + A4988 + LM2596 controller board."
       },
       "action-estop": {
-        "title": "🚨 EMERGENCY STOP (E-STOP)",
+        "title": "Emergency stop",
         "subtitle": "Immediately stop all robot trajectory motion."
       },
       "action-resume": {
-        "title": "🔄 Resume Motors",
+        "title": "Resume motors",
         "subtitle": "Recover the robot and clear E-STOP status."
       },
       "action-connect": {
-        "title": "🔌 Connect Serial Port",
+        "title": "Connect",
         "subtitle": "Initialize Web Serial connection with the robot."
       },
       "action-disconnect": {
-        "title": "🔌 Disconnect Serial Port",
+        "title": "Disconnect",
         "subtitle": "Close the currently active serial connection."
       }
     }

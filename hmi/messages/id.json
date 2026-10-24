@@ -718,19 +718,19 @@
   "CommandPalette": {
     "pageNavigation": "Navigasi Halaman",
     "hmiQuickActions": "Aksi Cepat HMI",
-    "searchPlaceholder": "Ketik untuk mencari halaman atau aksi robot... (misal 'monitor', 'estop')",
+    "searchPlaceholder": "Cari…",
     "noResults": "Tidak ada hasil pencarian untuk \"{query}\"",
     "navigationKey": "Navigasi",
     "closeKey": "Tutup",
     "connectionStatus": "Status Koneksi:",
-    "triggerTitle": "Buka Command Palette",
-    "estopSent": "🛑 E-STOP Terkirim!",
+    "triggerTitle": "Cari",
+    "estopSent": "E-STOP Terkirim.",
     "estopFailed": "Gagal mengirim E-STOP",
-    "statusRecovered": "🔄 Status dipulihkan.",
+    "statusRecovered": "Status dipulihkan.",
     "statusRecoverFailed": "Gagal memulihkan status",
-    "attemptConnect": "🔌 Mencoba menghubungkan...",
+    "attemptConnect": "Mencoba menghubungkan...",
     "connectFailed": "Gagal menghubungkan port",
-    "portDisconnected": "🔌 Port terputus.",
+    "portDisconnected": "Port terputus.",
     "disconnectFailed": "Gagal memutuskan port",
     "commands": {
       "nav-monitor": {
@@ -766,19 +766,19 @@
         "subtitle": "Dokumentasi perangkat keras untuk papan pengendali kustom ESP32 + A4988 + LM2596."
       },
       "action-estop": {
-        "title": "🚨 EMERGENCY STOP (E-STOP)",
+        "title": "Stop darurat",
         "subtitle": "Segera hentikan semua gerakan trajektori robot."
       },
       "action-resume": {
-        "title": "🔄 Pulihkan Motor",
+        "title": "Pulihkan motor",
         "subtitle": "Pulihkan robot dan bersihkan status E-STOP."
       },
       "action-connect": {
-        "title": "🔌 Hubungkan Port Serial",
+        "title": "Hubungkan",
         "subtitle": "Inisialisasi koneksi Web Serial dengan robot."
       },
       "action-disconnect": {
-        "title": "🔌 Putuskan Port Serial",
+        "title": "Putuskan",
         "subtitle": "Tutup koneksi serial yang aktif saat ini."
       }
     }

@@ -211,3 +211,17 @@
   .workspace-actions button:has(.workspace-reset-label) { width: 32px; padding-inline: 6px; }
   .workspace-actions button:has(.workspace-reset-label) svg { margin: 0; }
 }
+
+.command-search { top: 15dvh; left: 50%; transform: translateX(-50%); width: min(540px, calc(100vw - 32px)); max-height: 70dvh; border-radius: 8px; }
+.command-search-icon svg { width: 16px; height: 16px; }
+.command-search-overlay[data-state="open"] { animation: command-search-enter 120ms ease-out; }
+.command-search[data-state="open"] { animation: command-search-enter 140ms ease-out; }
+@media (max-width: 600px) {
+  .command-search { top: max(16px, env(safe-area-inset-top)); max-height: calc(100dvh - 32px); width: calc(100vw - 24px); }
+  .command-search-option { min-height: 48px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .command-search, .command-search-overlay { animation: none !important; }
+}
+
+@keyframes command-search-enter { from { opacity: 0; } to { opacity: 1; } }
