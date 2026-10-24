@@ -57,7 +57,7 @@ export function SerialLog() {
       {/* Toolbar */}
       <div className="flex items-center gap-1.5 px-2 py-1 border-b border-hmi-grid shrink-0 bg-hmi-elevated/60">
         {/* Terminal-style title */}
-        <span className="text-[11px] font-bold text-hmi-text-secondary uppercase tracking-wider select-none mr-1">
+        <span className="text-[11px] font-bold text-hmi-text-secondary select-none mr-1">
           {t('serialMonitor')}
         </span>
         {isFocused && (

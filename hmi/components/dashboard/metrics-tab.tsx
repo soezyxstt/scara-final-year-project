@@ -49,7 +49,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <tr>
         <td
           colSpan={100}
-          className="pt-4 pb-1 px-3 text-[10px] font-bold text-hmi-muted/70 uppercase tracking-widest"
+          className="pt-4 pb-1 px-3 text-[10px] font-bold text-hmi-muted/70"
         >
           {title}
         </td>
@@ -71,7 +71,7 @@ export function MetricsTab({ runs }: Props) {
       <table className="w-full border-collapse text-xs">
         <thead>
           <tr className="border-b border-hmi-grid">
-            <th className="py-2 px-3 text-left text-[10px] font-bold text-hmi-muted uppercase tracking-wider w-40">
+            <th className="py-2 px-3 text-left text-[10px] font-bold text-hmi-muted w-40">
               {t('metric')}
             </th>
             {runs.map(({ run, color }) => (
@@ -126,7 +126,7 @@ export function MetricsTab({ runs }: Props) {
 
               {gains && (
                 <div className="px-3 py-2 border-b border-hmi-grid/50">
-                  <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider mb-1.5">{t('pidGains')}</p>
+                  <p className="text-[10px] font-bold text-hmi-muted mb-1.5">{t('pidGains')}</p>
                   <div className="grid grid-cols-3 gap-x-3 gap-y-0.5 text-[10px] font-mono">
                     {Object.entries(gains).map(([k, v]) => (
                       <div key={k} className="flex items-center justify-between gap-1">
@@ -140,7 +140,7 @@ export function MetricsTab({ runs }: Props) {
 
               {params && (
                 <div className="px-3 py-2">
-                  <p className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider mb-1.5">{t('keyParameters')}</p>
+                  <p className="text-[10px] font-bold text-hmi-muted mb-1.5">{t('keyParameters')}</p>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] font-mono">
                     {(['vmax', 'amax', 'cfreq', 'u1max', 'fzt', 'pwmDb', 'td1r', 'td2r', 'dben', 'dbrel'] as string[]).map(k => (
                       params[k] !== undefined && (

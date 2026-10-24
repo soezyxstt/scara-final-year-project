@@ -109,7 +109,7 @@ export function ChartContainer({
     <div className="relative w-full h-full min-h-[160px]">
       {isEmpty && cleanedMsg && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          <span className="text-xs font-semibold text-hmi-muted uppercase tracking-wider select-none">
+          <span className="text-xs font-semibold text-hmi-muted select-none">
             {cleanedMsg}
           </span>
         </div>
@@ -379,7 +379,7 @@ export function MetricsPanel() {
   const rows: { label: React.ReactNode; value: React.ReactNode; tooltip: string }[] = [
     {
       label: t('runMetrics.aiLabel'),
-      value: <span className="text-hmi-ideal">{stats?.accuracy_idx !== undefined ? `${formatFloat(stats.accuracy_idx * 100, 2)}%` : dash}</span>,
+      value: <span className="text-hmi-text">{stats?.accuracy_idx !== undefined ? `${formatFloat(stats.accuracy_idx * 100, 2)}%` : dash}</span>,
       tooltip: t('runMetrics.aiTooltip'),
     },
     {
@@ -389,12 +389,12 @@ export function MetricsPanel() {
     },
     {
       label: t('runMetrics.mcteLabel'),
-      value: <span className="text-hmi-ideal">{fmt(stats?.MCTE ?? stats?.mean_err, 2, 'mm')}</span>,
+      value: <span className="text-hmi-text">{fmt(stats?.MCTE ?? stats?.mean_err, 2, 'mm')}</span>,
       tooltip: t('runMetrics.mcteTooltip'),
     },
     {
       label: t('runMetrics.rmsAteLabel'),
-      value: <span className="text-hmi-text-warning">{fmt(stats?.RMS_ATE, 2, 'mm')}</span>,
+      value: <span className="text-hmi-text">{fmt(stats?.RMS_ATE, 2, 'mm')}</span>,
       tooltip: t('runMetrics.rmsAteTooltip'),
     },
     {
@@ -403,7 +403,7 @@ export function MetricsPanel() {
         <span className={cn(
           "font-semibold",
           stats?.error_ratio !== undefined
-            ? stats.error_ratio >= 0.5 ? "text-hmi-text-warning" : "text-hmi-text-cyan"
+            ? stats.error_ratio >= 0.5 ? "text-hmi-text" : "text-hmi-text"
             : "text-hmi-muted"
         )}>
           {stats?.error_ratio !== undefined
@@ -427,27 +427,27 @@ export function MetricsPanel() {
     },
     {
       label: t('runMetrics.rmseJ1Label'),
-      value: <span className="text-hmi-text-purple">{fmt(computed?.rmseJ1, 3, '°')}</span>,
+      value: <span className="text-hmi-text">{fmt(computed?.rmseJ1, 3, '°')}</span>,
       tooltip: t('runMetrics.rmseJ1Tooltip'),
     },
     {
       label: t('runMetrics.rmseJ2Label'),
-      value: <span className="text-hmi-text-purple">{fmt(computed?.rmseJ2, 3, '°')}</span>,
+      value: <span className="text-hmi-text">{fmt(computed?.rmseJ2, 3, '°')}</span>,
       tooltip: t('runMetrics.rmseJ2Tooltip'),
     },
     {
       label: t('runMetrics.rmseEefLabel'),
-      value: <span className="text-hmi-text-purple">{fmt(computed?.rmseEEF, 3, 'mm')}</span>,
+      value: <span className="text-hmi-text">{fmt(computed?.rmseEEF, 3, 'mm')}</span>,
       tooltip: t('runMetrics.rmseEefTooltip'),
     },
     {
       label: t('runMetrics.ctrlVarLabel'),
-      value: <span className="text-hmi-text-success">{fmt(computed?.varPwm, 1)}</span>,
+      value: <span className="text-hmi-text">{fmt(computed?.varPwm, 1)}</span>,
       tooltip: t('runMetrics.ctrlVarTooltip'),
     },
     {
       label: t('runMetrics.jitterLabel'),
-      value: <span className="text-hmi-text-violet">{fmt(computed?.jitter, 2)}</span>,
+      value: <span className="text-hmi-text">{fmt(computed?.jitter, 2)}</span>,
       tooltip: t('runMetrics.jitterTooltip'),
     },
   ]
@@ -463,7 +463,7 @@ export function MetricsPanel() {
   return (
     <div className="h-full w-full bg-hmi-panel border border-hmi-grid rounded-lg flex flex-col overflow-hidden">
       <div className="px-3 py-1.5 border-b border-hmi-grid shrink-0 flex items-center gap-2">
-        <span className="text-[11px] font-bold text-hmi-text-secondary uppercase tracking-wider select-none">
+        <span className="text-[11px] font-semibold text-hmi-text select-none">
           {t('runMetrics.title')}
         </span>
         {!stats && (
@@ -483,8 +483,8 @@ export function MetricsPanel() {
       <div className="flex-1 min-h-0 grid grid-cols-3 auto-rows-min gap-px bg-hmi-grid/30 overflow-y-auto">
         {rows.map((row, i) => (
           <UiTooltip key={i} content={row.tooltip} align="center">
-            <div className="flex flex-col justify-center px-3 py-2 bg-hmi-panel cursor-help hover:bg-hmi-elevated transition-colors">
-              <span className="text-[10px] text-hmi-text-secondary font-semibold tracking-wide uppercase leading-tight select-none">
+            <div className="flex flex-col justify-center px-4 py-2.5 bg-hmi-panel cursor-help hover:bg-hmi-elevated transition-colors">
+              <span className="text-[10px] text-hmi-text-secondary font-normal leading-tight select-none">
                 {row.label}
               </span>
               <span className="font-mono font-medium text-sm mt-0.5 leading-tight">
@@ -1790,7 +1790,7 @@ function AdvancedAnalyzer({
         
         {/* Interaction Tool Selector */}
         <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded border border-hmi-grid">
-          <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5 mr-1">{t('toolLabel')}</span>
+          <span className="text-[10px] text-hmi-muted font-semibold px-1.5 mr-1">{t('toolLabel')}</span>
           <Button
             type="button"
             variant={activeTool === 'zoom' ? 'default' : 'ghost'}
@@ -1824,7 +1824,7 @@ function AdvancedAnalyzer({
 
         {/* Quick Zoom Fit & Scale Buttons */}
         <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded border border-hmi-grid">
-          <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5 mr-1">{t('scalingLabel')}</span>
+          <span className="text-[10px] text-hmi-muted font-semibold px-1.5 mr-1">{t('scalingLabel')}</span>
           <Button
             type="button"
             variant="ghost"
@@ -1881,7 +1881,7 @@ function AdvancedAnalyzer({
         {/* Caliper Configuration Mode */}
         {activeTool === 'cursor' && (
           <div className="flex items-center gap-1 bg-hmi-bg p-1 rounded border border-hmi-grid animate-tooltip-left">
-            <span className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold px-1.5">{t('caliperLabel')}</span>
+            <span className="text-[10px] text-hmi-muted font-semibold px-1.5">{t('caliperLabel')}</span>
             <Button
               type="button"
               variant={activeCursor === 'A' ? 'default' : 'ghost'}
@@ -1979,7 +1979,7 @@ function AdvancedAnalyzer({
         <div className="w-80 shrink-0 flex flex-col gap-4 overflow-y-auto pr-1">
           {/* Signal visibility configuration checklist */}
           <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
-            <h3 className="text-xs font-bold text-hmi-text-secondary uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
+            <h3 className="text-xs font-semibold text-hmi-text mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
               Visible Signals
             </h3>
             <div className="flex flex-col gap-2">
@@ -2000,7 +2000,7 @@ function AdvancedAnalyzer({
 
           {/* Caliper delta and amplitude measurements */}
           <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
-            <h3 className="text-xs font-bold text-hmi-text-secondary uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5 flex justify-between items-center">
+            <h3 className="text-xs font-semibold text-hmi-text mb-2 select-none border-b border-hmi-grid/50 pb-1.5 flex justify-between items-center">
               {t('caliperMeasurements')}
               {activeTool !== 'cursor' && (
                 <span className="text-[9px] text-hmi-muted normal-case font-normal">{t('enableCalipersToPlace')}</span>
@@ -2094,7 +2094,7 @@ function AdvancedAnalyzer({
           {/* Context-aware Control Systems Analysis */}
           {caliperPoints.ptA && caliperPoints.ptB && caliperDiagnostics && (
             <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
-              <h3 className="text-xs font-bold text-hmi-ideal uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
+              <h3 className="text-xs font-bold text-hmi-ideal mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
                 {activeTab === 'pos' || activeTab === 'vel' ? t('controlSystemsAnalysis') :
                  activeTab === 'cte' || activeTab === 'ate' ? t('trackingPerformance') :
                  t('actuatorDynamics')}
@@ -2267,7 +2267,7 @@ function AdvancedAnalyzer({
 
           {/* Regional Window Statistics Dashboard */}
           <div className="border border-hmi-grid bg-hmi-elevated/40 rounded-lg p-3">
-            <h3 className="text-xs font-bold text-hmi-text-secondary uppercase tracking-wider mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
+            <h3 className="text-xs font-semibold text-hmi-text mb-2 select-none border-b border-hmi-grid/50 pb-1.5">
               {t('visibleWindowStats')}
             </h3>
             <div className="flex flex-col gap-2 font-mono text-[11px]">
@@ -2322,6 +2322,7 @@ const TAB_LABELS: Record<string, string> = {
 
 export function ChartPanel() {
   const t = useTranslations('ChartPanel')
+  const consoleText = useTranslations('Console')
   const { state } = useHMI()
   const [isFocused, setIsFocused] = useState(false)
   const [angularUnit, setAngularUnit] = useState('radians')
@@ -2459,7 +2460,7 @@ export function ChartPanel() {
   return (
     <Card 
       className={cn(
-        "flex flex-col flex-1 min-h-0 shadow-md transition-all duration-300 group/graph",
+        "flex flex-col flex-1 min-h-0 group/graph",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
           : "relative"
@@ -2515,13 +2516,14 @@ export function ChartPanel() {
       
       <Tabs value={activeTab} onValueChange={(val: string) => setActiveTab(val as any)} className="flex flex-col flex-1 min-h-0">
         {!isFocused && (
-          <TabsList className="rounded-none border-b border-hmi-grid bg-hmi-panel px-2 py-0 h-9 shrink-0 flex items-center justify-between">
+          <TabsList className="telemetry-tabs rounded-none border-b border-hmi-grid bg-hmi-panel px-4 py-0 h-12 shrink-0 flex items-center justify-between">
+            <span className="telemetry-title">{consoleText('telemetry')}</span>
             <div className="flex items-center gap-0.5">
               {CHART_TABS.map(tab => (
                 <TabsTrigger
                   key={tab}
                   value={tab}
-                  className="h-9 rounded-none border-b-2 border-transparent text-sm font-semibold data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text px-3 cursor-pointer"
+                  className={cn("h-12 rounded-none border-b-2 border-transparent text-xs font-medium data-[state=active]:border-hmi-ideal data-[state=active]:bg-transparent data-[state=active]:text-hmi-text px-3 cursor-pointer", (tab === 'pos' || tab === 'pid') && 'ml-3')}
                 >
                   {t(tab)}
                 </TabsTrigger>

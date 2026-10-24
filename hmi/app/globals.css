@@ -1,6 +1,16 @@
 @import "tailwindcss";
 
 @theme {
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--hmi-text-secondary);
+  --color-sidebar-primary: var(--hmi-ideal);
+  --color-sidebar-primary-foreground: var(--hmi-panel);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--hmi-text);
+  --color-sidebar-border: var(--hmi-grid);
+  --color-sidebar-ring: var(--hmi-ideal);
+  --color-background: var(--hmi-bg);
+
   /* ── Core Surfaces ── */
   --color-hmi-bg:           var(--hmi-bg);
   --color-hmi-panel:        var(--hmi-panel);
@@ -103,6 +113,7 @@
   --hmi-off:          #2A2B2F;   /* Softer off state */
   --hmi-rec-on:       #F87171;   /* Red-400 */
   --hmi-rec-off:      #2A2B2F;   /* Softer rec-off state */
+  --hmi-estop-hover:  #B91C1C;
   --hmi-estop:        #DC2626;   /* Red-600 */
   /* ── Dynamic Text (contrast-adjusted for dark/light themes) ── */
   --hmi-text-neutral: #DFE1E5; /* Soft white/gray */
@@ -133,9 +144,9 @@
   --hmi-tab-active:   #F4F4F5;   /* Active tab/sidebar item bg (zinc-100) */
 
   /* ── Accent ── */
-  --hmi-ideal:        #4F46E5;   /* Indigo-600 */
-  --hmi-ideal-dark:   #4338CA;   /* Indigo-700 */
-  --hmi-ideal-dim:    #EEF2FF;   /* Indigo-50 tinted bg */
+  --hmi-ideal:        #2563EB;   /* Blue-600 */
+  --hmi-ideal-dark:   #1D4ED8;   /* Blue-700 */
+  --hmi-ideal-dim:    #EFF6FF;   /* Blue-50 tinted bg */
 
   /* ── Data Series Colors ── */
   --hmi-j1:           #2563EB;   /* Blue-600 */
@@ -158,6 +169,7 @@
   --hmi-off:          #E4E4E7;   /* Zinc-200 */
   --hmi-rec-on:       #DC2626;   /* Red-600 */
   --hmi-rec-off:      #E4E4E7;   /* Zinc-200 */
+  --hmi-estop-hover:  #B91C1C;
   --hmi-estop:        #DC2626;   /* Red-600 */
   /* ── Dynamic Text (contrast-adjusted for dark/light themes) ── */
   --hmi-text-neutral: #1E293B; /* slate-800 */

@@ -132,7 +132,7 @@ export function FFTSection({
   return (
     <Card 
       className={cn(
-        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        "transition-colors group/graph flex flex-col",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
           : "relative cursor-zoom-in hover:border-hmi-ideal/30"
@@ -290,7 +290,7 @@ export function ControlEffortSection({
   return (
     <Card 
       className={cn(
-        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        "transition-colors group/graph flex flex-col",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
           : "relative cursor-zoom-in hover:border-hmi-ideal/30"
@@ -429,7 +429,7 @@ export function CTCTorqueSection({
   return (
     <Card 
       className={cn(
-        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        "transition-colors group/graph flex flex-col",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
           : "relative cursor-zoom-in hover:border-hmi-ideal/30"
@@ -542,7 +542,7 @@ export function ControlInternalSection({
   return (
     <Card 
       className={cn(
-        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        "transition-colors group/graph flex flex-col",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
           : "relative cursor-zoom-in hover:border-hmi-ideal/30"
@@ -682,7 +682,7 @@ export function StepperVelocitySection({
   return (
     <Card 
       className={cn(
-        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        "transition-colors group/graph flex flex-col",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
           : "relative cursor-zoom-in hover:border-hmi-ideal/30"
@@ -797,7 +797,7 @@ export function PIDBreakdownSection({
   return (
     <Card 
       className={cn(
-        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        "transition-colors group/graph flex flex-col",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
           : "relative cursor-zoom-in hover:border-hmi-ideal/30"
@@ -914,7 +914,7 @@ export function LoopDurationSection({
   return (
     <Card 
       className={cn(
-        "shadow-md transition-all duration-300 group/graph flex flex-col",
+        "transition-colors group/graph flex flex-col",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
           : "relative cursor-zoom-in hover:border-hmi-ideal/30"

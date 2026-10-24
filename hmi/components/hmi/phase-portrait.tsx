@@ -133,7 +133,7 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
   return (
     <div 
       className={cn(
-        "bg-hmi-panel border border-hmi-grid rounded-lg p-2 shadow-md flex flex-col transition-all duration-300 group/graph",
+        "bg-hmi-panel border border-hmi-grid rounded-lg p-2 flex flex-col transition-all duration-300 group/graph",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg" 
           : "relative cursor-zoom-in hover:border-hmi-ideal/30 h-full w-full"
@@ -175,7 +175,7 @@ export function PhasePortrait({ frozenD, width, height }: PhasePortraitProps) {
           </Button>
         </div>
       ) : (
-        <p className="text-xs font-bold text-hmi-text-secondary uppercase tracking-wider mb-1 px-1">Phase Portrait (θ vs θ̇)</p>
+        <p className="text-xs font-bold text-hmi-text-secondary mb-1 px-1">Phase Portrait (θ vs θ̇)</p>
       )}
 
       {/* Maximize button overlay (visible on hover) */}

@@ -279,7 +279,7 @@ export function CommandPalette() {
 
     return (
       <div className="py-2">
-        <h3 className="px-4 py-1 text-[10px] font-bold text-hmi-muted uppercase tracking-wider">
+        <h3 className="px-4 py-1 text-[10px] font-bold text-hmi-muted">
           {category === 'Page Navigation' ? t('pageNavigation') : t('hmiQuickActions')}
         </h3>
         <div className="mt-1 space-y-0.5">

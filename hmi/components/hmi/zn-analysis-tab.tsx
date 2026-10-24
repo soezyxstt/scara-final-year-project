@@ -878,7 +878,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
         {/* Joint Selection & Static commands */}
         <Card className="flex-1 border-hmi-grid bg-hmi-panel p-4 flex flex-col gap-4 shadow-lg">
           <div className="flex items-center justify-between border-b border-hmi-grid/50 pb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-hmi-text-secondary flex items-center gap-1.5 font-sans">
+            <span className="text-xs font-bold text-hmi-text-secondary flex items-center gap-1.5 font-sans">
               <Sliders className="w-4 h-4 text-hmi-ideal" /> Controls & Target
             </span>
             <span className="text-[10px] font-mono text-hmi-muted">
@@ -888,7 +888,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-bold text-hmi-muted uppercase block mb-1 font-sans">Joint Selector</label>
+              <label className="text-[10px] font-bold text-hmi-muted block mb-1 font-sans">Joint Selector</label>
               <div className="flex bg-hmi-bg p-0.5 rounded border border-hmi-grid">
                 <button
                   onClick={() => setActiveJoint(1)}
@@ -912,7 +912,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-hmi-muted uppercase block mb-1 font-sans">Send Step Target (deg)</label>
+              <label className="text-[10px] font-bold text-hmi-muted block mb-1 font-sans">Send Step Target (deg)</label>
               <div className="flex gap-2">
                 <Input
                   type="number"
@@ -931,7 +931,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
         {/* Streaming control and graph actions */}
         <Card className="border-hmi-grid bg-hmi-panel p-4 flex flex-col justify-between lg:w-[350px] shadow-lg">
           <div className="flex items-center justify-between border-b border-hmi-grid/50 pb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-hmi-text-secondary flex items-center gap-1.5 font-sans">
+            <span className="text-xs font-bold text-hmi-text-secondary flex items-center gap-1.5 font-sans">
               <Activity className="w-4 h-4 text-hmi-ideal" /> Buffer Control
             </span>
             <span className="text-[10px] font-mono text-hmi-muted">
@@ -943,7 +943,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
             <Button
               size="sm"
               onClick={handleToggleFreeze}
-              className={cn("flex-1 text-xs h-9 gap-1.5 font-bold uppercase cursor-pointer transition-colors", isFrozen ? "bg-amber-600 hover:bg-amber-500 text-white" : "bg-cyan-700 hover:bg-cyan-600 text-white")}
+              className={cn("flex-1 text-xs h-9 gap-1.5 font-bold cursor-pointer transition-colors", isFrozen ? "bg-amber-600 hover:bg-amber-500 text-white" : "bg-cyan-700 hover:bg-cyan-600 text-white")}
             >
               {isFrozen ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
               {isFrozen ? 'Resume' : 'Pause'}
@@ -963,7 +963,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 setIsExportModalOpen(true)
               }}
               disabled={chartData.length === 0}
-              className="flex-1 text-xs h-9 gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold uppercase cursor-pointer disabled:opacity-40 transition-colors"
+              className="flex-1 text-xs h-9 gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold cursor-pointer disabled:opacity-40 transition-colors"
             >
               <Download className="w-3.5 h-3.5" /> Export CSV
             </Button>
@@ -974,7 +974,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
       {/* Chart Configuration Select Panel */}
       <Card className="border-hmi-grid bg-hmi-panel p-3.5 shadow-lg flex flex-wrap items-center justify-between gap-4 shrink-0">
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-bold uppercase tracking-wider text-hmi-text font-sans flex items-center gap-1.5">
+          <span className="text-xs font-bold text-hmi-text font-sans flex items-center gap-1.5">
             <Activity className="w-4 h-4 text-emerald-400" /> Chart Analysis Configuration
           </span>
           <span className="text-[10px] text-hmi-muted font-sans">
@@ -983,7 +983,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
         </div>
         
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-hmi-muted uppercase font-sans">Show:</span>
+          <span className="text-[10px] font-bold text-hmi-muted font-sans">Show:</span>
           <Select value={viewMode} onValueChange={(val: string) => setViewMode(val as any)}>
             <SelectTrigger className="w-60 h-7 text-xs bg-hmi-bg border-hmi-grid text-hmi-text-secondary">
               <SelectValue />
@@ -1013,7 +1013,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
           )}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-bold uppercase tracking-wider text-hmi-text font-sans">
+                <span className="text-xs font-bold text-hmi-text font-sans">
                   {viewMode === 'pos' && 'Filtered Position vs Target'}
                   {viewMode === 'raw' && 'Raw ADC Position (Unfiltered)'}
                   {viewMode === 'compare' && 'Comparison: Filtered vs Raw ADC Jitter'}
@@ -1033,7 +1033,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 {viewMode === 'fft' && !isRecordingFFT && (
                   <Button
                     size="sm"
-                    className="h-7 text-xs bg-emerald-700 hover:bg-emerald-600 text-white font-bold uppercase cursor-pointer transition-colors"
+                    className="h-7 text-xs bg-emerald-700 hover:bg-emerald-600 text-white font-bold cursor-pointer transition-colors"
                     onClick={handleStartFFTRecord}
                   >
                     Record FFT
@@ -1172,11 +1172,11 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
             {/* POS METRICS */}
             {viewMode === 'pos' && (
               <div className="flex flex-col gap-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-sans block">
+                <span className="text-xs font-bold text-emerald-400 font-sans block">
                   📊 Position Analysis Metrics
                 </span>
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Steady-State Error (SSE)</span>
+                  <span className="text-[9px] text-hmi-text-secondary font-bold">Steady-State Error (SSE)</span>
                   <span className="text-xl font-mono font-bold text-hmi-text">
                     {analysis.sse.toFixed(5)}°
                   </span>
@@ -1184,7 +1184,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 </Card>
 
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Mean Position</span>
+                  <span className="text-[9px] text-hmi-text-secondary font-bold">Mean Position</span>
                   <span className="text-xl font-mono font-bold text-emerald-400">
                     {analysis.mean.toFixed(4)}°
                   </span>
@@ -1192,7 +1192,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 </Card>
 
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Filtered Jitter Std Dev (σ)</span>
+                  <span className="text-[9px] text-hmi-text-secondary font-bold">Filtered Jitter Std Dev (σ)</span>
                   <span className="text-xl font-mono font-bold text-cyan-400">
                     {analysis.filtStd.toFixed(5)}°
                   </span>
@@ -1200,7 +1200,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 </Card>
 
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Filtered Peak-to-Peak</span>
+                  <span className="text-[9px] text-hmi-text-secondary font-bold">Filtered Peak-to-Peak</span>
                   <span className="text-xl font-mono font-bold text-amber-400">
                     {analysis.filtP2P.toFixed(4)}°
                   </span>
@@ -1212,11 +1212,11 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
             {/* RAW METRICS */}
             {viewMode === 'raw' && (
               <div className="flex flex-col gap-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-sans block">
+                <span className="text-xs font-bold text-emerald-400 font-sans block">
                   🛡️ Raw ADC Noise Metrics
                 </span>
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Raw ADC Std Dev (σ)</span>
+                  <span className="text-[9px] text-hmi-text-secondary font-bold">Raw ADC Std Dev (σ)</span>
                   <span className="text-xl font-mono font-bold text-hmi-text">
                     {analysis.rawStd.toFixed(5)}°
                   </span>
@@ -1224,7 +1224,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 </Card>
 
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Raw Peak-to-Peak Swing</span>
+                  <span className="text-[9px] text-hmi-text-secondary font-bold">Raw Peak-to-Peak Swing</span>
                   <span className="text-xl font-mono font-bold text-amber-500">
                     {analysis.rawP2P.toFixed(4)}°
                   </span>
@@ -1232,7 +1232,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 </Card>
 
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Mean Raw Position</span>
+                  <span className="text-[9px] text-hmi-text-secondary font-bold">Mean Raw Position</span>
                   <span className="text-xl font-mono font-bold text-hmi-text">
                     {analysis.meanRaw.toFixed(4)}°
                   </span>
@@ -1244,13 +1244,13 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
             {/* COMPARE METRICS */}
             {viewMode === 'compare' && (
               <div className="flex flex-col gap-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-sans block">
+                <span className="text-xs font-bold text-emerald-400 font-sans block">
                   ⚖️ Jitter & Filter Comparison
                 </span>
                 
                 <div className="border border-emerald-500/35 bg-emerald-950/20 p-3 flex items-center justify-between text-xs font-sans shadow-md rounded">
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-hmi-text-secondary uppercase font-bold tracking-wider mb-0.5">Noise Attenuation</span>
+                    <span className="text-[10px] text-hmi-text-secondary font-bold mb-0.5">Noise Attenuation</span>
                     <span className="text-[10px] text-hmi-text-secondary leading-tight">
                       TD filter Jitter Reduction:
                     </span>
@@ -1262,13 +1262,13 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
 
                 <div className="grid grid-cols-2 gap-2">
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Raw Jitter (σ)</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">Raw Jitter (σ)</span>
                     <span className="text-sm font-mono font-bold text-hmi-text-secondary">
                       {analysis.rawStd.toFixed(4)}°
                     </span>
                   </Card>
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Filt Jitter (σ)</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">Filt Jitter (σ)</span>
                     <span className="text-sm font-mono font-bold text-cyan-400">
                       {analysis.filtStd.toFixed(4)}°
                     </span>
@@ -1277,13 +1277,13 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
 
                 <div className="grid grid-cols-2 gap-2">
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Raw Peak-to-Peak</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">Raw Peak-to-Peak</span>
                     <span className="text-sm font-mono font-bold text-amber-500">
                       {analysis.rawP2P.toFixed(3)}°
                     </span>
                   </Card>
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Filt Peak-to-Peak</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">Filt Peak-to-Peak</span>
                     <span className="text-sm font-mono font-bold text-amber-400">
                       {analysis.filtP2P.toFixed(3)}°
                     </span>
@@ -1291,7 +1291,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 </div>
 
                 <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                  <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Steady-State Error (SSE)</span>
+                  <span className="text-[8px] text-hmi-text-secondary font-bold">Steady-State Error (SSE)</span>
                   <span className="text-sm font-mono font-bold text-hmi-text">
                     {analysis.sse.toFixed(4)}°
                   </span>
@@ -1302,11 +1302,11 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
             {/* VEL METRICS */}
             {viewMode === 'vel' && (
               <div className="flex flex-col gap-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-sans block">
+                <span className="text-xs font-bold text-emerald-400 font-sans block">
                   ⚡ Velocity Dynamics Metrics
                 </span>
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">RMS Velocity</span>
+                  <span className="text-[9px] text-hmi-text-secondary font-bold">RMS Velocity</span>
                   <span className="text-xl font-mono font-bold text-emerald-400">
                     {analysis.rmsVel.toFixed(4)}°/s
                   </span>
@@ -1314,7 +1314,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 </Card>
 
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Max Velocity Spike</span>
+                  <span className="text-[9px] text-hmi-text-secondary font-bold">Max Velocity Spike</span>
                   <span className="text-xl font-mono font-bold text-red-400">
                     {analysis.maxVelSpike.toFixed(4)}°/s
                   </span>
@@ -1322,7 +1322,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 </Card>
 
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Mean Velocity</span>
+                  <span className="text-[9px] text-hmi-text-secondary font-bold">Mean Velocity</span>
                   <span className="text-xl font-mono font-bold text-hmi-text">
                     {analysis.meanVel.toFixed(4)}°/s
                   </span>
@@ -1334,54 +1334,54 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
             {/* CTRL METRICS */}
             {viewMode === 'ctrl' && (
               <div className="flex flex-col gap-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-sans block">
+                <span className="text-xs font-bold text-emerald-400 font-sans block">
                   🎛️ Control Action Metrics (J1, fraction of U1_MAX)
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Mean P</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">Mean P</span>
                     <span className="text-sm font-mono font-bold text-blue-400">
                       {ctrlAnalysis.meanP.toFixed(4)}
                     </span>
                   </Card>
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">RMS P</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">RMS P</span>
                     <span className="text-sm font-mono font-bold text-blue-400">
                       {ctrlAnalysis.rmsP.toFixed(4)}
                     </span>
                   </Card>
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Mean I</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">Mean I</span>
                     <span className="text-sm font-mono font-bold text-violet-400">
                       {ctrlAnalysis.meanI.toFixed(4)}
                     </span>
                   </Card>
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">RMS I</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">RMS I</span>
                     <span className="text-sm font-mono font-bold text-violet-400">
                       {ctrlAnalysis.rmsI.toFixed(4)}
                     </span>
                   </Card>
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Mean D</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">Mean D</span>
                     <span className="text-sm font-mono font-bold text-amber-400">
                       {ctrlAnalysis.meanD.toFixed(4)}
                     </span>
                   </Card>
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">RMS D</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">RMS D</span>
                     <span className="text-sm font-mono font-bold text-amber-400">
                       {ctrlAnalysis.rmsD.toFixed(4)}
                     </span>
                   </Card>
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">Mean FF</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">Mean FF</span>
                     <span className="text-sm font-mono font-bold text-emerald-400">
                       {ctrlAnalysis.meanFF.toFixed(4)}
                     </span>
                   </Card>
                   <Card className="border-hmi-grid bg-hmi-panel p-2.5 flex flex-col justify-between h-16 shadow-sm">
-                    <span className="text-[8px] text-hmi-text-secondary font-bold uppercase">RMS FF</span>
+                    <span className="text-[8px] text-hmi-text-secondary font-bold">RMS FF</span>
                     <span className="text-sm font-mono font-bold text-emerald-400">
                       {ctrlAnalysis.rmsFF.toFixed(4)}
                     </span>
@@ -1396,22 +1396,22 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
             {/* FFT METRICS */}
             {viewMode === 'fft' && (
               <div className="flex flex-col gap-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-sans block">
+                <span className="text-xs font-bold text-emerald-400 font-sans block">
                   🌌 Noise Frequency Spectrum Metrics
                 </span>
 
                 {/* Raw ADC Metrics */}
                 <div className="border border-hmi-grid rounded-lg p-2.5 flex flex-col gap-2 bg-hmi-elevated/40">
-                  <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wider px-1">Raw ADC Signal</span>
+                  <span className="text-[10px] font-bold text-hmi-text-secondary px-1">Raw ADC Signal</span>
                   <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                    <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Dominant Vibration Freq (Raw)</span>
+                    <span className="text-[9px] text-hmi-text-secondary font-bold">Dominant Vibration Freq (Raw)</span>
                     <span className="text-xl font-mono font-bold text-hmi-text">
                       {dominantFreqRaw.freq} Hz
                     </span>
                     <span className="text-[9px] text-hmi-muted">Frequency with the largest raw noise amplitude</span>
                   </Card>
                   <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                    <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Peak FFT Amplitude (Raw)</span>
+                    <span className="text-[9px] text-hmi-text-secondary font-bold">Peak FFT Amplitude (Raw)</span>
                     <span className="text-xl font-mono font-bold text-hmi-text-secondary">
                       {dominantFreqRaw.amp.toFixed(5)}°
                     </span>
@@ -1421,16 +1421,16 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
 
                 {/* Filtered Metrics */}
                 <div className="border border-hmi-grid rounded-lg p-2.5 flex flex-col gap-2 bg-hmi-elevated/40">
-                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider px-1 font-sans">Filtered Signal</span>
+                  <span className="text-[10px] font-bold text-amber-400 px-1 font-sans">Filtered Signal</span>
                   <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                    <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Dominant Vibration Freq (Filt)</span>
+                    <span className="text-[9px] text-hmi-text-secondary font-bold">Dominant Vibration Freq (Filt)</span>
                     <span className="text-xl font-mono font-bold text-amber-400">
                       {dominantFreqFiltered.freq} Hz
                     </span>
                     <span className="text-[9px] text-hmi-muted">Frequency with the largest filtered noise amplitude</span>
                   </Card>
                   <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                    <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Peak FFT Amplitude (Filt)</span>
+                    <span className="text-[9px] text-hmi-text-secondary font-bold">Peak FFT Amplitude (Filt)</span>
                     <span className="text-xl font-mono font-bold text-cyan-400">
                       {dominantFreqFiltered.amp.toFixed(5)}°
                     </span>
@@ -1439,7 +1439,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
                 </div>
 
                 <Card className="border-hmi-grid bg-hmi-panel p-3 flex flex-col justify-between h-20 shadow-md">
-                  <span className="text-[9px] text-hmi-text-secondary font-bold uppercase tracking-wider">Analysis Sample Size</span>
+                  <span className="text-[9px] text-hmi-text-secondary font-bold">Analysis Sample Size</span>
                   <span className="text-xl font-mono font-bold text-hmi-text">
                     {fftData.length * 2} pts
                   </span>
@@ -1453,7 +1453,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
       {/* Scrollable Data Table Preview */}
       <Card className="w-full border-hmi-grid bg-hmi-panel p-3 flex flex-col shadow-lg shrink-0 mt-4">
         <div className="flex items-center justify-between pb-2 border-b border-hmi-grid">
-          <span className="text-xs font-bold uppercase tracking-wider text-hmi-text flex items-center gap-1.5 font-sans">
+          <span className="text-xs font-bold text-hmi-text flex items-center gap-1.5 font-sans">
             <TableIcon className="w-4 h-4 text-hmi-text-secondary" /> Telemetry Data Table Preview (Active Selection / Buffer)
           </span>
           <span className="text-[10px] font-mono text-hmi-muted">
@@ -1534,7 +1534,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <Card className="bg-hmi-panel border border-hmi-grid p-6 rounded-lg shadow-2xl max-w-md w-full flex flex-col gap-4 text-hmi-text">
             <div className="flex items-center justify-between border-b border-hmi-grid/50 pb-2">
-              <span className="text-sm font-bold uppercase tracking-wider text-hmi-text font-sans flex items-center gap-1.5">
+              <span className="text-sm font-bold text-hmi-text font-sans flex items-center gap-1.5">
                 <Download className="w-4 h-4 text-emerald-400" /> Export CSV Configuration
               </span>
               <button 
@@ -1660,7 +1660,7 @@ export function ZNAnalysisTab({ isActive }: { isActive: boolean }) {
               {/* Dynamic Run Bookmark Options */}
               {runEvents.length > 0 && (
                 <div className="flex flex-col gap-2 mt-1">
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-sans">
+                  <span className="text-[10px] font-bold text-emerald-400 font-sans">
                     📌 Run Trigger Bookmarks (Step Response)
                   </span>
                   <div className="flex flex-col gap-2 max-h-[120px] overflow-y-auto pr-1 border border-hmi-grid/45 rounded p-1.5 bg-hmi-bg/20">

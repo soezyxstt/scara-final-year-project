@@ -1179,7 +1179,7 @@ export function ZNTunerTab() {
           )}>
             <div className="flex items-center justify-between pb-2">
               <div className="flex items-center gap-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-hmi-muted">{t('chart.title')}</span>
+                <span className="text-xs font-bold text-hmi-muted">{t('chart.title')}</span>
                 <span className="text-xs text-hmi-ideal font-mono">
                   {selectedRange ? t('chart.selectionZoomed') : isFrozen ? t('chart.frozen') : t('chart.streaming')}
                 </span>
@@ -1258,7 +1258,7 @@ export function ZNTunerTab() {
 
           {/* Gain Controls Panel wrapper (Right, occupying ~30%) */}
           <div className="w-full lg:w-[320px] flex flex-col border border-hmi-grid bg-hmi-panel rounded-md p-3 shrink-0 overflow-y-auto">
-            <span className="text-xs font-bold uppercase tracking-wider text-hmi-muted pb-3">{t('controls.title')}</span>
+            <span className="text-xs font-bold text-hmi-muted pb-3">{t('controls.title')}</span>
 
             {/* Joint Selector Toggle */}
             <div className="flex bg-hmi-bg p-0.5 rounded border border-hmi-grid mb-4">
@@ -1485,7 +1485,7 @@ export function ZNTunerTab() {
 
               {/* Target step command input */}
               <div className="flex flex-col gap-1 border-b border-hmi-grid/50 pb-3">
-                <span className="text-[10px] font-bold text-hmi-muted uppercase">{t('controls.stepTarget')}</span>
+                <span className="text-[10px] font-bold text-hmi-muted">{t('controls.stepTarget')}</span>
                 <div className="flex gap-2">
                   <Input
                     type="number"
@@ -1501,7 +1501,7 @@ export function ZNTunerTab() {
 
               {/* Raw CLI command input */}
               <form onSubmit={handleSendCustom} className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-hmi-muted uppercase">{t('controls.rawCommand')}</span>
+                <span className="text-[10px] font-bold text-hmi-muted">{t('controls.rawCommand')}</span>
                 <div className="flex gap-2">
                   <Input
                     type="text"
@@ -1520,7 +1520,7 @@ export function ZNTunerTab() {
               {estopped ? (
                 <Button
                   variant="resume"
-                  className="w-full h-9 uppercase font-bold text-sm bg-hmi-ok hover:bg-hmi-ok-hover tracking-wide mt-auto animate-pulse"
+                  className="w-full h-9 font-bold text-sm bg-hmi-ok hover:bg-hmi-ok-hover mt-auto animate-pulse"
                   onClick={() => serial.sendCommand('resume')}
                 >
                   🔄 {t('controls.resume')}
@@ -1528,7 +1528,7 @@ export function ZNTunerTab() {
               ) : (
                 <Button
                   variant="estop"
-                  className="w-full h-9 uppercase font-bold text-sm bg-hmi-estop hover:bg-hmi-estop-hover tracking-wide mt-auto"
+                  className="w-full h-9 font-bold text-sm bg-hmi-estop hover:bg-hmi-estop-hover mt-auto"
                   onClick={() => serial.sendCommand('estop')}
                 >
                   🛑 {t('controls.estop')}
@@ -1550,7 +1550,7 @@ export function ZNTunerTab() {
                 <button
                   onClick={() => setAnalyzerTab('zn')}
                   className={cn(
-                    "pb-1.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer",
+                    "pb-1.5 text-xs font-bold  border-b-2 transition-colors cursor-pointer",
                     analyzerTab === 'zn'
                       ? "border-hmi-ideal text-hmi-text"
                       : "border-transparent text-hmi-muted hover:text-hmi-text"
@@ -1561,7 +1561,7 @@ export function ZNTunerTab() {
                 <button
                   onClick={() => setAnalyzerTab('dyn')}
                   className={cn(
-                    "pb-1.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer",
+                    "pb-1.5 text-xs font-bold  border-b-2 transition-colors cursor-pointer",
                     analyzerTab === 'dyn'
                       ? "border-hmi-ideal text-hmi-text"
                       : "border-transparent text-hmi-muted hover:text-hmi-text"
@@ -1572,7 +1572,7 @@ export function ZNTunerTab() {
                 <button
                   onClick={() => setAnalyzerTab('stats')}
                   className={cn(
-                    "pb-1.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer",
+                    "pb-1.5 text-xs font-bold  border-b-2 transition-colors cursor-pointer",
                     analyzerTab === 'stats'
                       ? "border-hmi-ideal text-hmi-text"
                       : "border-transparent text-hmi-muted hover:text-hmi-text"
@@ -1610,37 +1610,37 @@ export function ZNTunerTab() {
                   {/* Grid readout of calculated metrics */}
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('zn.period')}</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold tracking-tight">{t('zn.period')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.Tu ? `${metrics.Tu.toFixed(3)}s` : '—'}
                       </span>
                     </Card>
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('zn.frequency')}</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold tracking-tight">{t('zn.frequency')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.fu ? `${metrics.fu.toFixed(2)} Hz` : '—'}
                       </span>
                     </Card>
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('metrics.peakToPeak')}</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold tracking-tight">{t('metrics.peakToPeak')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.p2p.toFixed(2)}°
                       </span>
                     </Card>
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('metrics.rmsError')}</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold tracking-tight">{t('metrics.rmsError')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.rms.toFixed(3)}°
                       </span>
                     </Card>
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('metrics.maxError')}</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold tracking-tight">{t('metrics.maxError')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.maxAbs.toFixed(3)}°
                       </span>
                     </Card>
                     <Card className="border-hmi-grid bg-hmi-bg p-2 flex flex-col justify-between h-14">
-                      <span className="text-[10px] text-hmi-muted font-semibold uppercase tracking-tight">{t('metrics.steadyState')}</span>
+                      <span className="text-[10px] text-hmi-muted font-semibold tracking-tight">{t('metrics.steadyState')}</span>
                       <span className="text-xs font-mono font-bold text-hmi-text text-right">
                         {metrics.ssErr.toFixed(3)}°
                       </span>
@@ -1866,7 +1866,7 @@ export function ZNTunerTab() {
                     {/* Rise Time 10-90% */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.rise1090')}</span>
+                        <span className="text-[10px] font-semibold tracking-tight">{t('dynamic.rise1090')}</span>
                         <Clock className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <span className="text-sm font-mono font-bold text-hmi-text text-right">
@@ -1877,7 +1877,7 @@ export function ZNTunerTab() {
                     {/* Rise Time 0-100% */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.rise0100')}</span>
+                        <span className="text-[10px] font-semibold tracking-tight">{t('dynamic.rise0100')}</span>
                         <Clock className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <span className="text-sm font-mono font-bold text-hmi-text text-right">
@@ -1888,7 +1888,7 @@ export function ZNTunerTab() {
                     {/* Settling Time 2% */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.settling2')}</span>
+                        <span className="text-[10px] font-semibold tracking-tight">{t('dynamic.settling2')}</span>
                         <Activity className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <span className={cn("text-sm font-mono font-bold text-right", !metrics.dynProps.settledInSelection2 ? "text-hmi-text-warning text-xs" : "text-hmi-text")}>
@@ -1901,7 +1901,7 @@ export function ZNTunerTab() {
                     {/* Settling Time 5% */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.settling5')}</span>
+                        <span className="text-[10px] font-semibold tracking-tight">{t('dynamic.settling5')}</span>
                         <Activity className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <span className={cn("text-sm font-mono font-bold text-right", !metrics.dynProps.settledInSelection5 ? "text-hmi-text-warning text-xs" : "text-hmi-text")}>
@@ -1914,7 +1914,7 @@ export function ZNTunerTab() {
                     {/* Peak Time */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.peakTime')}</span>
+                        <span className="text-[10px] font-semibold tracking-tight">{t('dynamic.peakTime')}</span>
                         <Clock className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <span className="text-sm font-mono font-bold text-hmi-text text-right">
@@ -1925,7 +1925,7 @@ export function ZNTunerTab() {
                     {/* Max Overshoot */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.maxOvershoot')}</span>
+                        <span className="text-[10px] font-semibold tracking-tight">{t('dynamic.maxOvershoot')}</span>
                         <TrendingUp className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <div className="flex flex-col items-end">
@@ -1943,7 +1943,7 @@ export function ZNTunerTab() {
                     {/* Damping Ratio */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.dampingRatio')}</span>
+                        <span className="text-[10px] font-semibold tracking-tight">{t('dynamic.dampingRatio')}</span>
                         <Gauge className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <div className="flex flex-col items-end">
@@ -1963,7 +1963,7 @@ export function ZNTunerTab() {
                     {/* Frequencies (omega_n) */}
                     <Card className="border-hmi-grid bg-hmi-bg p-2.5 flex flex-col justify-between h-16">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-semibold uppercase tracking-tight">{t('dynamic.naturalFrequency')}</span>
+                        <span className="text-[10px] font-semibold tracking-tight">{t('dynamic.naturalFrequency')}</span>
                         <Gauge className="w-3.5 h-3.5 text-hmi-muted" />
                       </div>
                       <div className="flex flex-col items-end">
@@ -1999,7 +1999,7 @@ export function ZNTunerTab() {
                       <span>
                         {t('stats.status')}:{' '}
                         <strong className={cn(
-                          "px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border",
+                          "px-2 py-0.5 rounded text-[10px] font-bold  border",
                           metrics.statProps.rating === 'negligible' && "border-hmi-text-success text-hmi-text-success",
                           metrics.statProps.rating === 'marginal' && "border-hmi-text-warning text-hmi-text-warning",
                           metrics.statProps.rating === 'significant' && "border-hmi-text-error text-hmi-text-error"
@@ -2018,7 +2018,7 @@ export function ZNTunerTab() {
                     {/* Mean position */}
                     <Card className="border-hmi-grid bg-hmi-bg/40 backdrop-blur-sm p-3 flex flex-col justify-between h-20 hover:border-hmi-grid/80 transition-all group">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-bold uppercase tracking-wider">{t('stats.meanPosition')}</span>
+                        <span className="text-[10px] font-bold">{t('stats.meanPosition')}</span>
                         <Target className="w-4 h-4 text-hmi-muted group-hover:text-hmi-text-success transition-colors" />
                       </div>
                       <div className="flex items-baseline justify-between">
@@ -2032,7 +2032,7 @@ export function ZNTunerTab() {
                     {/* Standard deviation */}
                     <Card className="border-hmi-grid bg-hmi-bg/40 backdrop-blur-sm p-3 flex flex-col justify-between h-20 hover:border-hmi-grid/80 transition-all group">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-bold uppercase tracking-wider">{t('stats.stdDev')}</span>
+                        <span className="text-[10px] font-bold">{t('stats.stdDev')}</span>
                         <Activity className="w-4 h-4 text-hmi-muted group-hover:text-hmi-text-cyan transition-colors" />
                       </div>
                       <div className="flex items-baseline justify-between">
@@ -2046,7 +2046,7 @@ export function ZNTunerTab() {
                     {/* Peak-to-peak */}
                     <Card className="border-hmi-grid bg-hmi-bg/40 backdrop-blur-sm p-3 flex flex-col justify-between h-20 hover:border-hmi-grid/80 transition-all group">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-bold uppercase tracking-wider">{t('metrics.peakToPeak')}</span>
+                        <span className="text-[10px] font-bold">{t('metrics.peakToPeak')}</span>
                         <TrendingUp className="w-4 h-4 text-hmi-muted group-hover:text-hmi-text-warning transition-colors" />
                       </div>
                       <div className="flex items-baseline justify-between">
@@ -2060,7 +2060,7 @@ export function ZNTunerTab() {
                     {/* SNR proxy */}
                     <Card className="border-hmi-grid bg-hmi-bg/40 backdrop-blur-sm p-3 flex flex-col justify-between h-20 hover:border-hmi-grid/80 transition-all group">
                       <div className="flex items-center justify-between text-hmi-muted">
-                        <span className="text-[10px] font-bold uppercase tracking-wider">{t('stats.snrProxy')}</span>
+                        <span className="text-[10px] font-bold">{t('stats.snrProxy')}</span>
                         <ShieldAlert className="w-4 h-4 text-hmi-muted group-hover:text-hmi-text-error transition-colors" />
                       </div>
                       <div className="flex items-baseline justify-between">
@@ -2140,7 +2140,7 @@ export function ZNTunerTab() {
           <div className="w-full xl:w-[320px] shrink-0 border border-hmi-grid bg-hmi-panel rounded-md p-3 flex flex-col h-fit font-sans">
             <button
               onClick={() => setIsHintOpen(!isHintOpen)}
-              className="flex items-center justify-between w-full text-xs font-bold uppercase tracking-wider text-hmi-muted cursor-pointer"
+              className="flex items-center justify-between w-full text-xs font-bold text-hmi-muted cursor-pointer"
             >
               <span className="flex items-center gap-1.5"><HelpCircle className="w-3.5 h-3.5" /> {t('help.title')}</span>
               {isHintOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}

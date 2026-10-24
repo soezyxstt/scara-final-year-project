@@ -355,7 +355,7 @@ export function HMITutorial() {
         style={rect ? getTooltipStyle() : undefined}
       >
         {/* Step progress counter */}
-        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-hmi-muted font-mono">
+        <div className="flex items-center justify-between text-[10px] font-bold text-hmi-muted font-mono">
           <span className="flex items-center gap-1">
             <HelpCircle className="h-3.5 w-3.5 text-hmi-ideal" />
             {step.interactive ? t('guideInteractive') : t('guideStandard')}
@@ -366,7 +366,7 @@ export function HMITutorial() {
         </div>
 
         {/* Title */}
-        <h3 className="text-sm font-bold text-hmi-text tracking-wide mt-1">
+        <h3 className="text-sm font-bold text-hmi-text mt-1">
           {step.title}
         </h3>
 

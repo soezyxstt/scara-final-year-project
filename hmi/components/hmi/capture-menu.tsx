@@ -240,18 +240,18 @@ export function CaptureMenu() {
           size="sm"
           className="h-8 w-8 p-0 border-hmi-grid bg-hmi-btn hover:bg-hmi-btn-hover text-hmi-text-secondary hover:text-hmi-text flex items-center justify-center"
           title={t('hmiControlPanel')}
+          aria-label={t('hmiControlPanel')}
         >
-          <Menu className="h-4 w-4" />
+          <Settings className="h-4 w-4" />
         </Button>
       </SheetTrigger>
 
       <SheetContent side="right" className="flex flex-col h-full text-hmi-text bg-hmi-panel border-l border-hmi-grid overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="text-xl font-bold tracking-tight text-hmi-text flex items-center gap-2">
-            <span className="w-1.5 h-5 rounded-full bg-hmi-ideal" />
             {t('hmiControlPanel')}
           </SheetTitle>
-          <SheetDescription className="text-hmi-text-secondary">
+          <SheetDescription className="sr-only">
             {t('panelDesc')}
           </SheetDescription>
         </SheetHeader>
@@ -281,7 +281,7 @@ export function CaptureMenu() {
         <div className="flex-1 flex flex-col gap-6 py-2">
           {/* ── Help & Onboarding Section ── */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary">
               <Compass className="h-4 w-4 text-indigo-400" />
               {t('helpOnboarding')}
             </div>
@@ -308,7 +308,7 @@ export function CaptureMenu() {
 
           {/* ── Dashboard Settings Section ── */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary">
               <SlidersHorizontal className="h-4 w-4 text-hmi-muted" />
               {t('dashboardPreferences')}
             </div>
@@ -316,7 +316,7 @@ export function CaptureMenu() {
             <div className="bg-hmi-elevated/40 border border-hmi-grid p-3.5 rounded-lg flex flex-col gap-4">
               {/* Radians vs Degrees Toggle */}
               <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wider">{t('angularDisplayUnits')}</span>
+                <span className="text-[10px] font-bold text-hmi-text-secondary">{t('angularDisplayUnits')}</span>
                 <div className="grid grid-cols-2 gap-1.5 bg-hmi-bg p-1 rounded-md border border-hmi-grid">
                   <button
                     onClick={() => handleUnitToggle('radians')}
@@ -349,7 +349,7 @@ export function CaptureMenu() {
               {/* Ghost Trail Opacity Slider */}
               <div className="flex flex-col gap-1.5 border-t border-hmi-grid pt-3">
                 <div className="flex items-center justify-between text-xs text-hmi-text font-medium">
-                  <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wider">{t('ghostTrailOpacity')}</span>
+                  <span className="text-[10px] font-bold text-hmi-text-secondary">{t('ghostTrailOpacity')}</span>
                   <span className="font-mono text-hmi-ideal font-semibold">{ghostOpacity}%</span>
                 </div>
                 <input
@@ -370,7 +370,7 @@ export function CaptureMenu() {
 
           {/* ── Captures Section ── */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary">
               <FolderArchive className="h-4 w-4 text-hmi-text-secondary" />
               {t('diagnosticsCaptures')}
             </div>
@@ -464,7 +464,7 @@ export function CaptureMenu() {
 
           {/* ── Exporter Customization Section ── */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary">
               <FileImage className="h-4 w-4 text-hmi-text-secondary" />
               {t('exporterPreferences')}
             </div>
@@ -472,7 +472,7 @@ export function CaptureMenu() {
             <div className="bg-hmi-elevated/40 border border-hmi-grid p-3.5 rounded-lg flex flex-col gap-3">
               {/* Image Export Format */}
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-hmi-muted uppercase tracking-wide">{t('imageFileFormat')}</span>
+                <span className="text-[10px] font-bold text-hmi-muted">{t('imageFileFormat')}</span>
                 <div className="grid grid-cols-2 gap-1 bg-hmi-bg p-0.5 rounded border border-hmi-grid">
                   <button
                     onClick={() => handleFormatChange('image/png')}
@@ -501,7 +501,7 @@ export function CaptureMenu() {
 
               {/* Resolution Multiplier Scale */}
               <div className="flex flex-col gap-1 border-t border-hmi-grid pt-2.5">
-                <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wide">{t('dpiResolution')}</span>
+                <span className="text-[10px] font-bold text-hmi-text-secondary">{t('dpiResolution')}</span>
                 <div className="grid grid-cols-3 gap-1 bg-hmi-bg p-0.5 rounded border border-hmi-grid">
                   {[
                     { val: 1, label: t('dpiStandard') },
@@ -526,7 +526,7 @@ export function CaptureMenu() {
 
               {/* Custom Filename Prefix */}
               <div className="flex flex-col gap-1 border-t border-hmi-grid pt-2.5">
-                <span className="text-[10px] font-bold text-hmi-text-secondary uppercase tracking-wide">{t('filenamePrefix')}</span>
+                <span className="text-[10px] font-bold text-hmi-text-secondary">{t('filenamePrefix')}</span>
                 <Input
                   type="text"
                   value={filenamePrefix}
@@ -543,7 +543,7 @@ export function CaptureMenu() {
 
           {/* ── Keybindings Settings Section ── */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-hmi-text-secondary">
               <Keyboard className="h-4 w-4 text-hmi-muted" />
               {t('keyboardShortcuts')}
             </div>

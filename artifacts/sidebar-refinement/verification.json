@@ -1,0 +1,27 @@
+{
+  "browser": "Steel Browser",
+  "checks": [
+    "Expanded shadcn sidebar, robot models, populated chart and guarded controls render",
+    "Collapse animates from 224px to 56px",
+    "Collapsed navigation exposes tooltips",
+    "Collapsed state survives a reload through the sidebar cookie",
+    "Ctrl+B expands the sidebar",
+    "Toggle remains visible and functional at 1024px",
+    "Mobile drawer traps focus, dismisses with Escape and returns focus to its trigger",
+    "Selecting a mobile destination navigates and closes the drawer",
+    "Clicking outside the mobile drawer dismisses it",
+    "375px toolbar keeps emergency stop visible without horizontal overflow",
+    "shadcn view tabs switch with arrow keys",
+    "Reduced-motion preference disables width and panel animations"
+  ],
+  "pageErrors": [],
+  "widthTransitionDuration": "0.2s",
+  "expandedWidthPx": 224,
+  "collapsedWidthPx": 56,
+  "reducedMotionTransitionDuration": "1e-05s",
+  "fixture": "401 synthetic trajectory samples; no hardware commands sent",
+  "limitations": [
+    "Steel reports embedded GLTF texture decode warnings; robot geometry and all three models render.",
+    "Live hardware, authenticated experiments, and database writes were not exercised."
+  ]
+}

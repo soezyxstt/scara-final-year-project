@@ -36,7 +36,7 @@ export function Header() {
     <header className="sticky top-0 z-50 bg-hmi-panel border-b border-hmi-grid px-4 h-12 flex items-center shrink-0">
 
       {/* ── LEFT: Logo + Tabs ─────────────────────────────────────────── */}
-      <span className="text-sm font-bold text-hmi-text shrink-0 mr-4 tracking-wide">SCARA HMI</span>
+      <span className="text-sm font-bold text-hmi-text shrink-0 mr-4">SCARA HMI</span>
 
       <TabsList className="bg-transparent p-0 h-12 gap-0 shrink-0">
         <TabsTrigger
@@ -79,7 +79,7 @@ export function Header() {
           <Button
             variant="resume"
             size="sm"
-            className="h-8 px-4 text-sm font-bold tracking-wide animate-pulse"
+            className="h-8 px-4 text-sm font-bold animate-pulse"
             onClick={() => serial.sendCommand('resume')}
           >
             🔄 RESUME
@@ -88,7 +88,7 @@ export function Header() {
           <Button
             variant="estop"
             size="sm"
-            className="h-8 px-4 text-sm font-bold tracking-wide"
+            className="h-8 px-4 text-sm font-bold"
             onClick={() => serial.sendCommand('estop')}
           >
             🛑 E-STOP

@@ -19,7 +19,7 @@ export function LoginContent({ callbackUrl }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-hmi-bg flex flex-col items-center justify-center p-6">
+    <div className="min-h-full bg-hmi-bg flex flex-col items-center justify-center p-6">
       {/* Background grid lines for industrial feel */}
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.04]"
@@ -31,22 +31,9 @@ export function LoginContent({ callbackUrl }: Props) {
       />
 
       <div className="relative z-10 flex flex-col items-center gap-8 w-full max-w-sm">
-        {/* Logo / Title */}
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-12 h-12 rounded-xl bg-hmi-panel border border-hmi-grid flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7" strokeWidth={1.5}>
-              <path d="M12 3L3 8.5V15.5L12 21L21 15.5V8.5L12 3Z" stroke="#2196F3" strokeLinejoin="round" />
-              <path d="M12 3V21M3 8.5L21 15.5M21 8.5L3 15.5" stroke="#2196F3" strokeOpacity={0.4} />
-            </svg>
-          </div>
-          <h1 className="text-xl font-bold text-hmi-text tracking-wide">{t('title')}</h1>
-          <p className="text-xs text-hmi-muted tracking-widest uppercase">{t('subtitle')}</p>
-        </div>
-
         {/* Login card */}
         <div className="w-full bg-hmi-panel border border-hmi-grid rounded-xl p-6 flex flex-col gap-5">
           <div className="flex flex-col gap-1">
-            <h2 className="text-sm font-semibold text-hmi-text">{t('cardTitle')}</h2>
             <p className="text-xs text-hmi-muted leading-relaxed">
               {t('cardDescription')}
             </p>

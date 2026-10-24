@@ -31,7 +31,7 @@ export function LocaleToggle() {
       >
         <span className="flex items-center gap-0.5">
           <Languages className="w-3.5 h-3.5" />
-          <span className="uppercase text-[9px] font-semibold">{locale}</span>
+          <span className="text-[9px] font-semibold">{locale}</span>
         </span>
       </button>
     </Tooltip>

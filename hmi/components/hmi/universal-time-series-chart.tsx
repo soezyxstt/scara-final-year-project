@@ -114,7 +114,7 @@ export function ChartContainer({
     <div className="relative w-full h-full min-h-[160px]">
       {isEmpty && cleanedMsg && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          <span className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider select-none bg-hmi-bg/85 px-4 py-2 border border-hmi-grid/50 rounded shadow-sm">
+          <span className="text-[10px] font-bold text-hmi-muted select-none bg-hmi-bg/85 px-4 py-2 border border-hmi-grid/50 rounded shadow-sm">
             {cleanedMsg}
           </span>
         </div>

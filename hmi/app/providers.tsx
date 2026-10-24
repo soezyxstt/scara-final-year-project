@@ -6,6 +6,7 @@ import { ThemeProvider, useTheme } from '@/components/hmi/theme-provider'
 import { ModeRouter } from '@/components/hmi/mode-router'
 import { KeybindingsHandler } from '@/components/hmi/keybindings-handler'
 import { CaptureChartsHost } from '@/components/hmi/capture-charts-host'
+import { ConsoleShell } from '@/components/hmi/console-shell'
 import { CommandPalette } from '@/components/hmi/command-palette'
 import { Toaster } from 'sonner'
 import type { ReactNode } from 'react'
@@ -20,7 +21,7 @@ function ToasterWrapper() {
  * Diletakkan di app/layout.tsx agar HMIProvider (dan serial port-nya)
  * hidup sepanjang session — tidak unmount saat navigasi antar route.
  */
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children, defaultSidebarOpen = true }: { children: ReactNode; defaultSidebarOpen?: boolean }) {
   return (
     <SessionProvider>
       <HMIProvider>
@@ -28,7 +29,7 @@ export function Providers({ children }: { children: ReactNode }) {
           <ModeRouter />
           <KeybindingsHandler />
           <CaptureChartsHost />
-          {children}
+          <ConsoleShell defaultOpen={defaultSidebarOpen}>{children}</ConsoleShell>
           <CommandPalette />
           <ToasterWrapper />
         </ThemeProvider>

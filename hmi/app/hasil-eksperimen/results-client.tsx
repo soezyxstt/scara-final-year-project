@@ -1,5 +1,7 @@
 'use client'
 
+import { ConsoleTabs } from '@/components/hmi/console-shell'
+
 import { useState, useMemo, useTransition, useEffect } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
 import { Button } from '@/components/ui/button'
@@ -286,7 +288,7 @@ function ExpandableChart({
   const header = (
     <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06] shrink-0">
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">{title}</p>
+        <p className="text-[10px] font-bold text-slate-400 select-none">{title}</p>
         {subtitle && <p className="text-[9px] text-slate-600 mt-0.5 select-none">{subtitle}</p>}
       </div>
       <button
@@ -313,7 +315,7 @@ function ExpandableChart({
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-hmi-grid/60 shrink-0">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-300 select-none">{title}</p>
+              <p className="text-xs font-bold text-slate-300 select-none">{title}</p>
               {subtitle && <p className="text-[10px] text-slate-500 mt-0.5 select-none">{subtitle}</p>}
             </div>
             <button
@@ -915,137 +917,19 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen bg-hmi-bg text-hmi-text overflow-hidden results-container">
+    <div className="flex flex-col h-full bg-hmi-bg text-hmi-text overflow-hidden results-container">
 
-      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-      <aside className="w-64 shrink-0 border-r border-hmi-grid bg-hmi-panel flex flex-col justify-between overflow-hidden">
-        <div>
-          <div className="px-4 py-4 border-b border-hmi-grid flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-hmi-bg border border-hmi-grid flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4">
-                <path d="M12 3L3 8.5V15.5L12 21L21 15.5V8.5L12 3Z" stroke="#2196F3" strokeWidth={1.5} strokeLinejoin="round" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-hmi-text">SCARA Robot</p>
-              <p className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold">Experiment Results</p>
-            </div>
-          </div>
-
-          <nav className="p-2 space-y-0.5">
-            {EXPERIMENT_KEYS.map(key => {
-              const hasData = allRuns.some(r => r.experimentId.startsWith(key))
-              const runCount = allRuns.filter(r => r.experimentId.startsWith(key)).length
-              return (
-                <button
-                  key={key}
-                  onClick={() => { if (hasData) { setSelectedExp(key); setExpandedRunId(null); setDirectionFilter('all'); setSelectedBaselineRunIds(new Set()) } }}
-                  className={cn(
-                    'w-full text-left px-3 py-2.5 rounded text-xs font-medium transition-all duration-150',
-                    selectedExp === key && hasData
-                      ? 'bg-hmi-tab-active text-hmi-text border-l-2 border-hmi-ideal'
-                      : hasData
-                        ? 'text-hmi-muted hover:bg-hmi-grid/30 hover:text-hmi-text border-l-2 border-transparent'
-                        : 'text-slate-700 border-l-2 border-transparent cursor-default'
-                  )}
-                  disabled={!hasData}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-bold">{key}</span>
-                      <span className={cn('text-[10px] ml-1.5', hasData ? 'opacity-70' : 'opacity-30')}>
-                        {EXPERIMENT_NAMES[key]}
-                      </span>
-                    </div>
-                    <span className={cn(
-                      'text-[9px] font-mono tabular-nums px-1.5 py-0.5 rounded',
-                      hasData
-                        ? selectedExp === key ? 'bg-hmi-ideal/20 text-hmi-ideal' : 'bg-hmi-bg/80 text-hmi-muted'
-                        : 'text-slate-700'
-                    )}>
-                      {hasData ? runCount : '—'}
-                    </span>
-                  </div>
-                  {hasData && (
-                    <p className="text-[9px] text-slate-500 mt-0.5 leading-tight truncate">
-                      {EXPERIMENT_DESC[key]}
-                    </p>
-                  )}
-                </button>
-              )
-            })}
-          </nav>
-        </div>
-
-        <div className="p-3 border-t border-hmi-grid space-y-2">
-          {availableExperiments.includes(selectedExp) && (
-            <button
-              onClick={handleDeleteExperiment}
-              disabled={deletingExp || isPending}
-              className={cn(
-                'w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-xs font-semibold transition-all border',
-                'border-red-900/40 text-red-500/60 hover:bg-red-950/30 hover:border-red-700/60 hover:text-red-400',
-                (deletingExp || isPending) && 'opacity-40 cursor-not-allowed'
-              )}
-            >
-              {deletingExp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-              Delete All {selectedExp}
-            </button>
-          )}
-          <a href="/" className="w-full text-center text-xs py-1.5 rounded border border-hmi-grid text-hmi-muted hover:text-hmi-text hover:border-hmi-grid/80 transition-colors block">
-            ← Back to HMI
-          </a>
-        </div>
-      </aside>
+      <ConsoleTabs label="Result sets" value={selectedExp} items={EXPERIMENT_KEYS.map(key => ({ value: key, label: `${key} · ${EXPERIMENT_NAMES[key]}`, disabled: !allRuns.some(run => run.experimentId.startsWith(key)) }))} onChange={value => { setSelectedExp(value as typeof selectedExp); setExpandedRunId(null); setDirectionFilter('all'); setSelectedBaselineRunIds(new Set()) }} />
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Header */}
-        <header className="sticky top-0 z-50 bg-hmi-panel border-b border-hmi-grid px-6 h-12 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-hmi-text uppercase tracking-wider">{EXPERIMENT_NAMES[selectedExp]}</span>
-            <span className="text-xs text-hmi-muted">({selectedExp})</span>
-            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-hmi-muted" />}
+        <div className="flex items-center justify-between px-6 py-3 border-b border-hmi-grid bg-hmi-panel">
+          <div className="flex gap-1" aria-label="Direction filter">
+            {(['all', 'forward', 'return'] as const).map(direction => <Button key={direction} variant={directionFilter === direction ? 'default' : 'ghost'} size="sm" aria-pressed={directionFilter === direction} onClick={() => setDirectionFilter(direction)}>{direction === 'all' ? 'All directions' : direction === 'forward' ? 'Forward' : 'Return'}</Button>)}
           </div>
-
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <CommandPaletteTrigger />
-            {/* Direction filter */}
-            <div className="bg-hmi-bg border border-hmi-grid rounded-md p-0.5 flex">
-              {(['all', 'forward', 'return'] as const).map(dir => (
-                <button
-                  key={dir}
-                  onClick={() => setDirectionFilter(dir)}
-                  className={cn(
-                    'px-2.5 py-1 rounded text-[10px] uppercase font-bold tracking-wider transition-all',
-                    directionFilter === dir ? 'bg-hmi-tab-active text-hmi-ideal' : 'text-hmi-muted hover:text-hmi-text'
-                  )}
-                >
-                  {dir === 'all' ? 'All' : dir}
-                </button>
-              ))}
-            </div>
-            <div className="h-6 w-px bg-hmi-grid/60" />
-            <Badge className={`${online ? 'bg-hmi-ok text-white' : 'bg-hmi-off text-hmi-muted'} text-[10px] px-1.5 py-0 font-normal`}>
-              {online ? '● Online' : '○ Offline'}
-            </Badge>
-            <Badge className={cn('text-[10px] px-1.5 py-0 font-normal uppercase', serialStatus === 'connected' ? 'bg-hmi-ok/20 text-hmi-ok border border-hmi-ok/30' : 'bg-hmi-off text-hmi-muted border border-hmi-grid')}>
-              {serialStatus === 'connected' ? 'Connected' : 'Disconnected'}
-            </Badge>
-            {serialStatus === 'connected'
-              ? <Button variant="outline" size="sm" className="h-6 px-2.5 text-[11px] font-semibold" onClick={() => serial.disconnect()}>Disconnect</Button>
-              : <Button variant="outline" size="sm" className="h-6 px-2.5 text-[11px] font-semibold" onClick={() => serial.connect()}>Connect</Button>
-            }
-            <div className="flex items-center pl-2 border-l border-hmi-grid/60">
-              {estopped
-                ? <Button variant="resume" size="sm" className="h-7 px-3 text-xs font-bold animate-pulse" onClick={() => serial.sendCommand('resume')}>🔄 RESUME</Button>
-                : <Button variant="estop" size="sm" className="h-7 px-3 text-xs font-bold" onClick={() => serial.sendCommand('estop')}>🛑 E-STOP</Button>
-              }
-            </div>
-          </div>
-        </header>
+          {availableExperiments.includes(selectedExp) && <Button variant="ghost" size="sm" disabled={deletingExp || isPending} onClick={handleDeleteExperiment} className="text-hmi-text-error"><Trash2 size={14} />{deletingExp ? 'Deleting…' : `Delete ${selectedExp}`}</Button>}
+        </div>
 
         {/* Scroll content */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
@@ -1060,12 +944,12 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
           {loading ? (
             <div className="h-64 flex flex-col items-center justify-center text-xs text-slate-500 gap-3">
               <Loader2 className="w-7 h-7 animate-spin text-hmi-ideal" />
-              <span className="uppercase tracking-widest font-semibold">Loading data...</span>
+              <span className="st font-semibold">Loading data...</span>
             </div>
           ) : !data || data.runs.length === 0 ? (
             <div className="h-96 flex flex-col items-center justify-center text-center p-8 bg-hmi-panel/40 border border-hmi-grid rounded-xl max-w-lg mx-auto mt-12">
               <Database className="w-12 h-12 text-slate-700 mb-3" />
-              <h3 className="text-sm font-bold text-hmi-text uppercase tracking-wider">No Data Available</h3>
+              <h3 className="text-sm font-bold text-hmi-text">No Data Available</h3>
               <p className="text-xs text-slate-500 mt-2 leading-relaxed">
                 This experiment has no saved data yet. Please complete at least one sequence in the Experiment menu.
               </p>
@@ -1077,7 +961,7 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
               <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-hmi-grid/60 flex items-center gap-2">
                   <FileText className="w-3.5 h-3.5 text-hmi-ideal" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  <span className="text-[10px] font-bold text-slate-400">
                     Performance Metrics Summary ({selectedExp}) — {filteredRuns.length} runs
                   </span>
                 </div>
@@ -1085,13 +969,13 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
                   <Table>
                     <TableHeader>
                       <TableRow className="border-hmi-grid/60 hover:bg-transparent">
-                        <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 w-44">Kondisi</TableHead>
-                        <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-16">N</TableHead>
-                        <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center">MATE (mm)</TableHead>
-                        <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center">MCTE (mm)</TableHead>
-                        <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center">EEF Error (mm)</TableHead>
-                        <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center">Settle Time (ms)</TableHead>
-                        <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center">Final EEF (mm)</TableHead>
+                        <TableHead className="text-[10px] text-slate-500 font-bold py-2 w-44">Kondisi</TableHead>
+                        <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-center w-16">N</TableHead>
+                        <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-center">MATE (mm)</TableHead>
+                        <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-center">MCTE (mm)</TableHead>
+                        <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-center">EEF Error (mm)</TableHead>
+                        <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-center">Settle Time (ms)</TableHead>
+                        <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-center">Final EEF (mm)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1115,7 +999,7 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
               <div className="space-y-3">
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-hmi-text">Analisis Distribusi untuk Laporan</p>
+                    <p className="text-xs font-bold text-hmi-text">Analisis Distribusi untuk Laporan</p>
                     <p className="text-[10px] text-hmi-muted mt-1">
                       Metric dipilih sesuai hipotesis {selectedExp}; filter arah di atas dapat dipakai untuk memeriksa bias forward/return.
                     </p>
@@ -1129,7 +1013,7 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
 
                 <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
                   <div className="px-4 py-2.5 border-b border-hmi-grid/60">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Besar efek aktivasi — nilai negatif berarti metric turun</p>
+                    <p className="text-[10px] font-bold text-slate-400">Besar efek aktivasi — nilai negatif berarti metric turun</p>
                   </div>
                   <div className="overflow-x-auto">
                     <Table>
@@ -1163,7 +1047,7 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
 
                 <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
                   <div className="px-4 py-2.5 border-b border-hmi-grid/60">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Statistik deskriptif — siap ditransfer ke laporan</p>
+                    <p className="text-[10px] font-bold text-slate-400">Statistik deskriptif — siap ditransfer ke laporan</p>
                   </div>
                   <div className="overflow-x-auto">
                     <Table>
@@ -1283,7 +1167,7 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
               <div className="bg-hmi-panel border border-hmi-grid rounded-lg overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-hmi-grid/60 flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    <p className="text-[10px] font-bold text-slate-400">
                       Individual Run Results List — {filteredRuns.length} runs
                     </p>
                     <p className="text-[9px] text-slate-600 mt-0.5">
@@ -1316,13 +1200,13 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-hmi-grid/60 hover:bg-transparent">
-                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 w-36">Run ID</TableHead>
-                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-16">Run #</TableHead>
-                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-24">Direction</TableHead>
-                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center">Parameters (Gains & Flags)</TableHead>
-                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-24">Status</TableHead>
-                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-right pr-6 w-40">Timestamp</TableHead>
-                      <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider py-2 text-center w-12">Del</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 font-bold py-2 w-36">Run ID</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-center w-16">Run #</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-center w-24">Direction</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-center">Parameters (Gains & Flags)</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-center w-24">Status</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-right pr-6 w-40">Timestamp</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 font-bold py-2 text-center w-12">Del</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1363,7 +1247,7 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
                             </TableCell>
                             <TableCell className="text-center py-2.5" onClick={() => setExpandedRunId(isExpanded ? null : r.id)}>
                               <span className={cn(
-                                'inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full',
+                                'inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded',
                                 r.direction === 'forward'
                                   ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                                   : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
@@ -1380,7 +1264,7 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
                             </TableCell>
                             <TableCell className="text-center py-2.5" onClick={() => setExpandedRunId(isExpanded ? null : r.id)}>
                               <span className={cn(
-                                'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded',
+                                'text-[9px] font-bold px-1.5 py-0.5 rounded',
                                 r.status === 'ok' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                                 r.status === 'retrying' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                                 'bg-red-500/10 text-red-400 border border-red-500/20'
@@ -1412,7 +1296,7 @@ export function ResultsClient({ initialRuns, initialLoadError = null }: Props) {
                               <TableCell colSpan={7} className="p-0">
                                 <div className="p-4">
                                   <div className="flex items-center justify-between mb-3">
-                                    <p className="text-[10px] font-bold text-hmi-ideal uppercase font-mono tracking-widest">
+                                    <p className="text-[10px] font-bold text-hmi-ideal font-mono">
                                       Telemetri Run {r.id}
                                     </p>
                                     <span className="text-[9px] text-slate-600">

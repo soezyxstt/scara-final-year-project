@@ -1,11 +1,9 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { ThemeToggle } from '@/components/hmi/theme-toggle'
-import { CommandPaletteTrigger } from '@/components/hmi/command-palette'
-import { Cpu, ArrowLeft, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { ConsoleTabs } from '@/components/hmi/console-shell'
+import { PanelRightClose, PanelRightOpen } from 'lucide-react'
 import pcbData from './pcb-data.json'
 
 // ─── Viewer tab definitions ───────────────────────────────────────────────────
@@ -30,56 +28,14 @@ export default function PCBPageContent() {
   const [sidebarOpen, setSidebarOpen]   = useState(true)
 
   return (
-    <div className="flex flex-col h-screen bg-hmi-bg text-hmi-text animate-fade-in">
+    <div className="flex flex-col h-full bg-hmi-bg text-hmi-text animate-fade-in">
 
-      {/* ── Header ── */}
-      <header className="sticky top-0 z-50 bg-hmi-panel border-b border-hmi-grid px-4 h-12 flex items-center gap-4 shrink-0">
-        <Link
-          href="/"
-          className="flex items-center gap-1.5 text-xs text-hmi-muted hover:text-hmi-text transition-colors shrink-0"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          HMI
-        </Link>
-        <span className="w-px h-5 bg-hmi-grid shrink-0" />
-        <span className="text-sm font-bold text-hmi-text shrink-0 tracking-wide uppercase flex items-center gap-2">
-          <Cpu className="w-4 h-4 text-hmi-ideal" />
-          Controller PCB
-        </span>
-
-        {/* Viewer tab switcher */}
-        <nav className="flex h-12 shrink-0 border-l border-hmi-grid/50 pl-4 ml-2">
-          {VIEWER_TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setActiveViewer(t.id)}
-              className={cn(
-                'h-12 px-4 flex items-center text-sm font-medium border-b-2 transition-colors cursor-pointer',
-                activeViewer === t.id
-                  ? 'border-hmi-ideal text-hmi-text'
-                  : 'border-transparent text-hmi-muted hover:text-hmi-text'
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2 ml-auto">
-          {/* Sidebar toggle */}
-          <button
-            onClick={() => setSidebarOpen((v) => !v)}
-            title={sidebarOpen ? 'Hide info panel' : 'Show info panel'}
-            className="p-1.5 rounded-md text-hmi-muted hover:text-hmi-text hover:bg-hmi-grid/40 transition-colors cursor-pointer"
-          >
-            {sidebarOpen
-              ? <PanelRightClose className="w-4 h-4" />
-              : <PanelRightOpen  className="w-4 h-4" />}
-          </button>
-          <ThemeToggle />
-          <CommandPaletteTrigger />
-        </div>
-      </header>
+      <div className="flex items-center justify-between border-b border-hmi-grid bg-hmi-panel">
+        <ConsoleTabs label="Hardware views" items={VIEWER_TABS.map(item => ({ value: item.id, label: item.label }))} value={activeViewer} onChange={value => setActiveViewer(value as ViewerTab)} />
+        <button type="button" onClick={() => setSidebarOpen(value => !value)} aria-label={sidebarOpen ? 'Hide info panel' : 'Show info panel'} className="p-3 mr-3 text-hmi-muted hover:text-hmi-text">
+          {sidebarOpen ? <PanelRightClose size={17} /> : <PanelRightOpen size={17} />}
+        </button>
+      </div>
 
       {/* ── Body: viewer + optional info sidebar ── */}
       <div className="flex-1 min-h-0 flex">
@@ -106,7 +62,7 @@ export default function PCBPageContent() {
                   key={tab}
                   onClick={() => setSidebarTab(tab)}
                   className={cn(
-                    'flex-1 py-2.5 text-[10.5px] font-bold uppercase tracking-wider transition-colors cursor-pointer',
+                    'flex-1 py-2.5 text-[10.5px] font-bold  transition-colors cursor-pointer',
                     sidebarTab === tab
                       ? 'text-hmi-text border-b-2 border-hmi-ideal -mb-px'
                       : 'text-hmi-muted hover:text-hmi-text'
@@ -126,7 +82,7 @@ export default function PCBPageContent() {
                     <div key={comp.ref} className="py-2.5 first:pt-0 last:pb-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-mono text-[11px] font-bold text-hmi-ideal">{comp.ref}</span>
-                        <span className="text-[9px] px-1.5 rounded-full bg-zinc-800 text-zinc-500 font-mono border border-zinc-700/40">
+                        <span className="text-[9px] px-1.5 rounded bg-zinc-800 text-zinc-500 font-mono border border-zinc-700/40">
                           {comp.type}
                         </span>
                       </div>
@@ -144,7 +100,7 @@ export default function PCBPageContent() {
                       <div className="flex items-center justify-between">
                         <span className="font-mono font-bold text-zinc-200">{item.signal}</span>
                         <span className={cn(
-                          'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide',
+                          'px-1.5 py-0.5 rounded text-[8px] font-bold ',
                           item.type === 'Output'        && 'bg-sky-500/10 text-sky-400 border border-sky-500/20',
                           item.type === 'Analog Input'  && 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
                           item.type === 'Digital Input' && 'bg-teal-500/10 text-teal-400 border border-teal-500/20',

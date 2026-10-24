@@ -4,7 +4,7 @@ import { ExperimentClient } from './experiment-client'
 
 export default async function EksperimenPage() {
   const session = await auth()
-  if (!session?.user?.googleId) redirect('/login')
+  if (!session?.user?.googleId) redirect('/login?callbackUrl=/eksperimen')
 
   return <ExperimentClient />
 }

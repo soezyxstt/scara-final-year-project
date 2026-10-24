@@ -69,7 +69,7 @@ export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted
 
   return (
     <div className="flex flex-col gap-0.5 overflow-y-auto">
-      <div className="px-3 py-2 text-[10px] text-hmi-muted font-semibold uppercase tracking-wider border-b border-hmi-grid">
+      <div className="px-3 py-2 text-[10px] text-hmi-muted font-semibold border-b border-hmi-grid">
         {t('runCount', { count: runs.length })}
       </div>
       {runs.map((run, idx) => {

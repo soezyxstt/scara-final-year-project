@@ -749,10 +749,10 @@ export function XYTrace() {
 
   const recColor =
     state.recordingState === 'REC'
-      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+      ? 'text-hmi-warn'
       : state.recordingState === 'IDLE'
-        ? 'bg-slate-500/20 text-slate-400 border border-slate-500/20'
-        : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/20'
+        ? 'text-hmi-muted'
+        : 'text-hmi-muted'
 
   const isLive = state.recordingState === 'REC'
 
@@ -762,9 +762,6 @@ export function XYTrace() {
       className={cn(
         "bg-hmi-panel border rounded-lg overflow-hidden flex-1 min-h-0 flex flex-col transition-all duration-300 group/graph",
         "border-hmi-grid",
-        isLive
-          ? "shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_0_18px_4px_rgba(245,158,11,0.12),0_4px_20px_rgba(0,0,0,0.5)]"
-          : "shadow-[0_2px_12px_rgba(0,0,0,0.4)] hover:shadow-[0_0_0_1px_rgba(33,150,243,0.2),0_4px_20px_rgba(0,0,0,0.5)]",
         isFocused 
           ? "fixed inset-0 z-[100] m-0 rounded-none p-6 bg-hmi-bg border-0 shadow-none" 
           : "relative"
@@ -783,13 +780,7 @@ export function XYTrace() {
             </>
           ) : (
             <div className="flex items-center gap-1.5">
-              <span
-                className={cn(
-                  "w-1 h-4 rounded-full transition-colors duration-500",
-                  isLive ? "bg-amber-500 animate-pulse" : "bg-hmi-ideal/60"
-                )}
-              />
-              <p className="text-sm font-semibold text-hmi-text tracking-wide">{t('title')}</p>
+              <p className="text-sm font-semibold text-hmi-text">{t('title')}</p>
             </div>
           )}
           <Tooltip 
@@ -804,8 +795,8 @@ export function XYTrace() {
           >
             <Badge
               className={cn(
-                `${recColor} font-semibold px-1.5 py-0 shadow-sm text-[9px] cursor-help`,
-                isLive && "ring-1 ring-amber-500/40"
+                `${recColor} font-normal bg-transparent border-0 px-1.5 py-0 text-xs cursor-help`,
+                isLive && "text-hmi-warn"
               )}
             >{recLabel}</Badge>
           </Tooltip>
@@ -819,7 +810,7 @@ export function XYTrace() {
               size="sm" 
               onClick={(e) => { e.stopPropagation(); setIsPicking(prev => !prev); if (isPicking) setHoverPoint(null); }} 
               className={cn(
-                "h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text", 
+                "h-7 px-2 text-xs border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text",
                 isPicking && "bg-amber-500 text-slate-950 font-bold border-amber-400 hover:bg-amber-400 hover:text-slate-950 shadow-[0_0_8px_rgba(245,158,11,0.3)]"
               )}
             >
@@ -831,26 +822,28 @@ export function XYTrace() {
             <Button 
               variant="outline" 
               size="sm" 
+              aria-pressed={state.showGhost}
               onClick={(e) => { e.stopPropagation(); dispatch({ type: 'TOGGLE_GHOST' }); }} 
               className={cn(
-                "h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text", 
+                "h-7 px-2 text-xs border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text",
                 state.showGhost && "bg-hmi-btn-hover text-hmi-ideal border-hmi-ideal/30 hover:bg-hmi-btn-hover/90"
               )}
             >
-              {t('ghostMode')} {state.showGhost ? t('on') : t('off')}
+              {t('ghostMode')}
             </Button>
           </Tooltip>
           <Tooltip content={t('armLinksTooltip')} align="center">
             <Button 
               variant="outline" 
               size="sm" 
+              aria-pressed={showArm}
               onClick={(e) => { e.stopPropagation(); setShowArm(prev => !prev); }} 
               className={cn(
-                "h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text", 
-                showArm && "bg-hmi-btn-hover text-hmi-actual border-hmi-actual/30 hover:bg-hmi-btn-hover/90"
+                "h-7 px-2 text-xs border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text",
+                showArm && "bg-hmi-ideal-dim text-hmi-ideal border-hmi-ideal/30"
               )}
             >
-              {t('armLinks')} {showArm ? t('on') : t('off')}
+              {t('armLinks')}
             </Button>
           </Tooltip>
 
@@ -864,7 +857,7 @@ export function XYTrace() {
                   e.stopPropagation()
                   setResetCounter(prev => prev + 1)
                 }} 
-                className="h-5 px-1 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
+                className="h-7 px-2 text-xs border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
               >
                 <RefreshCw className="h-2.5 w-2.5 mr-1" />
                 {t('resetBtn')}
@@ -878,7 +871,7 @@ export function XYTrace() {
               variant="outline"
               size="sm"
               onClick={(e) => { e.stopPropagation(); setIsFocused(!isFocused); }}
-              className="h-5 px-1.5 text-[10px] border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
+              className="h-7 px-2 text-xs border-hmi-grid/60 text-hmi-text-secondary bg-hmi-btn/40 hover:bg-hmi-btn-hover hover:text-hmi-text"
             >
               {isFocused ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
             </Button>
@@ -918,14 +911,14 @@ export function XYTrace() {
 
         {/* Pick Point Mode active banner */}
         {isPicking && (
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-amber-500 text-slate-950 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-[0_0_15px_rgba(245,158,11,0.45)] z-20 border border-amber-400 select-none animate-bounce">
-            <Crosshair className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: '3s' }} />
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-amber-500 text-slate-950 px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 z-20 border border-amber-400 select-none">
+            <Crosshair className="h-3.5 w-3.5" />
             <span>{t('pickPointBanner')}</span>
           </div>
         )}
 
         {/* Vector HTML Legend Overlay */}
-        <div className="absolute top-2 right-2 bg-hmi-panel/75 hover:bg-hmi-panel/90 backdrop-blur-md border border-hmi-grid/80 p-2 rounded-lg shadow-lg flex flex-col gap-1 min-w-[105px] pointer-events-auto select-none z-10 opacity-70 hover:opacity-100 transition-all duration-300">
+        <div className="absolute top-2 right-2 bg-hmi-panel/95 border border-hmi-grid/80 p-2.5 rounded flex flex-col gap-1 min-w-[105px] pointer-events-auto select-none z-10">
           <div className="flex items-center gap-2 text-xs">
             <span className="w-3.5 h-0.5 border-t-2 border-dashed border-hmi-ideal" />
             <span className="text-hmi-text font-medium text-[11px]">{t('legend.idealPath')}</span>
@@ -969,25 +962,22 @@ export function XYTrace() {
           </div>
         </div>
 
-        {/* Glassmorphic Stats telemetry overlay — bottom-left */}
-        <div className={cn(
-          "absolute bottom-3 left-3 font-sans text-xs text-hmi-text backdrop-blur-md px-3 py-2 rounded-lg shadow-lg flex flex-col gap-1.5 min-w-[190px] z-10 transition-all duration-500",
-          isLive
-            ? "bg-hmi-panel/90 border border-amber-500/30 shadow-[0_0_12px_2px_rgba(245,158,11,0.08)]"
-            : "bg-hmi-panel/85 border border-hmi-grid/80"
-        )}>
+      </div>
+
+      {/* Coordinate readout */}
+        <div className="bg-hmi-panel font-sans text-xs text-hmi-text px-4 py-3 flex flex-col gap-2 shrink-0 border-t border-hmi-grid">
           <div className="flex justify-between items-center border-b border-hmi-grid/55 pb-1 mb-0.5">
             <div className="flex items-center gap-1.5">
               <span className={cn(
                 "w-1.5 h-1.5 rounded-full shrink-0",
                 isLive ? "bg-amber-500 animate-pulse" : "bg-hmi-muted"
               )} />
-              <span className="font-bold text-hmi-text text-[11px] uppercase tracking-wider">{t('telemetry')}</span>
+              <span className="font-medium text-hmi-text text-xs">{t('telemetry')}</span>
             </div>
             <span className="text-[10px] bg-hmi-elevated px-1.5 py-0.5 rounded text-hmi-text-secondary font-normal">{t('moveCount', { count: state.moveCount })}</span>
           </div>
           {last ? (
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1 font-mono text-[11px]">
+            <div className="grid grid-cols-[auto_1fr_auto_1fr_auto_1fr] gap-x-3 gap-y-1 font-mono text-xs">
               <span className="text-hmi-muted font-sans text-left">{t('idealXY')}</span>
               <span className="text-hmi-ideal text-right font-medium">{fmt(last.xi)}, {fmt(last.yi)}</span>
               <span className="text-hmi-muted font-sans text-left">{t('actualXY')}</span>
@@ -996,7 +986,7 @@ export function XYTrace() {
               <span className="text-hmi-error font-bold text-right">{Number.isFinite(errMm as number) ? `${(errMm as number).toFixed(2)} mm` : '--'}</span>
             </div>
           ) : state.bootPose ? (
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1 font-mono text-[11px]">
+            <div className="grid grid-cols-[auto_1fr_auto_1fr_auto_1fr] gap-x-3 gap-y-1 font-mono text-xs">
               <span className="text-hmi-muted font-sans text-left">{t('idealXY')}</span>
               <span className="text-hmi-ideal text-right font-medium">{fmt(state.bootPose.x)}, {fmt(state.bootPose.y)}</span>
               <span className="text-hmi-muted font-sans text-left">{t('actualXY')}</span>
@@ -1008,7 +998,6 @@ export function XYTrace() {
             <div className="text-hmi-muted text-[11px] py-0.5 text-center font-sans">{t('noActiveTrajectory')}</div>
           )}
         </div>
-      </div>
     </div>
   )
 }

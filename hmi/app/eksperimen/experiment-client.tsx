@@ -1,5 +1,7 @@
 'use client'
 
+import { ConsoleTabs, useConsoleNavigationLock } from '@/components/hmi/console-shell'
+
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useHMISlow } from '@/lib/hmi-context'
 import { useHeartbeat } from '@/hooks/use-heartbeat'
@@ -1357,124 +1359,17 @@ export function ExperimentClient() {
   const currentExp = EXPERIMENTS.find(e => e.id === activeTab)
   const totalRuns = computeTotalRuns(activeTab)
   const sequenceActive = state !== 'idle' && state !== 'complete'
+  useConsoleNavigationLock(sequenceActive)
 
   return (
-    <div className="flex h-screen bg-hmi-bg text-hmi-text overflow-hidden">
-      {/* Sidebar navigation */}
-      <aside className="w-64 shrink-0 border-r border-hmi-grid bg-hmi-panel flex flex-col justify-between">
-        <div>
-          <div className="px-4 py-4 border-b border-hmi-grid flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-hmi-bg border border-hmi-grid flex items-center justify-center">
-              <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4">
-                <path d="M12 3L3 8.5V15.5L12 21L21 15.5V8.5L12 3Z" stroke="#2196F3" strokeWidth={1.5} strokeLinejoin="round" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-hmi-text">SCARA Robot</p>
-              <p className="text-[10px] text-hmi-muted uppercase tracking-wider font-semibold">Experiment Automation</p>
-            </div>
-          </div>
-
-          <nav className="p-2 space-y-1">
-            {EXPERIMENTS.map(e => (
-              <button
-                key={e.id}
-                disabled={sequenceActive}
-                onClick={() => {
-                  setActiveTab(e.id)
-                  setResults([])
-                  setSummary(null)
-                }}
-                className={cn(
-                  'w-full text-left px-3 py-2 rounded text-xs font-medium transition-colors flex items-center justify-between',
-                  activeTab === e.id
-                    ? 'bg-hmi-tab-active text-hmi-text border-l-2 border-hmi-ideal'
-                    : 'text-hmi-muted hover:bg-hmi-grid/30 hover:text-hmi-text',
-                  sequenceActive && 'opacity-50 cursor-not-allowed'
-                )}
-              >
-                <span>{e.id}: {e.name}</span>
-                {e.id === activeTab && <span className="w-1.5 h-1.5 rounded-full bg-hmi-ideal" />}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        <div className="p-3 border-t border-hmi-grid flex flex-col gap-2">
-          <a
-            href="/"
-            className={cn(
-              "w-full text-center text-xs py-1.5 rounded border border-hmi-grid text-hmi-muted hover:text-hmi-text hover:border-hmi-grid/80 transition-colors",
-              state !== 'idle' && 'opacity-50 cursor-not-allowed pointer-events-none'
-            )}
-          >
-            ← Back to HMI
-          </a>
-        </div>
-      </aside>
+    <div className="flex flex-col h-full bg-hmi-bg text-hmi-text overflow-hidden">
+      <div className="flex items-center border-b border-hmi-grid bg-hmi-panel">
+        <ConsoleTabs label="Experiments" value={activeTab} items={EXPERIMENTS.map(item => ({ value: item.id, label: `${item.id} · ${item.name}`, disabled: sequenceActive }))} onChange={value => { setActiveTab(value as typeof activeTab); setResults([]); setSummary(null) }} />
+        {offlineQueue.length > 0 && <span className="ml-auto px-4 text-xs text-hmi-warn whitespace-nowrap">{offlineQueue.length} DB pending</span>}
+      </div>
 
       {/* Main Area */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="sticky top-0 z-40 bg-hmi-panel border-b border-hmi-grid px-6 h-12 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold uppercase tracking-wider text-hmi-text">{currentExp?.name} Automation</span>
-            <span className="text-xs text-hmi-muted">({currentExp?.id})</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {offlineQueue.length > 0 && (
-              <Badge className="bg-blue-500/15 text-blue-300 border border-blue-400/30 text-[10px] px-2 py-0 font-normal">
-                {offlineQueue.length} DB pending
-              </Badge>
-            )}
-            <ThemeToggle />
-            <CommandPaletteTrigger />
-            <Badge className={`${online ? 'bg-hmi-ok text-white' : 'bg-hmi-off text-hmi-muted'} text-[10px] px-1.5 py-0 font-normal`}>
-              {online ? '● Online' : '○ Offline'}
-            </Badge>
-
-            <Badge className={cn(
-              'text-[10px] px-1.5 py-0 font-normal uppercase',
-              serialStatus === 'connected' ? 'bg-hmi-ok/20 text-hmi-ok border border-hmi-ok/30' : 'bg-hmi-off text-hmi-muted border border-hmi-grid'
-            )}>
-              {serialStatus === 'connected' ? `Connected: ${hmiState.portName || 'Serial'}` : `Disconnected`}
-            </Badge>
-
-            {serialStatus === 'connected' ? (
-              <Button variant="outline" size="sm" className="h-6 px-2.5 text-[11px] font-semibold" onClick={() => serial.disconnect()}>
-                Disconnect
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" className="h-6 px-2.5 text-[11px] font-semibold" onClick={() => serial.connect()}>
-                Connect
-              </Button>
-            )}
-
-            <div className="flex items-center pl-3 border-l border-hmi-grid/60 shrink-0">
-              {estopped ? (
-                <Button
-                  variant="resume"
-                  size="sm"
-                  className="h-7 px-3 text-xs font-bold tracking-wide animate-pulse"
-                  onClick={() => serial.sendCommand('resume')}
-                >
-                  🔄 RESUME
-                </Button>
-              ) : (
-                <Button
-                  variant="estop"
-                  size="sm"
-                  className="h-7 px-3 text-xs font-bold tracking-wide"
-                  onClick={() => serial.sendCommand('estop')}
-                >
-                  🛑 E-STOP
-                </Button>
-              )}
-            </div>
-          </div>
-        </header>
-
         {/* Content panel */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
@@ -1483,7 +1378,7 @@ export function ExperimentClient() {
             <div className="bg-hmi-rec-on/10 border border-hmi-rec-on/40 rounded-lg p-3 flex items-center gap-3">
               <span className="text-base">🛑</span>
               <div>
-                <p className="text-xs font-bold text-hmi-rec-on uppercase tracking-wider">Sequence Aborted</p>
+                <p className="text-xs font-bold text-hmi-rec-on">Sequence Aborted</p>
                 <p className="text-[11px] text-hmi-text">{abortReason}</p>
               </div>
             </div>
@@ -1492,7 +1387,7 @@ export function ExperimentClient() {
           {/* Sub-tabs specific configurations */}
           {activeTab === 'EXP-4' && (
             <div className="bg-hmi-panel border border-hmi-grid rounded-lg p-3 flex items-center justify-between">
-              <span className="text-xs font-bold text-hmi-muted uppercase">Sudut Kemiringan (Tilt Alpha Deg):</span>
+              <span className="text-xs font-bold text-hmi-muted">Sudut Kemiringan (Tilt Alpha Deg):</span>
               <div className="flex gap-2">
                 {(['15', '30', '45'] as const).map(a => (
                   <Button
@@ -1586,7 +1481,7 @@ export function ExperimentClient() {
                       <span className="absolute text-[10px] font-bold text-hmi-warn">{cooldownTime}s</span>
                     </div>
                     <div className="flex-1 text-left">
-                      <p className="text-[11px] font-bold text-hmi-warn uppercase tracking-wider animate-pulse">Motor Cooldown</p>
+                      <p className="text-[11px] font-bold text-hmi-warn animate-pulse">Motor Cooldown</p>
                       <p className="text-[9px] text-hmi-muted leading-tight">Waiting for motor to rest briefly</p>
                     </div>
                   </div>
@@ -1598,7 +1493,7 @@ export function ExperimentClient() {
           {/* Preflight checklist */}
           {preflightChecks.length > 0 && state !== 'idle' && (
             <div className="bg-hmi-panel border border-hmi-grid rounded-lg px-4 py-2.5 flex items-center gap-4 flex-wrap">
-              <span className="text-[10px] font-bold text-hmi-muted uppercase tracking-wider">Preflight:</span>
+              <span className="text-[10px] font-bold text-hmi-muted">Preflight:</span>
               {preflightChecks.map(c => (
                 <span key={c.label} className={cn(
                   'text-[10px] font-mono px-2 py-0.5 rounded border',
@@ -1617,7 +1512,7 @@ export function ExperimentClient() {
             <Card className="bg-hmi-panel border-hmi-grid">
               <CardContent className="py-4 space-y-3">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold uppercase text-hmi-muted">
+                  <span className="font-bold text-hmi-muted">
                     Progress: <span className="text-hmi-ok">{successCount}</span> / {totalRuns} runs saved
                   </span>
                   <div className="flex items-center gap-2 font-mono">
@@ -1664,7 +1559,7 @@ export function ExperimentClient() {
             {/* Status log terminal */}
             <Card className="bg-hmi-panel border-hmi-grid flex flex-col h-80 overflow-hidden">
               <CardHeader className="py-3 border-b border-hmi-grid">
-                <CardTitle className="text-xs font-bold uppercase text-hmi-muted tracking-wider">Live Status Log</CardTitle>
+                <CardTitle className="text-xs font-bold text-hmi-muted">Live Status Log</CardTitle>
               </CardHeader>
               <CardContent className="flex-1 overflow-y-auto font-mono text-[11px] p-4 bg-hmi-bg/50 space-y-1">
                 {logs.length === 0 ? (
@@ -1684,7 +1579,7 @@ export function ExperimentClient() {
             {/* Run results cards */}
             <Card className="bg-hmi-panel border-hmi-grid flex flex-col h-80 overflow-hidden">
               <CardHeader className="py-3 border-b border-hmi-grid justify-between flex flex-row items-center">
-                <CardTitle className="text-xs font-bold uppercase text-hmi-muted tracking-wider">
+                <CardTitle className="text-xs font-bold text-hmi-muted">
                   Run Results ({results.filter(r => r.status === 'ok').length} DB verified / {results.length} captured)
                 </CardTitle>
                 {state === 'complete' && summary && (
@@ -1754,7 +1649,7 @@ export function ExperimentClient() {
                           )}
                         </div>
                       ) : (
-                        <span className="font-bold text-hmi-rec-on uppercase font-mono text-[10px]">FAILED</span>
+                        <span className="font-bold text-hmi-rec-on font-mono text-[10px]">FAILED</span>
                       )}
                     </div>
                   ))

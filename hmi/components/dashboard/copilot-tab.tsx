@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bot, Sparkles, Loader2 } from 'lucide-react'
+import { Bot, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -71,7 +71,7 @@ function MarkdownRenderer({ text }: { text: string }) {
         // Heading 3
         if (line.startsWith('### ')) {
           return (
-            <h4 key={idx} className="text-xs font-bold text-hmi-ideal mt-4 mb-2 uppercase tracking-wider border-b border-hmi-grid/45 pb-1">
+            <h4 key={idx} className="text-xs font-bold text-hmi-ideal mt-4 mb-2 border-b border-hmi-grid/45 pb-1">
               {line.substring(4)}
             </h4>
           )
@@ -254,7 +254,7 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
             <h3 className="text-xs font-bold text-hmi-text flex items-center gap-1.5">
               {t('aiCopilotFor', { runName: primary.runName })}
               {modelUsed && (
-                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-hmi-grid/70 text-hmi-muted border border-hmi-grid">
+                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-sm bg-hmi-grid/70 text-hmi-muted border border-hmi-grid">
                   {t('via', { model: modelUsed })}
                 </span>
               )}
@@ -272,7 +272,7 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
                 disabled={loading}
                 onClick={() => setMode(m)}
                 className={cn(
-                  "px-2.5 py-1 text-[10px] font-bold rounded-md uppercase tracking-wider transition-all cursor-pointer",
+                  "px-2.5 py-1 text-[10px] font-bold rounded-md  transition-all cursor-pointer",
                   mode === m
                     ? "bg-hmi-ideal text-white shadow-sm"
                     : "text-hmi-muted hover:text-hmi-text"
@@ -287,12 +287,12 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
             size="sm"
             disabled={loading}
             onClick={handleConsult}
-            className="bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-bold text-[10px] uppercase tracking-wider gap-1.5 py-1 px-3.5 h-8 shadow cursor-pointer transition-all shrink-0"
+            className="bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-bold text-[10px] gap-1.5 py-1 px-3.5 h-8 shadow cursor-pointer transition-all shrink-0"
           >
             {loading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Sparkles className="h-3.5 w-3.5" />
+              <Bot className="h-3.5 w-3.5" />
             )}
             {loading ? t('consulting') : output ? t('reGenerate') : t('generate')}
           </Button>
@@ -310,7 +310,7 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
           {tuningParams && Object.keys(tuningParams).length > 0 && (
             <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in shadow-sm">
               <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping shrink-0" />
                   {t('recommendationsDetected')}
                 </span>
@@ -322,7 +322,7 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
                 size="sm"
                 disabled={!isSerialConnected || loading}
                 onClick={() => handleApplyTuning(tuningParams)}
-                className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-[10px] uppercase tracking-wider py-1.5 px-3 h-8 shadow shrink-0 cursor-pointer transition-transform hover:scale-[1.02]"
+                className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-[10px] py-1.5 px-3 h-8 shadow shrink-0 cursor-pointer transition-transform hover:scale-[1.02]"
               >
                 {isSerialConnected ? t('applyToHardware') : t('connectSerialToApply')}
               </Button>
@@ -339,7 +339,6 @@ export function CopilotTab({ runs, onUpdateRunSuggestion }: Props) {
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 max-w-sm">
-              <Sparkles className="h-8 w-8 text-hmi-ideal/65 animate-pulse" />
               <p className="text-xs font-semibold text-hmi-text">{t('noCachedAnalysis')}</p>
               <p className="text-[10px] text-hmi-muted">{t('noCachedAnalysisSub')}</p>
             </div>

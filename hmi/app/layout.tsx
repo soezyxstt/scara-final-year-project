@@ -1,6 +1,8 @@
+import { cookies } from 'next/headers'
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
+import './console.css'
 import { Providers } from './providers'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
@@ -16,6 +18,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale()
   const messages = await getMessages()
+  const sidebarOpen = (await cookies()).get('sidebar_state')?.value !== 'false'
 
   return (
     <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} h-full`} suppressHydrationWarning>
@@ -39,7 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="h-full bg-hmi-bg text-hmi-text antialiased overflow-hidden">
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <Providers>
+          <Providers defaultSidebarOpen={sidebarOpen}>
             {children}
           </Providers>
         </NextIntlClientProvider>

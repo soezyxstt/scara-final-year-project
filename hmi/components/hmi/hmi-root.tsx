@@ -1,203 +1,40 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
-import { useHMISlow } from '@/lib/hmi-context'
+import { Suspense, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { MonitorTab } from './monitor-tab'
 import { ReadmeTab } from './readme-tab'
 import { AnalysisTab } from './analysis-tab'
 import { ZNAnalysisTab } from './zn-analysis-tab'
 import { HMITutorial } from './hmi-tutorial'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { Tooltip } from '@/components/ui/tooltip'
-import { CaptureMenu } from './capture-menu'
-import { useHeartbeat } from '@/hooks/use-heartbeat'
-import { ModeBadge } from '@/components/mode-badge'
-import { SerialMonitorButton, SerialTerminalSheet } from './serial-terminal'
-import { RunButton } from './run-button'
-import { CommandPaletteTrigger } from './command-palette'
-import { ThemeToggle } from './theme-toggle'
-import { LocaleToggle } from './locale-toggle'
-import { useTranslations } from 'next-intl'
 
-
-type TopTab = 'monitor' | 'analysis' | 'rest' | 'readme'
-
-function TabLink({
-  label,
-  active,
-  href,
-}: {
-  label: string
-  active: boolean
-  href: string
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        'h-12 px-4 flex items-center text-sm font-medium border-b-2 transition-colors',
-        active
-          ? 'border-hmi-ideal text-hmi-text'
-          : 'border-transparent text-hmi-muted hover:text-hmi-text'
-      )}
-    >
-      {label}
-    </Link>
-  )
-}
-
-function HMIShell() {
-  const t = useTranslations('Header')
-  const tCommon = useTranslations('Common')
-
-  const searchParams = useSearchParams()
+function HMIContent() {
+  const search = useSearchParams()
   const router = useRouter()
-  const tabParam = searchParams.get('tab')
-  const tab = (['monitor', 'analysis', 'rest', 'readme'].includes(tabParam ?? '')
-    ? tabParam
-    : 'monitor') as TopTab
-
-  const { state, serial } = useHMISlow()
-  const { serialStatus, portName, online, estopped } = state
-
-  // ── Mode state machine hooks ─────────────────────────────────────────────
-  useHeartbeat(serialStatus === 'connected')
+  const requested = search.get('tab') ?? 'monitor'
+  const tab = ['monitor', 'analysis', 'rest', 'readme'].includes(requested) ? requested : 'monitor'
 
   useEffect(() => {
-    const handleSwitchTab = (e: Event) => {
-      const customEvent = e as CustomEvent<string>
-      const next = customEvent.detail
-      if (next && ['monitor', 'analysis', 'rest', 'readme'].includes(next)) {
-        if (next !== tab) {
-          router.push(`/?tab=${next}`)
-        }
-      }
+    const switchTab = (event: Event) => {
+      const next = (event as CustomEvent<string>).detail
+      if (['monitor', 'analysis', 'rest', 'readme'].includes(next)) router.push(`/?tab=${next}`)
     }
-    window.addEventListener('hmi_switch_tab', handleSwitchTab)
-    return () => window.removeEventListener('hmi_switch_tab', handleSwitchTab)
-  }, [router, tab])
-
-
-  const [serialLogOpen, setSerialLogOpen] = useState(false)
-
-  const [lastPort, setLastPort] = useState('')
-  useEffect(() => {
-    const val = localStorage.getItem('hmi_lastPort') ?? ''
-    requestAnimationFrame(() => {
-      setLastPort(val)
-    })
-  }, [portName])
-
+    window.addEventListener('hmi_switch_tab', switchTab)
+    return () => window.removeEventListener('hmi_switch_tab', switchTab)
+  }, [router])
 
   return (
-    <div className="flex flex-col h-screen min-w-[1280px] bg-hmi-bg text-hmi-text">
-
-      {/* ── Header bar ── */}
-      <header className="sticky top-0 z-50 bg-hmi-panel border-b border-hmi-grid px-4 h-12 flex items-center gap-4 shrink-0">
-        <span className="text-sm font-bold text-hmi-text shrink-0 tracking-wide uppercase">
-          {t('title')}
-        </span>
-
-        {/* Sub-tabs for current page */}
-        <nav className="flex h-12 shrink-0 border-l border-hmi-grid/50 pl-4 ml-2">
-          <TabLink label={t('monitor')} active={tab === 'monitor'} href="/?tab=monitor" />
-          <TabLink label={t('analysis')} active={tab === 'analysis'} href="/?tab=analysis" />
-          <TabLink label={t('stepAndNoise')} active={tab === 'rest'} href="/?tab=rest" />
-          <TabLink label={t('readme')} active={tab === 'readme'} href="/?tab=readme" />
-        </nav>
-
-        <div className="flex items-center gap-2 ml-auto">
-          <LocaleToggle />
-          <ThemeToggle />
-          <CommandPaletteTrigger />
-          <ModeBadge />
-          <Tooltip content={t('networkStatusTooltip')} align="right">
-            <Badge className={cn("cursor-help font-bold", online ? 'bg-hmi-ok text-white' : 'bg-hmi-off text-hmi-muted')}>
-              {online ? '●' : '○'}
-            </Badge>
-          </Tooltip>
-
-          {serialStatus === 'connected' ? (
-            <Tooltip content={t('disconnectTooltip')} align="right">
-              <Button id="hmi-connect-button" variant="outline" size="sm" onClick={() => serial.disconnect()}>
-                {tCommon('disconnect')}
-              </Button>
-            </Tooltip>
-          ) : (
-            <Tooltip content={t('connectTooltip')} align="right">
-              <Button id="hmi-connect-button" variant="outline" size="sm" onClick={() => serial.connect()}>
-                {tCommon('connect')}
-              </Button>
-            </Tooltip>
-          )}
-
-          <RunButton />
-
-          <SerialMonitorButton
-            id="hmi-serial-button"
-            open={serialLogOpen}
-            onToggle={() => setSerialLogOpen(v => !v)}
-            serialConnected={serialStatus === 'connected'}
-          />
-
-          {estopped ? (
-            <Tooltip content={t('resumeTooltip')} align="right">
-              <Button id="hmi-estop-button" variant="resume" size="sm" className="animate-pulse" onClick={() => serial.sendCommand('resume')}>
-                🔄 {tCommon('resume')}
-              </Button>
-            </Tooltip>
-          ) : (
-            <Tooltip content={t('stopTooltip')} align="right">
-              <Button id="hmi-estop-button" variant="estop" size="sm" onClick={() => serial.sendCommand('estop')}>
-                🛑 {tCommon('stop')}
-              </Button>
-            </Tooltip>
-          )}
-          <CaptureMenu />
-        </div>
-      </header>
-
-      <SerialTerminalSheet open={serialLogOpen} onClose={() => setSerialLogOpen(false)} />
-
-      {/* ── Tab content ── */}
-      <div className={cn('flex flex-col flex-1 min-h-0', tab !== 'monitor' && 'hidden')}>
-        <MonitorTab />
-      </div>
-      {tab === 'analysis' && (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <AnalysisTab />
-        </div>
-      )}
-      {tab === 'rest' && (
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <ZNAnalysisTab isActive={true} />
-        </div>
-      )}
-      {tab === 'readme' && (
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <ReadmeTab />
-        </div>
-      )}
-
-      {/* Onboarding Guide Overlay */}
+    <div className="h-full flex flex-col min-h-0">
+      <div className={cn('flex flex-col flex-1 min-h-0', tab !== 'monitor' && 'hidden')}><MonitorTab /></div>
+      {tab === 'analysis' && <div className="flex-1 min-h-0 overflow-y-auto"><AnalysisTab /></div>}
+      {tab === 'rest' && <div className="flex-1 min-h-0 overflow-y-auto"><ZNAnalysisTab isActive /></div>}
+      {tab === 'readme' && <div className="flex-1 min-h-0 overflow-hidden"><ReadmeTab /></div>}
       <HMITutorial />
-
     </div>
   )
 }
 
 export function HMIRoot() {
-  return (
-    <Suspense fallback={
-      <div className="flex h-screen items-center justify-center bg-hmi-bg text-hmi-text animate-pulse">
-        <span className="text-sm font-medium">Loading HMI...</span>
-      </div>
-    }>
-      <HMIShell />
-    </Suspense>
-  )
+  return <Suspense><HMIContent /></Suspense>
 }

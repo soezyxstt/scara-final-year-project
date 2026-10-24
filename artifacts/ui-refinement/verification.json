@@ -1,0 +1,21 @@
+{
+  "browser": "Steel Browser",
+  "fixture": "Synthetic 401-sample, 8-second trajectory from (90,100) to (-70,100) mm",
+  "checks": [
+    "Robot canvas and all three GLB models loaded",
+    "Populated trajectory, position charts and run metrics",
+    "Offline Run stays disabled",
+    "Seeded coordinates and PID gains rendered",
+    "Target inputs editable",
+    "Pick-point mode opens and Escape cancels",
+    "CTE chart tab switches",
+    "Theme toggle updates light/dark",
+    "No viewport overflow at 1366 × 900",
+    "Analysis navigation works"
+  ],
+  "pageErrors": [],
+  "limitations": [
+    "No physical robot connected; hardware commands were not executed.",
+    "Steel reported GLTF embedded-texture decode warnings; all three model files loaded and robot geometry rendered."
+  ]
+}

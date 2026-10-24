@@ -282,7 +282,7 @@ function ToggleField({
       
       <div className="flex items-center gap-2 shrink-0">
         <span className={cn(
-          "text-[10px] font-bold px-2 py-0.5 rounded-full select-none",
+          "text-[10px] font-bold px-2 py-0.5 rounded select-none",
           value ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"
         )}>
           {value ? 'ON' : 'OFF'}
@@ -389,7 +389,7 @@ export function AdvTunerTab() {
         <div className="flex flex-col gap-6">
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-hmi-ideal shrink-0" />
                 {t('motionLimits')}
               </CardTitle>
@@ -433,7 +433,7 @@ export function AdvTunerTab() {
 
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-purple-500 shrink-0" />
                 {t('controlLoop')}
               </CardTitle>
@@ -539,7 +539,7 @@ export function AdvTunerTab() {
         <div className="flex flex-col gap-6">
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0" />
                 {t('tdTitle')}
               </CardTitle>
@@ -590,7 +590,7 @@ export function AdvTunerTab() {
 
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-hmi-actual shrink-0" />
                 {t('pwmTitle')}
               </CardTitle>
@@ -691,7 +691,7 @@ export function AdvTunerTab() {
         <div className="flex flex-col gap-6">
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
                 {t('j1HoldTitle')}
               </CardTitle>
@@ -757,7 +757,7 @@ export function AdvTunerTab() {
 
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
                 {t('j2HoldTitle')}
               </CardTitle>
@@ -791,7 +791,7 @@ export function AdvTunerTab() {
           {/* Trajectory Queue Dashboard */}
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text flex items-center gap-2">
                 <Activity className="h-3.5 w-3.5 text-hmi-start animate-pulse" />
                 {t('queueTitle')}
               </CardTitle>
@@ -802,11 +802,11 @@ export function AdvTunerTab() {
               <div className="flex items-center justify-between border-b border-hmi-grid/40 pb-3">
                 <span className="text-xs text-hmi-text-secondary font-semibold">{t('activeState')}</span>
                 {queueStatus?.pendingStatus === 1 ? (
-                  <span className="text-xs font-bold text-hmi-start bg-hmi-start/10 border border-hmi-start/20 px-2 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
+                  <span className="text-xs font-bold text-hmi-start bg-hmi-start/10 border border-hmi-start/20 px-2 py-0.5 rounded flex items-center gap-1.5 animate-pulse">
                     <Play className="h-2.5 w-2.5 fill-current" /> {t('moveQueued')}
                   </span>
                 ) : (
-                  <span className="text-xs font-bold text-hmi-muted bg-hmi-btn border border-hmi-grid px-2 py-0.5 rounded-full flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-hmi-muted bg-hmi-btn border border-hmi-grid px-2 py-0.5 rounded flex items-center gap-1.5">
                     <Square className="h-2 w-2 fill-current" /> {t('emptyReady')}
                   </span>
                 )}
@@ -839,7 +839,7 @@ export function AdvTunerTab() {
           {/* TEST Mode Parameters */}
           <Card className="border border-hmi-grid bg-hmi-panel/40 backdrop-blur shadow-md">
             <CardHeader className="border-b border-hmi-grid/35 py-3">
-              <CardTitle className="text-xs font-bold text-hmi-text uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-xs font-bold text-hmi-text flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
                 {t('testParams')}
               </CardTitle>

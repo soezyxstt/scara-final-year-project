@@ -1,5 +1,7 @@
 'use client'
 
+import { ConsoleTabs } from '@/components/hmi/console-shell'
+
 import { useState, useEffect, useCallback } from 'react'
 import { signOut } from 'next-auth/react'
 import { RunSelector, RUN_COLORS } from '@/components/dashboard/run-selector'
@@ -113,7 +115,7 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
   const isLoading = selectedIds.some(id => loadingIds.has(id))
 
   return (
-    <div className="flex h-screen bg-hmi-bg text-hmi-text overflow-hidden">
+    <div className="flex h-full bg-hmi-bg text-hmi-text overflow-hidden">
       {/* Sidebar */}
       <aside className="w-56 shrink-0 border-r border-hmi-grid bg-hmi-panel flex flex-col">
         {/* Sidebar header */}
@@ -163,40 +165,7 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
 
       {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0">
-        {/* Header */}
-        <header className="sticky top-0 z-40 bg-hmi-panel border-b border-hmi-grid px-4 h-12 flex items-center gap-4 shrink-0">
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-sm font-bold text-hmi-text uppercase tracking-wide">{t('subtitle')}</span>
-            {isLoading && (
-              <span className="text-[10px] text-hmi-muted animate-pulse">{t('loading')}</span>
-            )}
-          </div>
-
-
-
-          {/* Tab nav */}
-          <div className="ml-auto flex items-center gap-4 h-full">
-            <LocaleToggle />
-            <ThemeToggle />
-            <CommandPaletteTrigger />
-            <nav className="flex h-12">
-              {TABS.map(tTab => (
-                <button
-                  key={tTab.id}
-                  onClick={() => setTab(tTab.id)}
-                  className={cn(
-                    'h-12 px-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap',
-                    tab === tTab.id
-                      ? 'border-hmi-ideal text-hmi-text'
-                      : 'border-transparent text-hmi-muted hover:text-hmi-text'
-                  )}
-                >
-                  {t(tTab.id)}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </header>
+        <ConsoleTabs label="Run views" value={tab} items={TABS.map(item => ({ value: item.id, label: t(item.id) }))} onChange={value => setTab(value as typeof tab)} />
 
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto">

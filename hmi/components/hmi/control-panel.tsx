@@ -20,19 +20,19 @@ function StatusLED({ status }: { status: 'clean' | 'dirty' | 'waiting' | 'timeou
 
   switch (status) {
     case 'clean':
-      ledClass = 'bg-emerald-500 shadow-[0_0_6px_#10B981]'
+      ledClass = 'bg-emerald-500'
       statusTooltipText = t('statusSynced')
       break
     case 'dirty':
-      ledClass = 'bg-amber-500 shadow-[0_0_6px_#F59E0B]'
+      ledClass = 'bg-amber-500'
       statusTooltipText = t('statusModified')
       break
     case 'waiting':
-      ledClass = 'bg-blue-500 animate-pulse shadow-[0_0_6px_#3B82F6]'
+      ledClass = 'bg-blue-500 animate-pulse'
       statusTooltipText = t('statusApplying')
       break
     case 'timeout':
-      ledClass = 'bg-red-500 shadow-[0_0_6px_#EF4444]'
+      ledClass = 'bg-red-500'
       statusTooltipText = t('statusTimeout')
       break
   }
@@ -189,7 +189,7 @@ function GainField({
     <div className="flex flex-col gap-0.5 min-w-[80px]">
       <div className="flex items-center justify-between gap-1">
         <Tooltip content={tooltip}>
-          <label className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
+          <label htmlFor={`gain-${name}`} className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
             {label}
           </label>
         </Tooltip>
@@ -200,6 +200,7 @@ function GainField({
         step="0.001"
         min={0}
         name={name}
+        id={`gain-${name}`}
         value={localValue}
         disabled={disabled}
         onChange={e => handleChange(e.target.value)}
@@ -217,7 +218,7 @@ function GainField({
   )
 }
 
-export function ControlPanel() {
+export function ControlPanel({ layout = 'bar' }: { layout?: 'bar' | 'dock' }) {
   const t = useTranslations('ControlPanel')
   const tCommon = useTranslations('Common')
   const { state, serial, dispatch } = useHMISlow()
@@ -824,17 +825,17 @@ export function ControlPanel() {
   const ffGravityTooltip = t('ffGravityTooltip')
 
   return (
-    <div id="hmi-control-panel" className="border-t border-hmi-grid bg-hmi-panel px-3 py-1.5 flex flex-nowrap items-end gap-2 shrink-0 overflow-x-auto">
+    <div id="hmi-control-panel" className={layout === 'dock' ? 'control-dock' : 'border-t border-hmi-grid bg-hmi-panel px-4 py-3 flex flex-nowrap items-end gap-2 shrink-0 overflow-x-auto'}>
       {/* Move target Form — Send button moved to navbar Run button */}
       <form onSubmit={e => e.preventDefault()}>
-        <fieldset className="flex items-end gap-1.5 border-l-2 border-r-2 border-hmi-grid/40 px-2 py-1 rounded-md">
+        <fieldset className="flex items-end gap-1.5 border-0 border-r border-hmi-grid px-3 py-1">
           <legend className="text-[10px] font-bold text-hmi-muted px-1.5">{t('moveTarget')}</legend>
           
           <div className="flex flex-col gap-0.5 min-w-[80px]">
             <div className="flex items-center justify-between gap-1">
               <Tooltip content={t('tooltipX')}>
-                <label className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
-                  Xf
+                <label htmlFor="input-xf" className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
+                  X (mm)
                 </label>
               </Tooltip>
               <StatusLED status={xfStatus} />
@@ -858,8 +859,8 @@ export function ControlPanel() {
           <div className="flex flex-col gap-0.5 min-w-[80px]">
             <div className="flex items-center justify-between gap-1">
               <Tooltip content={t('tooltipY')}>
-                <label className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
-                  Yf
+                <label htmlFor="input-yf" className="text-[10px] font-semibold text-hmi-muted cursor-help border-b border-dotted border-hmi-muted/30">
+                  Y (mm)
                 </label>
               </Tooltip>
               <StatusLED status={yfStatus} />
@@ -885,8 +886,8 @@ export function ControlPanel() {
 
       {/* J1 gains Form */}
       <form onSubmit={submitJ1}>
-        <fieldset className="flex items-end gap-1.5 border-l-2 border-r-2 border-hmi-j1/30 px-2 py-1 rounded-md bg-hmi-j1/[0.02]">
-          <legend className="text-[10px] font-bold text-hmi-j1 px-1.5">J1 — DC PID (Blue)</legend>
+        <fieldset className="flex items-end gap-1.5 border-0 border-r border-hmi-grid px-3 py-1">
+          <legend className="text-[10px] font-bold text-hmi-j1 px-1.5">J1 PID</legend>
           <GainField label="Kp1" name="kp1" hwValue={gains?.kp1} tooltip={kpTooltip} isSubmitting={j1Status === 'sending'} />
           <GainField label="Ki1" name="ki1" hwValue={gains?.ki1} tooltip={kiTooltip} isSubmitting={j1Status === 'sending'} />
           <GainField label="Kd1" name="kd1" hwValue={gains?.kd1} tooltip={kdTooltip} isSubmitting={j1Status === 'sending'} />
@@ -905,8 +906,8 @@ export function ControlPanel() {
 
       {/* J2 gains Form */}
       <form onSubmit={submitJ2}>
-        <fieldset className="flex items-end gap-1.5 border-l-2 border-r-2 border-hmi-j2/30 px-2 py-1 rounded-md bg-hmi-j2/[0.02]">
-          <legend className="text-[10px] font-bold text-hmi-j2 px-1.5">J2 — Stepper PID (Orange)</legend>
+        <fieldset className="flex items-end gap-1.5 border-0 border-r border-hmi-grid px-3 py-1">
+          <legend className="text-[10px] font-bold text-hmi-j2 px-1.5">J2 PID</legend>
           <GainField label="Kp2" name="kp2" hwValue={gains?.kp2} tooltip={kpTooltip} isSubmitting={j2Status === 'sending'} />
           <GainField label="Ki2" name="ki2" hwValue={gains?.ki2} tooltip={ki2Tooltip} isSubmitting={j2Status === 'sending'} disabled={true} />
           <GainField label="Kd2" name="kd2" hwValue={gains?.kd2} tooltip={kdTooltip} isSubmitting={j2Status === 'sending'} />
@@ -925,14 +926,14 @@ export function ControlPanel() {
 
       {/* CTC Feedforward Blend Form */}
       <form onSubmit={e => { e.preventDefault(); submitFF(); }}>
-        <fieldset className="flex items-end gap-1.5 border-l-2 border-hmi-text-purple/30 px-2.5 py-1 rounded-md bg-hmi-text-purple/[0.02]">
-          <legend className="text-[10px] font-bold text-hmi-text-purple px-1.5">CTC Blend</legend>
+        <fieldset className="flex items-end gap-1.5 border-0 px-3 py-1">
+          <legend className="text-[10px] font-semibold text-hmi-text px-1.5">CTC feedforward</legend>
           
           <div className={ffInertiaContainerClass}>
             <div className="flex items-center justify-between gap-1 w-full border-b border-dotted border-hmi-muted/30">
               <Tooltip content={ffInertiaTooltip}>
                 <div className="flex justify-between items-center text-[10px] font-semibold text-hmi-muted cursor-help flex-1">
-                  <span className="whitespace-nowrap">FF Inertia</span>
+                  <span className="whitespace-nowrap">Inertia</span>
                   <span className={cn(
                     "font-mono font-bold ml-1 transition-colors",
                     ffInertiaStatus === 'dirty' ? 'text-hmi-text-warning' : ffInertiaStatus === 'waiting' ? 'text-hmi-j1 animate-pulse' : 'text-hmi-text-purple'
@@ -956,7 +957,7 @@ export function ControlPanel() {
             <div className="flex items-center justify-between gap-1 w-full border-b border-dotted border-hmi-muted/30">
               <Tooltip content={ffCoriolisTooltip}>
                 <div className="flex justify-between items-center text-[10px] font-semibold text-hmi-muted cursor-help flex-1">
-                  <span className="whitespace-nowrap">FF Coriolis</span>
+                  <span className="whitespace-nowrap">Coriolis</span>
                   <span className={cn(
                     "font-mono font-bold ml-1 transition-colors",
                     ffCoriolisStatus === 'dirty' ? 'text-hmi-text-warning' : ffCoriolisStatus === 'waiting' ? 'text-hmi-j1 animate-pulse' : 'text-hmi-text-purple'
@@ -980,7 +981,7 @@ export function ControlPanel() {
             <div className="flex items-center justify-between gap-1 w-full border-b border-dotted border-hmi-muted/30">
               <Tooltip content={ffGravityTooltip}>
                 <div className="flex justify-between items-center text-[10px] font-semibold text-hmi-muted cursor-help flex-1">
-                  <span className="whitespace-nowrap">FF Gravity</span>
+                  <span className="whitespace-nowrap">Gravity</span>
                   <span className={cn(
                     "font-mono font-bold ml-1 transition-colors",
                     ffGravityStatus === 'dirty' ? 'text-hmi-text-warning' : ffGravityStatus === 'waiting' ? 'text-hmi-j1 animate-pulse' : 'text-hmi-text-purple'

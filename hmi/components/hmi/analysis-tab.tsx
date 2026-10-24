@@ -1,5 +1,7 @@
+import { ConsoleTabs } from './console-shell'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight, Maximize2, Minimize2, Brain, Bot, Sparkles, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Maximize2, Minimize2, Brain, Bot, Loader2 } from 'lucide-react'
 import { ComparisonTable } from './comparison-table'
 import { ControlEffortSection, CTCTorqueSection, LoopDurationSection } from './advanced-analysis'
 import { PhasePortrait } from './phase-portrait'
@@ -64,7 +66,7 @@ function MarkdownRenderer({ text }: { text: string }) {
         // Heading 3
         if (line.startsWith('### ')) {
           return (
-            <h4 key={idx} className="text-xs font-bold text-hmi-ideal mt-4 mb-2 uppercase tracking-wider border-b border-hmi-grid/45 pb-1">
+            <h4 key={idx} className="text-xs font-bold text-hmi-ideal mt-4 mb-2 border-b border-hmi-grid/45 pb-1">
               {line.substring(4)}
             </h4>
           )
@@ -219,7 +221,7 @@ export function AICopilotSection() {
 
   if (!lastSavedRunId) {
     return (
-      <Card className="border border-hmi-grid bg-hmi-panel/30 backdrop-blur shadow-md">
+      <Card className="border border-hmi-grid bg-hmi-panel">
         <CardContent className="p-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-hmi-ideal/10 rounded-lg text-hmi-ideal border border-hmi-ideal/20">
@@ -240,7 +242,7 @@ export function AICopilotSection() {
   }
 
   return (
-    <Card className="border border-hmi-ideal/40 bg-hmi-panel/40 backdrop-blur shadow-md transition-all duration-300 hover:border-hmi-ideal/60">
+    <Card className="border border-hmi-grid bg-hmi-panel">
       <CardHeader className="p-4 pb-2 border-b border-hmi-grid/35 flex flex-row items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <div className="p-1.5 bg-hmi-ideal/15 rounded-lg text-hmi-ideal border border-hmi-ideal/30">
@@ -250,12 +252,12 @@ export function AICopilotSection() {
             <CardTitle className="text-sm font-bold text-hmi-text flex items-center gap-1.5">
               {t('copilotTitle')}
               {modelUsed && (
-                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-hmi-grid/70 text-hmi-muted border border-hmi-grid">
+                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-hmi-grid/70 text-hmi-muted border border-hmi-grid">
                   via {modelUsed}
                 </span>
               )}
             </CardTitle>
-            <p className="text-[10px] text-hmi-muted">{t('seniorEngineerPersona')}</p>
+
           </div>
         </div>
 
@@ -267,7 +269,7 @@ export function AICopilotSection() {
               disabled={loading}
               onClick={() => setMode(m)}
               className={cn(
-                "px-2.5 py-1 text-[10px] font-bold rounded-md uppercase tracking-wider transition-all cursor-pointer",
+                "px-2.5 py-1 text-[10px] font-bold rounded-md  transition-all cursor-pointer",
                 mode === m
                   ? "bg-hmi-ideal text-white shadow-sm"
                   : "text-hmi-muted hover:text-hmi-text"
@@ -301,7 +303,7 @@ export function AICopilotSection() {
             {tuningParams && Object.keys(tuningParams).length > 0 && (
               <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in shadow-sm">
                 <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping shrink-0" />
                     {t('tuningRecsDetected')}
                   </span>
@@ -313,7 +315,7 @@ export function AICopilotSection() {
                   size="sm"
                   disabled={!isSerialConnected || loading}
                   onClick={() => handleApplyTuning(tuningParams)}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-[10px] uppercase tracking-wider py-1.5 px-3 h-8 shadow shrink-0 cursor-pointer transition-transform hover:scale-[1.02]"
+                  className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-[10px] py-1.5 px-3 h-8 shadow shrink-0 cursor-pointer transition-transform hover:scale-[1.02]"
                 >
                   {isSerialConnected ? t('applyToHardware') : t('connectSerialToApply')}
                 </Button>
@@ -330,8 +332,8 @@ export function AICopilotSection() {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2 max-w-sm">
-                <Sparkles className="h-8 w-8 text-hmi-ideal/65 animate-pulse" />
-                <p className="text-xs font-semibold text-hmi-text">{t('copilotReady')}</p>
+
+
                 <p className="text-[10px] text-hmi-muted">{t('copilotReadyDesc')}</p>
               </div>
             )}
@@ -342,9 +344,9 @@ export function AICopilotSection() {
         {!loading && (
           <Button
             onClick={handleConsult}
-            className="w-full bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-bold text-xs uppercase tracking-widest gap-2 py-2 h-9 shadow-md transition-all hover:scale-[1.01] cursor-pointer"
+            className="w-full bg-hmi-ideal hover:bg-hmi-ideal/80 text-white font-bold text-xs gap-2 py-2 h-9 shadow-md transition-all hover:scale-[1.01] cursor-pointer"
           >
-            <Sparkles className="h-3.5 w-3.5" />
+
             {t('consultCopilot', { mode: mode === 'explain' ? t('modeExplain') : mode === 'diagnose' ? t('modeDiagnose') : t('modeRecommend') })}
           </Button>
         )}
@@ -370,7 +372,7 @@ function ExpandableChartCard({
 
   return (
     <>
-      <Card className="shadow-md transition-all duration-300 hover:border-hmi-ideal/30 flex flex-col">
+      <Card className="transition-colors flex flex-col">
         <CardHeader className="p-4 pb-2">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-sm font-semibold text-hmi-text-secondary">{title}</CardTitle>
@@ -458,100 +460,38 @@ function ExpandableSection({
 
 export function AnalysisTab() {
   const t = useTranslations('AnalysisTab')
+  const consoleText = useTranslations('Console')
   const { state } = useHMISlow()
-  const [advOpen, setAdvOpen] = useState(true)
-  const [tableOpen, setTableOpen] = useState(false)
-
+  const router = useRouter()
+  const pathname = usePathname()
+  const search = useSearchParams()
+  const section = ['motion', 'control', 'data'].includes(search.get('view') ?? '') ? search.get('view')! : 'motion'
+  const selectSection = (value: string) => {
+    const params = new URLSearchParams(search.toString())
+    params.set('view', value)
+    router.push(`${pathname}?${params.toString()}`)
+  }
   const { frozenD, frozenT } = state
-
   return (
-    <div className="flex flex-col gap-6 p-4 overflow-y-auto">
-
-      {/* ── Advanced Analysis (collapsible) ──────────────────── */}
-      <Collapsible open={advOpen} onOpenChange={setAdvOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="outline" className="w-full justify-start gap-2 text-xs uppercase tracking-widest font-semibold border-hmi-grid cursor-pointer">
-            {advOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            {t('advancedAnalysisDetails')}
-          </Button>
-        </CollapsibleTrigger>
-
-        <CollapsibleContent className="mt-4 flex flex-col gap-6">
-
-          {/* Row 1: Phase Portrait — full width */}
-          <ExpandableSection title={t('phasePortrait')}>
-            <div className="h-[320px] rounded-xl border border-hmi-grid overflow-hidden">
-              <PhasePortrait />
-            </div>
-          </ExpandableSection>
-
-          {/* Row 2: EEF Cartesian Error + EEF Velocity */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ExpandableChartCard
-              title={t('eefCartesianError')}
-              hasData={frozenT.length > 0}
-            >
-              <EEFErrChart tBuf={frozenT} dBuf={frozenD} />
-            </ExpandableChartCard>
-
-            <ExpandableChartCard
-              title={t('eefVelocityProfile')}
-              hasData={frozenD.length > 0}
-            >
-              <EEFVelocityChart dBuf={frozenD} />
-            </ExpandableChartCard>
+    <div className="analysis-workbench">
+      <ConsoleTabs label="Analysis views" value={section} onChange={selectSection} items={[{ value: 'motion', label: consoleText('motion') }, { value: 'control', label: consoleText('controls') }, { value: 'data', label: 'Data' }]} />
+      <div key={section} className="analysis-panels">
+        {section === 'motion' && <>
+          <div className="analysis-phase"><PhasePortrait /></div>
+          <div className="analysis-pair">
+            <ExpandableChartCard title={t('eefCartesianError')} hasData={frozenT.length > 0}><EEFErrChart tBuf={frozenT} dBuf={frozenD} /></ExpandableChartCard>
+            <ExpandableChartCard title={t('eefVelocityProfile')} hasData={frozenD.length > 0}><EEFVelocityChart dBuf={frozenD} /></ExpandableChartCard>
           </div>
-
-          {/* Row 3: PWM Output + Control Effort */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ExpandableChartCard
-              title={t('actuatorPwmOutput')}
-              hasData={frozenD.length > 0}
-            >
-              <PWMChart dBuf={frozenD} />
-            </ExpandableChartCard>
-
-            <ExpandableSection title={t('controlEffort')}>
-              <ControlEffortSection />
-            </ExpandableSection>
-          </div>
-
-          {/* Row 4: CTC Feedforward Torques + Loop Duration */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ExpandableSection title={t('ctcFeedforwardTorques')}>
-              <CTCTorqueSection />
-            </ExpandableSection>
-
-            <ExpandableSection title={t('loopDuration')}>
-              <LoopDurationSection />
-            </ExpandableSection>
-          </div>
-
-          {/* Row 5: J1 Velocity: TD vs Encoder */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ExpandableChartCard
-              title={t('j1VelocityPotTd')}
-              hasData={frozenD.length > 0}
-            >
-              <J1EncoderVelocityChart dBuf={frozenD} />
-            </ExpandableChartCard>
-          </div>
-
-        </CollapsibleContent>
-      </Collapsible>
-
-      {/* ── 3. Ideal vs Actual data table (collapsible) ─────────── */}
-      <Collapsible open={tableOpen} onOpenChange={setTableOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="outline" className="w-full justify-start gap-2 text-xs uppercase tracking-widest font-semibold cursor-pointer">
-            {tableOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            {t('idealVsActualDataTable')}
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-4">
-          <ComparisonTable />
-        </CollapsibleContent>
-      </Collapsible>
+          <ExpandableChartCard title={t('j1VelocityPotTd')} hasData={frozenD.length > 0}><J1EncoderVelocityChart dBuf={frozenD} /></ExpandableChartCard>
+        </>}
+        {section === 'control' && <div className="analysis-pair">
+          <ExpandableChartCard title={t('actuatorPwmOutput')} hasData={frozenD.length > 0}><PWMChart dBuf={frozenD} /></ExpandableChartCard>
+          <ExpandableSection title={t('controlEffort')}><ControlEffortSection /></ExpandableSection>
+          <ExpandableSection title={t('ctcFeedforwardTorques')}><CTCTorqueSection /></ExpandableSection>
+          <ExpandableSection title={t('loopDuration')}><LoopDurationSection /></ExpandableSection>
+        </div>}
+        {section === 'data' && <ComparisonTable />}
+      </div>
     </div>
   )
 }

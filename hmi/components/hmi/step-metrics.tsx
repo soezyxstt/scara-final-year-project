@@ -82,7 +82,7 @@ function MetricCard({ label, value, unit, sub, accent, textAccent, isEmpty }: Me
         )}
       />
 
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-hmi-muted">{label}</p>
+      <p className="text-[10px] font-semibold tracking-[0.12em] text-hmi-muted">{label}</p>
 
       <div className="mt-3 flex items-end gap-1.5 leading-none">
         <span className={cn('font-mono text-3xl font-bold tabular-nums', textAccent)}>
@@ -122,7 +122,7 @@ export function StepMetrics() {
       {/* Section header */}
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-bold text-hmi-text uppercase tracking-widest">
+          <h2 className="text-sm font-bold text-hmi-text">
             {t('title')}
           </h2>
           <p className="mt-0.5 text-[11px] text-hmi-muted">

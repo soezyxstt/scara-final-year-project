@@ -1,0 +1,44 @@
+{
+  "browser": "Steel Browser",
+  "fixture": "401 synthetic samples over 8 seconds; no hardware connected",
+  "checks": [
+    "Shared console stylesheet, robot viewport, all three models and seeded data render",
+    "Navigation collapses and expands",
+    "Point selection opens and Escape cancels",
+    "Docked coordinate fields remain editable; disconnected Run stays disabled",
+    "Inspector switches between controls and populated metrics",
+    "Telemetry chart tabs switch",
+    "Dark theme switches through shared navigation",
+    "1366 \u00d7 900 layout stays within viewport",
+    "Analysis navigation, URL state and browser Back work",
+    "Test bench opens parameters without exposing Run",
+    "Test bench monitor preserves offline Run guard",
+    "Hardware navigation retains PCB viewer",
+    "Experiments preserve sign-in requirement",
+    "Saved runs preserve sign-in requirement",
+    "Results navigation and context tabs render",
+    "1024px navigation rail and workbench fit viewport",
+    "Tablet layout stacks panels without viewport overflow"
+  ],
+  "pageErrors": [],
+  "models": [
+    {
+      "url": "http://localhost:3002/models/base.glb",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:3002/models/j2.glb",
+      "status": 200
+    },
+    {
+      "url": "http://localhost:3002/models/j1.glb",
+      "status": 200
+    }
+  ],
+  "limitations": [
+    "GLTFLoader logs embedded texture warnings in Steel; model geometry and all three files render.",
+    "No motor commands or database writes were executed.",
+    "The live results database was unavailable in this environment; results navigation and its offline/error state were exercised.",
+    "Authenticated experiment execution and OAuth completion were not exercised."
+  ]
+}

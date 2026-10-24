@@ -364,10 +364,10 @@ function Grid3D({ colors, isLight }: { colors: any; isLight: boolean }) {
 
       {/* Axis titles */}
       <Html position={[180 * MM, 0, 12 * MM]} center pointerEvents="none" zIndexRange={[0, 10]}>
-        <div className="text-[11px] font-semibold text-hmi-text-secondary select-none tracking-wide">X (mm)</div>
+        <div className="text-[11px] font-semibold text-hmi-text-secondary select-none">X (mm)</div>
       </Html>
       <Html position={[-38 * MM, 0, -180 * MM]} center style={{ transform: 'rotate(-90deg)' }} pointerEvents="none" zIndexRange={[0, 10]}>
-        <div className="text-[11px] font-semibold text-hmi-text-secondary select-none tracking-wide">Y (mm)</div>
+        <div className="text-[11px] font-semibold text-hmi-text-secondary select-none">Y (mm)</div>
       </Html>
     </group>
   )
