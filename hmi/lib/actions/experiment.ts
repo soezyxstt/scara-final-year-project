@@ -1,59 +1,22 @@
 'use server'
 
+import { readableExperimentIds, requireExperimentOwner } from '../experiment-access'
 import { auth } from '../auth'
+import { getDemoExperimentData, getDemoExperimentRunDetails } from '../demo-data'
 import { db } from '../db'
-import { experimentRuns, experimentMetrics, experimentSamples } from '../db/schema/experiment'
-import { backupRun, backupMetrics, backupSamples } from '../db/backup'
+import { experimentRuns, experimentMetrics, experimentSamples, experimentOwners } from '../db/schema/experiment'
+import { saveRun as saveCapturedExperimentRun } from '@/app/actions/experiment'
 import { SHARED_BASELINE_ID, usesSharedBaseline } from '../experiment-protocol'
-
-async function requireExperimentSession() {
-  const session = await auth()
-  if (!session?.user?.googleId) throw new Error('Unauthorized')
-}
 
 export async function saveExperimentRun(payload: {
   run: typeof experimentRuns.$inferInsert
   metrics: Omit<typeof experimentMetrics.$inferInsert, 'id' | 'runId'>
   samples: Omit<typeof experimentSamples.$inferInsert, 'id' | 'runId'>[]
 }) {
-  try {
-    await requireExperimentSession()
-    const runId = payload.run.id
-
-    // 1. Insert experiment run row
-    await db.insert(experimentRuns).values(payload.run)
-
-    // 2. Insert experiment metrics row
-    const metricId = `MET-${runId}`
-    const metricsInsert = {
-      ...payload.metrics,
-      id: metricId,
-      runId,
-    }
-    await db.insert(experimentMetrics).values(metricsInsert)
-
-    // 3. Insert samples in chunks to avoid SQLite parameter limits
-    const samplesWithRunId = payload.samples.map(s => ({
-      ...s,
-      runId,
-    }))
-
-    const CHUNK_SIZE = 25
-    for (let i = 0; i < samplesWithRunId.length; i += CHUNK_SIZE) {
-      const chunk = samplesWithRunId.slice(i, i + CHUNK_SIZE)
-      await db.insert(experimentSamples).values(chunk)
-    }
-
-    // 4. Run local backups (non-blocking fire-and-forget handled inside backup.ts functions)
-    backupRun(payload.run)
-    backupMetrics(metricsInsert)
-    backupSamples(runId, samplesWithRunId)
-
-    return { success: true, runId }
-  } catch (error) {
-    console.error('Failed to save experiment run to database:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-  }
+  const result = await saveCapturedExperimentRun(payload.run, payload.metrics, payload.samples)
+  return result.ok
+    ? { success: true, runId: result.runId }
+    : { success: false, error: result.error ?? 'Failed to save experiment run' }
 }
 
 import { and, eq, like, inArray, or } from 'drizzle-orm'
@@ -63,7 +26,7 @@ export async function markExperimentRunsAsBaseline(runIds: string[]): Promise<{ 
   if (uniqueIds.length === 0) return { ok: false, updatedCount: 0, error: 'Pilih minimal satu run.' }
 
   try {
-    await requireExperimentSession()
+    for (const id of uniqueIds) await requireExperimentOwner(id)
     const selectedRuns = await db
       .select()
       .from(experimentRuns)
@@ -102,7 +65,7 @@ export async function markExperimentRunsAsBaseline(runIds: string[]): Promise<{ 
  */
 export async function deleteExperimentRun(runId: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    await requireExperimentSession()
+    await requireExperimentOwner(runId)
     // 1. Delete samples first (FK dependency)
     await db.delete(experimentSamples).where(eq(experimentSamples.runId, runId))
     // 2. Delete metrics
@@ -122,19 +85,22 @@ export async function deleteExperimentRun(runId: string): Promise<{ ok: boolean;
  */
 export async function deleteExperiment(experimentId: string): Promise<{ ok: boolean; deletedCount: number; error?: string }> {
   try {
-    await requireExperimentSession()
+    const user = await requireExperimentOwner()
+    const owned = await db.select().from(experimentOwners).where(eq(experimentOwners.userId, user.id))
+    const ownedIds = owned.map(row => row.runId)
+    if (!ownedIds.length) return { ok: true, deletedCount: 0 }
     // Find all matching run IDs
     let runsList
     if (experimentId === 'EXP-4') {
       runsList = await db
         .select({ id: experimentRuns.id })
         .from(experimentRuns)
-        .where(like(experimentRuns.experimentId, `${experimentId}%`))
+        .where(and(like(experimentRuns.experimentId, `${experimentId}%`), inArray(experimentRuns.id, ownedIds)))
     } else {
       runsList = await db
         .select({ id: experimentRuns.id })
         .from(experimentRuns)
-        .where(eq(experimentRuns.experimentId, experimentId))
+        .where(and(eq(experimentRuns.experimentId, experimentId), inArray(experimentRuns.id, ownedIds)))
     }
 
     if (runsList.length === 0) return { ok: true, deletedCount: 0 }
@@ -155,7 +121,10 @@ export async function deleteExperiment(experimentId: string): Promise<{ ok: bool
 
 export async function getExperimentRunDetails(runId: string) {
   try {
-    await requireExperimentSession()
+    const session = await auth()
+    if (!session?.user?.googleId) return await getDemoExperimentRunDetails(runId)
+    const allowed = await readableExperimentIds()
+    if (!allowed.includes(runId)) return null
     const run = await db.select().from(experimentRuns).where(eq(experimentRuns.id, runId)).limit(1)
     const metrics = await db.select().from(experimentMetrics).where(eq(experimentMetrics.runId, runId)).limit(1)
     
@@ -175,7 +144,10 @@ export async function getExperimentRunDetails(runId: string) {
 
 export async function getExperimentData(experimentId: string) {
   try {
-    await requireExperimentSession()
+    const session = await auth()
+    if (!session?.user?.googleId) return await getDemoExperimentData(experimentId)
+    const allowed = await readableExperimentIds()
+    if (!allowed.length) return { runs: [], metrics: [], samples: [] }
     let runsList
     if (experimentId === 'EXP-4') {
       runsList = await db
@@ -184,6 +156,7 @@ export async function getExperimentData(experimentId: string) {
         .where(and(
           or(like(experimentRuns.experimentId, `${experimentId}%`), eq(experimentRuns.experimentId, SHARED_BASELINE_ID)),
           eq(experimentRuns.status, 'ok'),
+          inArray(experimentRuns.id, allowed),
         ))
         .orderBy(experimentRuns.createdAt)
     } else if (usesSharedBaseline(experimentId)) {
@@ -193,13 +166,14 @@ export async function getExperimentData(experimentId: string) {
         .where(and(
           or(eq(experimentRuns.experimentId, experimentId), eq(experimentRuns.experimentId, SHARED_BASELINE_ID)),
           eq(experimentRuns.status, 'ok'),
+          inArray(experimentRuns.id, allowed),
         ))
         .orderBy(experimentRuns.createdAt)
     } else {
       runsList = await db
         .select()
         .from(experimentRuns)
-        .where(and(eq(experimentRuns.experimentId, experimentId), eq(experimentRuns.status, 'ok')))
+        .where(and(eq(experimentRuns.experimentId, experimentId), eq(experimentRuns.status, 'ok'), inArray(experimentRuns.id, allowed)))
         .orderBy(experimentRuns.createdAt)
     }
 

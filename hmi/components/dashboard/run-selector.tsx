@@ -16,6 +16,7 @@ export const RUN_COLORS = [
 ]
 
 interface Props {
+  readOnly?: boolean
   runs: Run[]
   selectedIds: string[]
   onSelectionChange: (ids: string[]) => void
@@ -23,7 +24,7 @@ interface Props {
   onReplay?: (id: string) => void
 }
 
-export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted, onReplay }: Props) {
+export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted, onReplay, readOnly = false }: Props) {
   const t = useTranslations('SavedRuns')
   const tFeedback = useTranslations('DashboardRunSelector')
   const locale = useLocale()
@@ -122,7 +123,7 @@ export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted
                       {run.name}
                     </span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-hmi-muted">
-                      <time dateTime={startedAt.toISOString()}>{dateText}</time>
+                      {readOnly ? <span>{t('thesisRecording')}</span> : <time dateTime={startedAt.toISOString()}>{dateText}</time>}
                       {durationText && <span>{durationText}</span>}
                     </span>
                   </span>
@@ -141,7 +142,7 @@ export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted
                       {t('replay')}
                     </Button>
                   )}
-                  <Button
+                  {!readOnly && <Button
                     type="button"
                     size="icon"
                     variant="ghost"
@@ -153,7 +154,7 @@ export function RunSelector({ runs, selectedIds, onSelectionChange, onRunDeleted
                   >
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                     <span className="sr-only">{deletingId === run.id ? t('loading') : t('delete')}</span>
-                  </Button>
+                  </Button>}
                 </div>
               </li>
             )

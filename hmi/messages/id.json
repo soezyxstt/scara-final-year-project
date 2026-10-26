@@ -244,7 +244,8 @@
     "clearSelection": "Hapus pilihan",
     "selectedCount": "{count} dipilih",
     "filter": "Filter",
-    "selectRun": "Pilih run"
+    "selectRun": "Pilih run",
+    "thesisRecording": "Rekaman tugas akhir"
   },
   "Login": {
     "title": "SCARA HMI",
@@ -1202,5 +1203,11 @@
     "pwmControlSignal": "Sinyal Kontrol PWM (−255 … +255)",
     "controlEffortTitle": "Total Upaya Kontrol J1 u₁ & VFF₁",
     "selectRunsMessage": "Pilih satu atau lebih run dari sidebar."
+  },
+  "Demo": {
+    "notice": "Data demo · Rekaman pengujian tugas akhir · Hanya-baca",
+    "signIn": "Masuk untuk melihat data akun",
+    "provenance": "Metrik dihitung ulang dari ekspor laporan. Beberapa kanal, gain PID, dan tanggal asli tidak tersedia.",
+    "browse": "Jelajahi run"
   }
 }

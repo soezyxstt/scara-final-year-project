@@ -1,5 +1,10 @@
 import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
 
+export const experimentOwners = sqliteTable('experiment_run_owners', {
+  runId: text('run_id').primaryKey(),
+  userId: text('user_id').notNull(),
+})
+
 export function generateNanoid(size = 21): string {
   const alphabet = 'useand-1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
   const bytes = new Uint8Array(size)

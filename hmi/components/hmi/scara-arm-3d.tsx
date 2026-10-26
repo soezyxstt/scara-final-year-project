@@ -13,6 +13,9 @@ const L_INNER = 70.7  // mm - inner dead zone radius
 const L_OUTER = 170   // mm - outer boundary radius
 const BASE_YAW_OFFSET_RAD = Math.PI / 2 // 90 degrees counter-clockwise in robot XY
 
+// Keep model decoding available without a third-party CDN at exhibitions.
+useGLTF.setDecoderPath('/draco/')
+
 /**
  * Robot space (X, Y horizontal, Z up) -> three.js scene space (X, Z horizontal, Y up).
  * Robot +X maps to scene +X; Y(robot)->-Z(scene) mirroring ensures positive robot

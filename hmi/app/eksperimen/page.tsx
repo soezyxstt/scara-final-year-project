@@ -1,10 +1,10 @@
 import { auth } from '@/lib/auth'
-import { redirect } from 'next/navigation'
 import { ExperimentClient } from './experiment-client'
+import HasilEksperimenPage from '../hasil-eksperimen/page'
 
 export default async function EksperimenPage() {
   const session = await auth()
-  if (!session?.user?.googleId) redirect('/login?callbackUrl=/eksperimen')
+  if (!session?.user?.googleId) return <HasilEksperimenPage />
 
   return <ExperimentClient />
 }

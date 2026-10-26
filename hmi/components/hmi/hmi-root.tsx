@@ -8,8 +8,11 @@ import { AnalysisTab } from './analysis-tab'
 import { ZNAnalysisTab } from './zn-analysis-tab'
 import { HMITutorial } from './hmi-tutorial'
 import { cn } from '@/lib/utils'
+import { useHMISlow } from '@/lib/hmi-context'
+import { DemoNotice } from './demo-notice'
 
 function HMIContent() {
+  const { state } = useHMISlow()
   const search = useSearchParams()
   const router = useRouter()
   const requested = search.get('tab') ?? 'monitor'
@@ -26,6 +29,8 @@ function HMIContent() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
+      {state.archiveRun?.isDemo && <DemoNotice />}
+      {state.archiveRun && <div className="shrink-0 border-b border-hmi-grid px-4 py-1 text-xs text-hmi-muted">{state.archiveRun.name}</div>}
       <div className={cn('flex flex-col flex-1 min-h-0', tab !== 'monitor' && 'hidden')}><MonitorTab /></div>
       {tab === 'analysis' && <div className="flex-1 min-h-0 overflow-y-auto"><AnalysisTab /></div>}
       {tab === 'rest' && <div className="flex-1 min-h-0 overflow-y-auto"><ZNAnalysisTab isActive /></div>}

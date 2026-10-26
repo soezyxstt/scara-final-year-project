@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { DemoNotice } from '@/components/hmi/demo-notice'
 import { signOut } from 'next-auth/react'
 import { registerSavedRunCaptureSource } from '@/lib/capture-session'
 import { useTranslations } from 'next-intl'
@@ -23,9 +24,9 @@ import type { Run, Sample, TrajectoryPoint } from '@/lib/db/schema'
 type TabId = 'trajectory' | 'velocity' | 'pid' | 'feedforward' | 'metrics' | 'advanced' | 'groupCompare'
 const TABS: TabId[] = ['trajectory', 'velocity', 'pid', 'feedforward', 'metrics', 'advanced', 'groupCompare']
 interface LoadedRun { run: Run; samples: Sample[]; trajectoryPoints: TrajectoryPoint[] }
-interface Props { initialRuns: Run[]; userName: string; userEmail: string }
+interface Props { initialRuns: Run[]; userName: string; userEmail: string; isDemo?: boolean }
 
-export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
+export function DashboardContent({ initialRuns, userName, userEmail, isDemo = false }: Props) {
   const t = useTranslations('Dashboard')
   const saved = useTranslations('SavedRuns')
   const [runs, setRuns] = useState(initialRuns)
@@ -93,11 +94,12 @@ export function DashboardContent({ initialRuns, userName, userEmail }: Props) {
   useEffect(() => registerSavedRunCaptureSource(activeData), [activeData])
   const primaryLoading = !!selectedIds[0] && !loaded[selectedIds[0]] && !errors.includes(selectedIds[0])
   const isLoading = selectedIds.some(id => loadingIds.has(id))
-  const library = <RunSelector runs={runs} selectedIds={selectedIds} onSelectionChange={ids => { setSelectedIds(ids); setReplayRequest(null) }} onRunDeleted={handleDeleted} onReplay={replay} />
-  const account = <div className="saved-runs-account"><span className="truncate" title={userEmail}>{userName}</span><Button size="icon" variant="ghost" aria-label={saved('signOut')} title={saved('signOut')} onClick={() => signOut({ callbackUrl: '/login' })} className="size-8 shrink-0"><LogOut size={15} /></Button></div>
+  const library = <RunSelector readOnly={isDemo} runs={runs} selectedIds={selectedIds} onSelectionChange={ids => { setSelectedIds(ids); setReplayRequest(null) }} onRunDeleted={handleDeleted} onReplay={replay} />
+  const account = isDemo ? null : <div className="saved-runs-account"><span className="truncate" title={userEmail}>{userName}</span><Button size="icon" variant="ghost" aria-label={saved('signOut')} title={saved('signOut')} onClick={() => signOut({ callbackUrl: '/login' })} className="size-8 shrink-0"><LogOut size={15} /></Button></div>
 
   return (
     <div className="saved-runs-page" data-export-group="saved-runs">
+      {isDemo && <DemoNotice />}
       <div className="saved-runs-viewbar">
         <ConsoleTabs label="Run views" value={tab} items={TABS.map(id => ({ value: id, label: t(id) }))} onChange={value => { setTab(value as TabId); if (value !== 'trajectory') setReplayRequest(null) }} />
         <Button variant="outline" size="sm" onClick={() => setLibraryOpen(true)} className="saved-runs-open-library"><FolderClock size={15} />{saved('count', { count: runs.length })}</Button>

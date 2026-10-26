@@ -23,6 +23,29 @@ The app communicates directly with an ESP32 over Web Serial at 921600 baud.
 
 All main pages share one `HMIProvider` serial session.
 
+## Public exhibition demo
+
+Guests can open `/`, `/dashboard`, `/eksperimen`, and `/hasil-eksperimen`
+without signing in. The monitor automatically opens the first thesis recording;
+the saved-run library and results expose all five groups from the committed
+`data/experiments/*.csv` exports. Demo reads do not query the account database.
+The original CSV files are included in Next.js server output tracing.
+
+The public dataset is explicitly listed in `lib/demo-run-ids.json`. New database
+runs never become public automatically. Demo data has no account identifiers or
+AI conversations. Metrics are recomputed from exported samples; missing dates,
+PID gains, velocities and diagnostic channels stay unavailable. Gravity exports
+without timestamps are trajectory snapshots rather than timed telemetry.
+
+Signed-in users see their own saved runs and experiments. New experiment runs
+are assigned to their account in an ownership table created automatically on
+authenticated access. For historical experiments that predate ownership, set
+`EXPERIMENT_LEGACY_OWNER_EMAIL` to the original owner's Google account email.
+On that account's next authenticated access, unassigned historical experiments
+are attached to it without overwriting existing ownership. Leave the setting
+empty if there are no historical rows to assign. Guest write requests remain
+unauthorized; connecting a robot clears the archived monitor recording.
+
 ## Main capabilities
 
 - 3D SCARA workspace and trajectory view

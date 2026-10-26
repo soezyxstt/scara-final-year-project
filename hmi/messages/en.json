@@ -244,7 +244,8 @@
     "clearSelection": "Clear selection",
     "selectedCount": "{count} selected",
     "filter": "Filter",
-    "selectRun": "Select run"
+    "selectRun": "Select run",
+    "thesisRecording": "Thesis recording"
   },
   "Login": {
     "title": "SCARA HMI",
@@ -1202,5 +1203,11 @@
     "pwmControlSignal": "PWM Control Signal (−255 … +255)",
     "controlEffortTitle": "J1 Total Control Effort u₁ & VFF₁",
     "selectRunsMessage": "Select one or more runs from the sidebar."
+  },
+  "Demo": {
+    "notice": "Demo data · Recorded thesis experiments · Read only",
+    "signIn": "Sign in to view your account data",
+    "provenance": "Metrics are recomputed from the thesis export. Some channels, PID gains and original dates are unavailable.",
+    "browse": "Explore runs"
   }
 }

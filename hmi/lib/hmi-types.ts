@@ -139,6 +139,7 @@ export interface Stats {
 export type ESPMode = 'IDLE' | 'SCARA' | 'ZN' | 'TEST'
 
 export interface HMIState {
+  archiveRun?: { id: string; name: string; isDemo: boolean } | null
   serialStatus: SerialStatus
   portName: string | null
   online: boolean
@@ -176,6 +177,8 @@ export interface HMIState {
 }
 
 export type HMIAction =
+  | { type: 'LOAD_ARCHIVE'; data: { run: import('./db/schema').Run; samples: import('./db/schema').Sample[]; trajectoryPoints: import('./db/schema').TrajectoryPoint[] }; isDemo: boolean }
+  | { type: 'CLEAR_ARCHIVE' }
   | { type: 'SERIAL_STATUS'; status: SerialStatus; portName?: string }
   | { type: 'ONLINE_STATUS'; online: boolean }
   | { type: 'MODE_CHANGE'; payload: ESPMode }

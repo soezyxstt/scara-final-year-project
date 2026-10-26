@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from 'react'
 import { usePathname } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import type {
   DSample,
@@ -281,9 +282,45 @@ const initialState: HMIState = buildInitialState()
 
 function reducer(state: HMIState, action: HMIAction): HMIState {
   switch (action.type) {
+    case 'LOAD_ARCHIVE': {
+      if (state.serialStatus !== 'disconnected') return state
+      const { run, samples, trajectoryPoints } = action.data
+      const numberOrGap = (value: number | null) => value ?? Number.NaN
+      const frozenD: DSample[] = samples.map((s, idx) => ({
+        t: s.t, idx, th1: numberOrGap(s.th1), th2: numberOrGap(s.th2),
+        th1d: numberOrGap(s.th1d), th2d: numberOrGap(s.th2d),
+        dth1: numberOrGap(s.dth1), dth2: numberOrGap(s.dth2),
+        dth1d: numberOrGap(s.dth1d), dth2d: numberOrGap(s.dth2d),
+        pwm1: numberOrGap(s.pwm1), th1raw: numberOrGap(s.th1Raw), th2raw: numberOrGap(s.th2Raw),
+        u1Total: numberOrGap(s.u1Total), e1: numberOrGap(s.e1), e2: numberOrGap(s.e2),
+      }))
+      const frozenT = trajectoryPoints.flatMap(p => p.xi == null || p.yi == null || p.xa == null || p.ya == null ? [] : [{ xi: p.xi, yi: p.yi, xa: p.xa, ya: p.ya }])
+      const frozenF: FSample[] = samples.filter(s => s.inertia1 != null).map(s => ({
+        t: s.t, inertia1: numberOrGap(s.inertia1), coriolis1: numberOrGap(s.coriolis1), gravity1: numberOrGap(s.gravity1),
+        inertia2: numberOrGap(s.inertia2), coriolis2: numberOrGap(s.coriolis2), gravity2: numberOrGap(s.gravity2),
+        ff1Contrib: numberOrGap(s.ff1Contrib), u1Total: numberOrGap(s.fU1Total), integral1: numberOrGap(s.integral1),
+        deltaOmegaFf: numberOrGap(s.deltaOmegaFf), omega2Raw: numberOrGap(s.omega2Raw), integral2: numberOrGap(s.integral2),
+      }))
+      const frozenE: ESample[] = samples.filter(s => s.p1Out != null).map(s => ({ t: s.t, p1_out: numberOrGap(s.p1Out), i1_out: numberOrGap(s.i1Out), d1_out: numberOrGap(s.d1Out), loop_duration_us: numberOrGap(s.loopDurationUs) }))
+      let gains: Gains | null = null
+      let params: AdvParams | null = null
+      try { gains = run.gainsJson ? JSON.parse(run.gainsJson) : null } catch { /* unavailable in archive */ }
+      try { params = run.paramsJson ? { ...defaultParams, ...JSON.parse(run.paramsJson) } : null } catch { /* unavailable in archive */ }
+      return {
+        ...state, archiveRun: { id: run.id, name: run.name, isDemo: action.isDemo },
+        dBuffer: [], tBuffer: [], fBuffer: [], eBuffer: [], prevTBuffer: [],
+        frozenD, frozenT, frozenF, frozenE, gains, params,
+        stats: computeStats(frozenT, frozenD), recordingState: 'IDLE',
+        hasSyncedParams: false, pendingSave: null, lastSavedRunId: action.isDemo ? null : run.id,
+        currentMove: run.x0 == null || run.y0 == null || run.xf == null || run.yf == null ? null : { x0: run.x0, y0: run.y0, xf: run.xf, yf: run.yf },
+      }
+    }
+    case 'CLEAR_ARCHIVE':
+      return { ...state, archiveRun: null, dBuffer: [], tBuffer: [], fBuffer: [], eBuffer: [], frozenD: [], frozenT: [], frozenF: [], frozenE: [], prevTBuffer: [], stats: null, gains: null, params: defaultParams, currentMove: null, lastSavedRunId: null, pendingSave: null }
     case 'SERIAL_STATUS':
       return {
         ...state,
+        ...(state.archiveRun && action.status !== 'disconnected' ? { archiveRun: null, frozenD: [], frozenT: [], frozenF: [], frozenE: [], stats: null, currentMove: null, gains: null, params: defaultParams, pendingSave: null, lastSavedRunId: null } : {}),
         serialStatus: action.status,
         portName: action.portName ?? state.portName,
         currentMode: action.status !== 'connected' ? null : state.currentMode,
@@ -447,6 +484,7 @@ function reducer(state: HMIState, action: HMIAction): HMIState {
       clearPersistedState()
       return {
         ...state,
+        archiveRun: null,
         dBuffer: [],
         tBuffer: [],
         fBuffer: [],
@@ -1282,6 +1320,32 @@ function useSerial(
 
 export function HMIProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, buildInitialState)
+  const { data: session, status: sessionStatus } = useSession()
+  const accountKey = sessionStatus === 'loading' ? null : session?.user?.googleId ?? 'demo'
+  const loadedAccount = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!accountKey || state.serialStatus !== 'disconnected' || loadedAccount.current === accountKey) return
+    const controller = new AbortController()
+    dispatch({ type: 'CLEAR_ARCHIVE' })
+    void (async () => {
+      try {
+        const response = await fetch('/api/runs', { signal: controller.signal, cache: 'no-store' })
+        if (!response.ok) throw new Error('Run list request failed')
+        const runs: { id: string }[] = await response.json()
+        if (runs[0]) {
+          const detail = await fetch(`/api/runs/${encodeURIComponent(runs[0].id)}`, { signal: controller.signal, cache: 'no-store' })
+          if (!detail.ok) throw new Error('Run request failed')
+          const data = await detail.json()
+          if (!controller.signal.aborted) dispatch({ type: 'LOAD_ARCHIVE', data, isDemo: accountKey === 'demo' })
+        }
+        if (!controller.signal.aborted) loadedAccount.current = accountKey
+      } catch (error) {
+        if (!controller.signal.aborted) console.error('Failed to load default recording:', error)
+      }
+    })()
+    return () => controller.abort()
+  }, [accountKey, state.serialStatus])
 
   // Owned at provider level so the canvas context can access them directly,
   // bypassing the 100ms React flush cycle for real-time rendering.
@@ -1332,7 +1396,7 @@ export function HMIProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Only save state when not actively recording to prevent UI lag from synchronous localStorage writes.
     // The final telemetry buffers are automatically persisted once the run completes and recordingState becomes 'IDLE'.
-    if (state.recordingState !== 'REC') {
+    if (state.recordingState !== 'REC' && !state.archiveRun) {
       saveState(state)
     }
   }, [
@@ -1353,6 +1417,7 @@ export function HMIProvider({ children }: { children: ReactNode }) {
     state.recordingState,
     state.currentMove,
     state.showGhost,
+    state.archiveRun,
   ])
 
   // ── Auto-connect to the previously used port on startup ─────────────────
@@ -1440,6 +1505,7 @@ export function HMIProvider({ children }: { children: ReactNode }) {
     return rest
   }, [
     state.serialStatus, state.portName, state.online, state.currentMode,
+    state.archiveRun,
     state.recordingState, state.moveCount, state.currentMove,
     state.frozenD, state.frozenT, state.frozenF, state.frozenE,
     state.prevTBuffer, state.showGhost, state.stats,

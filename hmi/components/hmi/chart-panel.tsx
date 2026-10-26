@@ -322,6 +322,7 @@ export function MetricsPanel() {
   const frozenT = state.frozenT
 
   const formatFloat = (val: number, decimals: number = 3) => {
+    if (!Number.isFinite(val)) return '—'
     return val.toLocaleString(locale === 'id' ? 'id-ID' : 'en-US', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals
@@ -367,7 +368,7 @@ export function MetricsPanel() {
   const dash = <span className="text-slate-600">-</span>
 
   const fmt = (v: number | undefined, digits = 2, unit?: string) =>
-    v !== undefined
+    v !== undefined && Number.isFinite(v)
       ? <>{formatFloat(v, digits)}{unit && <span className="text-[10px] font-sans font-normal text-slate-500"> {unit}</span>}</>
       : dash
 

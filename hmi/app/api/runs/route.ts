@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { listRuns, saveRun, getUserByGoogleId } from '@/lib/db/queries'
 import type { NewSample, NewTrajectoryPoint } from '@/lib/db/schema'
+import { listDemoRuns } from '@/lib/demo-data'
 
 export async function GET() {
   const session = await auth()
   if (!session?.user?.googleId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json(await listDemoRuns())
   }
   const user = await getUserByGoogleId(session.user.googleId)
   if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })

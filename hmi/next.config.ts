@@ -7,6 +7,10 @@ const withNextIntl = createNextIntlPlugin();
 const nextConfig: NextConfig = {
   /* config options here */
   devIndicators: false,
+  outputFileTracingRoot: path.resolve(__dirname, ".."),
+  outputFileTracingIncludes: {
+    "/*": ["../data/experiments/*.csv"],
+  },
   turbopack: {
     root: path.resolve(__dirname, ".."),
   },

@@ -5,6 +5,8 @@ import { db } from '../../lib/db'
 import { experimentRuns, experimentMetrics, experimentSamples } from '../../lib/db/schema/experiment'
 import { backupRun, backupMetrics, backupSamples } from '../../lib/db/backup'
 
+import { claimExperimentRun, requireExperimentOwner } from '@/lib/experiment-access'
+
 export type ExperimentRunInsert = typeof experimentRuns.$inferInsert
 export type MetricsInsert = Omit<typeof experimentMetrics.$inferInsert, 'id' | 'runId'>
 export type SampleInsert = Omit<typeof experimentSamples.$inferInsert, 'id' | 'runId'>
@@ -17,6 +19,7 @@ export async function saveRun(
 ): Promise<{ ok: boolean; runId: string; sampleCount: number; error?: string }> {
   const runId = run.id
   try {
+    const user = await requireExperimentOwner(runId, true)
     const metricId = `MET-${runId}`
     const metricsInsert = {
       ...metrics,
@@ -31,6 +34,7 @@ export async function saveRun(
       // deleted and reinserted three tables outside a transaction, so a network
       // interruption could leave a run without metrics or with partial samples.
       await db.transaction(async tx => {
+        await claimExperimentRun(tx, runId, user.id)
         await tx.delete(experimentSamples).where(eq(experimentSamples.runId, runId))
         await tx.delete(experimentMetrics).where(eq(experimentMetrics.runId, runId))
         await tx.delete(experimentRuns).where(eq(experimentRuns.id, runId))

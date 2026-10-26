@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { getRunWithData, updateRunAiSuggestion } from '@/lib/db/queries'
+import { getRunWithData, getUserByGoogleId, updateRunAiSuggestion } from '@/lib/db/queries'
 import { generateContentStreamWithFallback } from '@/lib/ai-client'
 import { fetchKVValue, writeKVValue } from '@/lib/cloudflare-services'
 
@@ -24,6 +24,8 @@ export async function POST(
   if (!session?.user?.googleId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const user = await getUserByGoogleId(session.user.googleId)
+  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   const { id: runId } = await params
   const { mode } = await req.json() // explain | diagnose | recommend
@@ -34,7 +36,7 @@ export async function POST(
 
   // 1. Fetch current run and telemetry samples from local DB (Turso/SQLite)
   const runData = await getRunWithData(runId)
-  if (!runData) {
+  if (!runData || runData.run.userId !== user.id) {
     return NextResponse.json({ error: 'Run not found' }, { status: 404 })
   }
 
