@@ -39,12 +39,11 @@ without timestamps are trajectory snapshots rather than timed telemetry.
 
 Signed-in users see their own saved runs and experiments. New experiment runs
 are assigned to their account in an ownership table created automatically on
-authenticated access. For historical experiments that predate ownership, set
-`EXPERIMENT_LEGACY_OWNER_EMAIL` to the original owner's Google account email.
-On that account's next authenticated access, unassigned historical experiments
-are attached to it without overwriting existing ownership. Leave the setting
-empty if there are no historical rows to assign. Guest write requests remain
-unauthorized; connecting a robot clears the archived monitor recording.
+authenticated access. No feature flag or owner-email configuration is needed.
+Historical thesis recordings remain available through the public demo;
+unassigned database experiments are never automatically claimed by a visitor's
+account. Guest write requests remain unauthorized; connecting a robot clears
+the archived monitor recording.
 
 ## Main capabilities
 

@@ -13,11 +13,6 @@ export async function experimentUser() {
   const user = await getUserByGoogleId(session.user.googleId)
   if (!user) throw new Error('User not found')
   await db.run(sql`CREATE TABLE IF NOT EXISTS experiment_run_owners (run_id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL)`)
-  // Optional, explicit assignment for legacy rows that predate account ownership.
-  const legacyOwner = process.env.EXPERIMENT_LEGACY_OWNER_EMAIL?.trim().toLowerCase()
-  if (legacyOwner && user.email.toLowerCase() === legacyOwner) {
-    await db.run(sql`INSERT OR IGNORE INTO experiment_run_owners (run_id, user_id) SELECT id, ${user.id} FROM experiment_runs`)
-  }
   return user
 }
 
